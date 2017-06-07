@@ -1,10 +1,9 @@
 package main
 
 import (
+	"github.com/emicklei/go-restful"
 	"log"
 	"net/http"
-
-	"github.com/emicklei/go-restful"
 )
 
 // This example has the same service definition as restful-user-resource

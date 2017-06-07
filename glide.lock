@@ -1,5 +1,5 @@
 hash: c00ec7b8d24175601cc29e72d1c82d637182a6a80f3e1e1d925c8fbd630fff93
-updated: 2017-06-07T15:37:26.877311437+05:30
+updated: 2017-06-07T15:14:12.064263587+02:00
 imports:
 - name: github.com/davecgh/go-spew
   version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
@@ -37,7 +37,7 @@ imports:
 - name: github.com/google/gofuzz
   version: bbcb9da2d746f8bdbd6a936686a0a6067ada0ec5
 - name: github.com/hashicorp/hcl
-  version: 392dba7d905ed5d04a5794ba89f558b27e2ba1ca
+  version: 630949a3c5fa3c613328e1b8256052cbc2327c9b
   subpackages:
   - hcl/ast
   - hcl/parser
@@ -58,15 +58,15 @@ imports:
   - jlexer
   - jwriter
 - name: github.com/mitchellh/mapstructure
-  version: d0303fe809921458f417bcf828397a65db30a7e4
+  version: 53818660ed4955e899c0bcafa97299a388bd7c8e
 - name: github.com/pborman/uuid
   version: ca53cad383cad2479bbba7f7a1a05797ec1386e4
 - name: github.com/pelletier/go-buffruneio
   version: c37440a7cf42ac63b919c752ca73a85067e05992
 - name: github.com/pelletier/go-toml
-  version: fe7536c3dee2596cdd23ee9976a17c22bdaae286
+  version: e32a2e04744250647a72bf17da1b09befc03b6b1
 - name: github.com/pkg/errors
-  version: c605e284fe17294bda444b34710735b29d1a9d90
+  version: ff09b135c25aae272398c51a07235b90a75aa4f0
 - name: github.com/PuerkitoBio/purell
   version: 8a290539e2e8629dbc4e6bad948158f790ec31f4
 - name: github.com/PuerkitoBio/urlesc
@@ -76,15 +76,15 @@ imports:
   subpackages:
   - mem
 - name: github.com/spf13/cast
-  version: acbeb36b902d72a7a4c18e8f3241075e7ab763e4
+  version: ce135a4ebeee6cfe9a26c93ee0d37825f26113c7
 - name: github.com/spf13/cobra
-  version: 7c674d9e72017ed25f6d2b5e497a1368086b6a6f
+  version: 7be4beda01ec05d0b93d80b3facd2b6f44080d94
 - name: github.com/spf13/jwalterweatherman
-  version: 0efa5202c04663c757d84f90f5219c1250baf94f
+  version: fa7ca7e836cf3a8bb4ebf799f472c12d7e903d66
 - name: github.com/spf13/pflag
-  version: 5ccb023bc27df288a957c5e994cd44fd19619465
+  version: d16db1e50e33dff1b6cdf37596cef36742128670
 - name: github.com/spf13/viper
-  version: 0967fc9aceab2ce9da34061253ac10fb99bba5b2
+  version: 84f94806c67f59dd7ae87bc5351f7a9c94a4558d
 - name: github.com/ugorji/go
   version: f1f1a805ed361a0e078bb537e4ea78cd37dcf065
   subpackages:
@@ -118,20 +118,25 @@ imports:
 - name: gopkg.in/inf.v0
   version: 3887ee99ecf07df5b447e9b00d9c0b2adaa9f3e4
 - name: gopkg.in/yaml.v2
-  version: a83829b6f1293c91addabc89d0571c246397bbf4
+  version: a3f3340b5840cee44f372bddb5880fcbc419b46a
 - name: k8s.io/client-go
   version: e121606b0d09b2e1c467183ee46217fa85a6b672
   subpackages:
   - pkg/api
+  - pkg/api/install
   - pkg/api/meta
   - pkg/api/meta/metatypes
   - pkg/api/resource
   - pkg/api/unversioned
   - pkg/api/v1
+  - pkg/apimachinery
+  - pkg/apimachinery/announced
+  - pkg/apimachinery/registered
   - pkg/apis
   - pkg/apis/autoscaling
   - pkg/apis/batch
   - pkg/apis/extensions
+  - pkg/apis/extensions/install
   - pkg/apis/extensions/v1beta1
   - pkg/auth/user
   - pkg/conversion

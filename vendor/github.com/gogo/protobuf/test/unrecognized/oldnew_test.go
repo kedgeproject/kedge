@@ -27,11 +27,10 @@
 package unrecognized
 
 import (
+	"github.com/gogo/protobuf/proto"
 	math_rand "math/rand"
 	"testing"
 	time "time"
-
-	"github.com/gogo/protobuf/proto"
 )
 
 func TestNewOld(t *testing.T) {

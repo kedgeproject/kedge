@@ -18,7 +18,6 @@ package v2alpha1
 
 import (
 	fmt "fmt"
-
 	api "k8s.io/client-go/pkg/api"
 	unversioned "k8s.io/client-go/pkg/api/unversioned"
 	registered "k8s.io/client-go/pkg/apimachinery/registered"

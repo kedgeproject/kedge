@@ -3,9 +3,8 @@ package context
 import (
 	"fmt"
 
-	"runtime"
-
 	"github.com/Sirupsen/logrus"
+	"runtime"
 )
 
 // Logger provides a leveled-logging interface.

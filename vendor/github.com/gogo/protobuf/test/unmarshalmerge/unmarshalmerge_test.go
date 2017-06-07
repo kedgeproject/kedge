@@ -1,11 +1,10 @@
 package unmarshalmerge
 
 import (
+	"github.com/gogo/protobuf/proto"
 	math_rand "math/rand"
 	"testing"
 	"time"
-
-	"github.com/gogo/protobuf/proto"
 )
 
 func TestUnmarshalMerge(t *testing.T) {

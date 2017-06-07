@@ -1,4 +1,4 @@
-package query
+package toml
 
 import (
 	"fmt"
@@ -7,19 +7,19 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/pelletier/go-toml"
 )
 
 type queryTestNode struct {
 	value    interface{}
-	position toml.Position
+	position Position
 }
 
 func valueString(root interface{}) string {
 	result := "" //fmt.Sprintf("%T:", root)
 	switch node := root.(type) {
-	case *Result:
+	case *tomlValue:
+		return valueString(node.value)
+	case *QueryResult:
 		items := []string{}
 		for i, v := range node.Values() {
 			items = append(items, fmt.Sprintf("%s:%s",
@@ -37,7 +37,7 @@ func valueString(root interface{}) string {
 		}
 		sort.Strings(items)
 		result = "[" + strings.Join(items, ", ") + "]"
-	case *toml.Tree:
+	case *TomlTree:
 		// workaround for unreliable map key ordering
 		items := []string{}
 		for _, k := range node.Keys() {
@@ -78,13 +78,13 @@ func assertValue(t *testing.T, result, ref interface{}) {
 	}
 }
 
-func assertQueryPositions(t *testing.T, tomlDoc string, query string, ref []interface{}) {
-	tree, err := toml.Load(tomlDoc)
+func assertQueryPositions(t *testing.T, toml, query string, ref []interface{}) {
+	tree, err := Load(toml)
 	if err != nil {
 		t.Errorf("Non-nil toml parse error: %v", err)
 		return
 	}
-	q, err := Compile(query)
+	q, err := CompileQuery(query)
 	if err != nil {
 		t.Error(err)
 		return
@@ -101,7 +101,7 @@ func TestQueryRoot(t *testing.T) {
 			queryTestNode{
 				map[string]interface{}{
 					"a": int64(42),
-				}, toml.Position{1, 1},
+				}, Position{1, 1},
 			},
 		})
 }
@@ -112,7 +112,7 @@ func TestQueryKey(t *testing.T) {
 		"$.foo.a",
 		[]interface{}{
 			queryTestNode{
-				int64(42), toml.Position{2, 1},
+				int64(42), Position{2, 1},
 			},
 		})
 }
@@ -123,7 +123,7 @@ func TestQueryKeyString(t *testing.T) {
 		"$.foo['a']",
 		[]interface{}{
 			queryTestNode{
-				int64(42), toml.Position{2, 1},
+				int64(42), Position{2, 1},
 			},
 		})
 }
@@ -134,7 +134,7 @@ func TestQueryIndex(t *testing.T) {
 		"$.foo.a[5]",
 		[]interface{}{
 			queryTestNode{
-				int64(6), toml.Position{2, 1},
+				int64(6), Position{2, 1},
 			},
 		})
 }
@@ -145,19 +145,19 @@ func TestQuerySliceRange(t *testing.T) {
 		"$.foo.a[0:5]",
 		[]interface{}{
 			queryTestNode{
-				int64(1), toml.Position{2, 1},
+				int64(1), Position{2, 1},
 			},
 			queryTestNode{
-				int64(2), toml.Position{2, 1},
+				int64(2), Position{2, 1},
 			},
 			queryTestNode{
-				int64(3), toml.Position{2, 1},
+				int64(3), Position{2, 1},
 			},
 			queryTestNode{
-				int64(4), toml.Position{2, 1},
+				int64(4), Position{2, 1},
 			},
 			queryTestNode{
-				int64(5), toml.Position{2, 1},
+				int64(5), Position{2, 1},
 			},
 		})
 }
@@ -168,13 +168,13 @@ func TestQuerySliceStep(t *testing.T) {
 		"$.foo.a[0:5:2]",
 		[]interface{}{
 			queryTestNode{
-				int64(1), toml.Position{2, 1},
+				int64(1), Position{2, 1},
 			},
 			queryTestNode{
-				int64(3), toml.Position{2, 1},
+				int64(3), Position{2, 1},
 			},
 			queryTestNode{
-				int64(5), toml.Position{2, 1},
+				int64(5), Position{2, 1},
 			},
 		})
 }
@@ -188,13 +188,13 @@ func TestQueryAny(t *testing.T) {
 				map[string]interface{}{
 					"a": int64(1),
 					"b": int64(2),
-				}, toml.Position{1, 1},
+				}, Position{1, 1},
 			},
 			queryTestNode{
 				map[string]interface{}{
 					"a": int64(3),
 					"b": int64(4),
-				}, toml.Position{4, 1},
+				}, Position{4, 1},
 			},
 		})
 }
@@ -207,19 +207,19 @@ func TestQueryUnionSimple(t *testing.T) {
 				map[string]interface{}{
 					"a": int64(1),
 					"b": int64(2),
-				}, toml.Position{1, 1},
+				}, Position{1, 1},
 			},
 			queryTestNode{
 				map[string]interface{}{
 					"a": int64(3),
 					"b": int64(4),
-				}, toml.Position{4, 1},
+				}, Position{4, 1},
 			},
 			queryTestNode{
 				map[string]interface{}{
 					"a": int64(5),
 					"b": int64(6),
-				}, toml.Position{7, 1},
+				}, Position{7, 1},
 			},
 		})
 }
@@ -249,7 +249,7 @@ func TestQueryRecursionAll(t *testing.T) {
 							"b": int64(6),
 						},
 					},
-				}, toml.Position{1, 1},
+				}, Position{1, 1},
 			},
 			queryTestNode{
 				map[string]interface{}{
@@ -257,19 +257,19 @@ func TestQueryRecursionAll(t *testing.T) {
 						"a": int64(1),
 						"b": int64(2),
 					},
-				}, toml.Position{1, 1},
+				}, Position{1, 1},
 			},
 			queryTestNode{
 				map[string]interface{}{
 					"a": int64(1),
 					"b": int64(2),
-				}, toml.Position{1, 1},
+				}, Position{1, 1},
 			},
 			queryTestNode{
-				int64(1), toml.Position{2, 1},
+				int64(1), Position{2, 1},
 			},
 			queryTestNode{
-				int64(2), toml.Position{3, 1},
+				int64(2), Position{3, 1},
 			},
 			queryTestNode{
 				map[string]interface{}{
@@ -277,19 +277,19 @@ func TestQueryRecursionAll(t *testing.T) {
 						"a": int64(3),
 						"b": int64(4),
 					},
-				}, toml.Position{4, 1},
+				}, Position{4, 1},
 			},
 			queryTestNode{
 				map[string]interface{}{
 					"a": int64(3),
 					"b": int64(4),
-				}, toml.Position{4, 1},
+				}, Position{4, 1},
 			},
 			queryTestNode{
-				int64(3), toml.Position{5, 1},
+				int64(3), Position{5, 1},
 			},
 			queryTestNode{
-				int64(4), toml.Position{6, 1},
+				int64(4), Position{6, 1},
 			},
 			queryTestNode{
 				map[string]interface{}{
@@ -297,19 +297,19 @@ func TestQueryRecursionAll(t *testing.T) {
 						"a": int64(5),
 						"b": int64(6),
 					},
-				}, toml.Position{7, 1},
+				}, Position{7, 1},
 			},
 			queryTestNode{
 				map[string]interface{}{
 					"a": int64(5),
 					"b": int64(6),
-				}, toml.Position{7, 1},
+				}, Position{7, 1},
 			},
 			queryTestNode{
-				int64(5), toml.Position{8, 1},
+				int64(5), Position{8, 1},
 			},
 			queryTestNode{
-				int64(6), toml.Position{9, 1},
+				int64(6), Position{9, 1},
 			},
 		})
 }
@@ -325,31 +325,31 @@ func TestQueryRecursionUnionSimple(t *testing.T) {
 						"a": int64(1),
 						"b": int64(2),
 					},
-				}, toml.Position{1, 1},
+				}, Position{1, 1},
 			},
 			queryTestNode{
 				map[string]interface{}{
 					"a": int64(3),
 					"b": int64(4),
-				}, toml.Position{4, 1},
+				}, Position{4, 1},
 			},
 			queryTestNode{
 				map[string]interface{}{
 					"a": int64(1),
 					"b": int64(2),
-				}, toml.Position{1, 1},
+				}, Position{1, 1},
 			},
 			queryTestNode{
 				map[string]interface{}{
 					"a": int64(5),
 					"b": int64(6),
-				}, toml.Position{7, 1},
+				}, Position{7, 1},
 			},
 		})
 }
 
 func TestQueryFilterFn(t *testing.T) {
-	buff, err := ioutil.ReadFile("../example.toml")
+	buff, err := ioutil.ReadFile("example.toml")
 	if err != nil {
 		t.Error(err)
 		return
@@ -359,16 +359,16 @@ func TestQueryFilterFn(t *testing.T) {
 		"$..[?(int)]",
 		[]interface{}{
 			queryTestNode{
-				int64(8001), toml.Position{13, 1},
+				int64(8001), Position{13, 1},
 			},
 			queryTestNode{
-				int64(8001), toml.Position{13, 1},
+				int64(8001), Position{13, 1},
 			},
 			queryTestNode{
-				int64(8002), toml.Position{13, 1},
+				int64(8002), Position{13, 1},
 			},
 			queryTestNode{
-				int64(5000), toml.Position{14, 1},
+				int64(5000), Position{14, 1},
 			},
 		})
 
@@ -376,32 +376,32 @@ func TestQueryFilterFn(t *testing.T) {
 		"$..[?(string)]",
 		[]interface{}{
 			queryTestNode{
-				"TOML Example", toml.Position{3, 1},
+				"TOML Example", Position{3, 1},
 			},
 			queryTestNode{
-				"Tom Preston-Werner", toml.Position{6, 1},
+				"Tom Preston-Werner", Position{6, 1},
 			},
 			queryTestNode{
-				"GitHub", toml.Position{7, 1},
+				"GitHub", Position{7, 1},
 			},
 			queryTestNode{
 				"GitHub Cofounder & CEO\nLikes tater tots and beer.",
-				toml.Position{8, 1},
+				Position{8, 1},
 			},
 			queryTestNode{
-				"192.168.1.1", toml.Position{12, 1},
+				"192.168.1.1", Position{12, 1},
 			},
 			queryTestNode{
-				"10.0.0.1", toml.Position{21, 3},
+				"10.0.0.1", Position{21, 3},
 			},
 			queryTestNode{
-				"eqdc10", toml.Position{22, 3},
+				"eqdc10", Position{22, 3},
 			},
 			queryTestNode{
-				"10.0.0.2", toml.Position{25, 3},
+				"10.0.0.2", Position{25, 3},
 			},
 			queryTestNode{
-				"eqdc10", toml.Position{26, 3},
+				"eqdc10", Position{26, 3},
 			},
 		})
 
@@ -421,7 +421,7 @@ func TestQueryFilterFn(t *testing.T) {
 					"organization": "GitHub",
 					"bio":          "GitHub Cofounder & CEO\nLikes tater tots and beer.",
 					"dob":          tv,
-				}, toml.Position{5, 1},
+				}, Position{5, 1},
 			},
 			queryTestNode{
 				map[string]interface{}{
@@ -429,7 +429,7 @@ func TestQueryFilterFn(t *testing.T) {
 					"ports":          []interface{}{int64(8001), int64(8001), int64(8002)},
 					"connection_max": int64(5000),
 					"enabled":        true,
-				}, toml.Position{11, 1},
+				}, Position{11, 1},
 			},
 			queryTestNode{
 				map[string]interface{}{
@@ -441,19 +441,19 @@ func TestQueryFilterFn(t *testing.T) {
 						"ip": "10.0.0.2",
 						"dc": "eqdc10",
 					},
-				}, toml.Position{17, 1},
+				}, Position{17, 1},
 			},
 			queryTestNode{
 				map[string]interface{}{
 					"ip": "10.0.0.1",
 					"dc": "eqdc10",
-				}, toml.Position{20, 3},
+				}, Position{20, 3},
 			},
 			queryTestNode{
 				map[string]interface{}{
 					"ip": "10.0.0.2",
 					"dc": "eqdc10",
-				}, toml.Position{24, 3},
+				}, Position{24, 3},
 			},
 			queryTestNode{
 				map[string]interface{}{
@@ -461,7 +461,7 @@ func TestQueryFilterFn(t *testing.T) {
 						[]interface{}{"gamma", "delta"},
 						[]interface{}{int64(1), int64(2)},
 					},
-				}, toml.Position{28, 1},
+				}, Position{28, 1},
 			},
 		})
 
@@ -469,7 +469,7 @@ func TestQueryFilterFn(t *testing.T) {
 		"$..[?(time)]",
 		[]interface{}{
 			queryTestNode{
-				tv, toml.Position{9, 1},
+				tv, Position{9, 1},
 			},
 		})
 
@@ -477,7 +477,7 @@ func TestQueryFilterFn(t *testing.T) {
 		"$..[?(bool)]",
 		[]interface{}{
 			queryTestNode{
-				true, toml.Position{15, 1},
+				true, Position{15, 1},
 			},
 		})
 }

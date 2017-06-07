@@ -24,14 +24,13 @@ package v1beta1
 import (
 	"errors"
 	"fmt"
-	"reflect"
-	"runtime"
-	time "time"
-
 	codec1978 "github.com/ugorji/go/codec"
 	pkg2_unversioned "k8s.io/client-go/pkg/api/unversioned"
 	pkg1_v1 "k8s.io/client-go/pkg/api/v1"
 	pkg3_types "k8s.io/client-go/pkg/types"
+	"reflect"
+	"runtime"
+	time "time"
 )
 
 const (

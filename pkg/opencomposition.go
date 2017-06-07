@@ -15,6 +15,10 @@ import (
 
 	api_v1 "k8s.io/client-go/pkg/api/v1"
 	ext_v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
+
+	// install api
+	_ "k8s.io/client-go/pkg/api/install"
+	_ "k8s.io/client-go/pkg/apis/extensions/install"
 )
 
 type App struct {

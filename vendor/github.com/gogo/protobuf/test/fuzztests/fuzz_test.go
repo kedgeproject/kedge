@@ -27,9 +27,8 @@
 package fuzztests
 
 import (
-	"testing"
-
 	"github.com/gogo/protobuf/proto"
+	"testing"
 )
 
 func TestFuzzUnrecognized(t *testing.T) {

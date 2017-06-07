@@ -1,8 +1,8 @@
 package tests
 
 import (
-	"fmt"
 	"testing"
+	"fmt"
 )
 
 func TestRequiredField(t *testing.T) {

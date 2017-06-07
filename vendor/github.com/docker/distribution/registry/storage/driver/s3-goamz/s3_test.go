@@ -11,6 +11,8 @@ import (
 	"github.com/docker/distribution/registry/storage/driver/testsuites"
 	"github.com/docker/goamz/aws"
 	"github.com/docker/goamz/s3"
+
+	"gopkg.in/check.v1"
 )
 
 // Hook up gocheck into the "go test" runner.

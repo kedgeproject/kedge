@@ -45,10 +45,9 @@ package embedcheck
 
 import (
 	"fmt"
-	"os"
-
 	"github.com/gogo/protobuf/gogoproto"
 	"github.com/gogo/protobuf/protoc-gen-gogo/generator"
+	"os"
 )
 
 type plugin struct {

@@ -5,7 +5,7 @@
   https://code.google.com/p/json-path/
 */
 
-package query
+package toml
 
 import (
 	"fmt"

@@ -21,14 +21,13 @@ limitations under the License.
 package v1beta1
 
 import (
-	unsafe "unsafe"
-
 	api "k8s.io/client-go/pkg/api"
 	unversioned "k8s.io/client-go/pkg/api/unversioned"
 	v1 "k8s.io/client-go/pkg/api/v1"
 	apps "k8s.io/client-go/pkg/apis/apps"
 	conversion "k8s.io/client-go/pkg/conversion"
 	runtime "k8s.io/client-go/pkg/runtime"
+	unsafe "unsafe"
 )
 
 func init() {

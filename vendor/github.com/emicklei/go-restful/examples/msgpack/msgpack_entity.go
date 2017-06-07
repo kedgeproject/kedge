@@ -1,6 +1,9 @@
 package restPack
 
-import restful "github.com/emicklei/go-restful"
+import (
+	restful "github.com/emicklei/go-restful"
+	"gopkg.in/vmihailenco/msgpack.v2"
+)
 
 const MIME_MSGPACK = "application/x-msgpack" // Accept or Content-Type used in Consumes() and/or Produces()
 

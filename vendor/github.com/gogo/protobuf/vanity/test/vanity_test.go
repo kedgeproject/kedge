@@ -29,11 +29,10 @@
 package test
 
 import (
-	"testing"
-
 	fast "github.com/gogo/protobuf/vanity/test/fast"
 	faster "github.com/gogo/protobuf/vanity/test/faster"
 	slick "github.com/gogo/protobuf/vanity/test/slick"
+	"testing"
 )
 
 func TestFast(t *testing.T) {

@@ -28,11 +28,10 @@ package issue42
 
 import (
 	"bytes"
+	"github.com/gogo/protobuf/proto"
 	math_rand "math/rand"
 	"testing"
 	time "time"
-
-	"github.com/gogo/protobuf/proto"
 )
 
 func TestIssue42Order(t *testing.T) {

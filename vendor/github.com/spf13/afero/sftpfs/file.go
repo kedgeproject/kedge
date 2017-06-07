@@ -14,9 +14,8 @@
 package sftpfs
 
 import (
-	"os"
-
 	"github.com/pkg/sftp"
+	"os"
 )
 
 type File struct {

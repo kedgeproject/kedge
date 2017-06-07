@@ -95,11 +95,10 @@ not print their values, while the generated GoString method will always print al
 package gostring
 
 import (
-	"strconv"
-	"strings"
-
 	"github.com/gogo/protobuf/gogoproto"
 	"github.com/gogo/protobuf/protoc-gen-gogo/generator"
+	"strconv"
+	"strings"
 )
 
 type gostring struct {

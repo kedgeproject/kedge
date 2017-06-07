@@ -1,14 +1,13 @@
 package main
 
 import (
+	"github.com/emicklei/go-restful"
 	"io"
 	"log"
 	"net/http"
 	"os"
 	"strings"
 	"time"
-
-	"github.com/emicklei/go-restful"
 )
 
 // This example shows how to create a filter that produces log lines

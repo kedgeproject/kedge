@@ -3,7 +3,6 @@ package toml
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"reflect"
 	"testing"
@@ -174,42 +173,6 @@ func TestDocUnmarshal(t *testing.T) {
 		resStr, _ := json.MarshalIndent(result, "", "  ")
 		expStr, _ := json.MarshalIndent(expected, "", "  ")
 		t.Errorf("Bad unmarshal: expected\n-----\n%s\n-----\ngot\n-----\n%s\n-----\n", expStr, resStr)
-	}
-}
-
-func ExampleUnmarshal() {
-	type Postgres struct {
-		User     string
-		Password string
-	}
-	type Config struct {
-		Postgres Postgres
-	}
-
-	doc := []byte(`
-	[postgres]
-	user = "pelletier"
-	password = "mypassword"`)
-
-	config := Config{}
-	Unmarshal(doc, &config)
-	fmt.Println("user=", config.Postgres.User)
-}
-
-func TestDocPartialUnmarshal(t *testing.T) {
-	result := testDocSubs{}
-
-	tree, _ := LoadFile("marshal_test.toml")
-	subTree := tree.Get("subdoc").(*Tree)
-	err := subTree.Unmarshal(&result)
-	expected := docData.Subdocs
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !reflect.DeepEqual(result, expected) {
-		resStr, _ := json.MarshalIndent(result, "", "  ")
-		expStr, _ := json.MarshalIndent(expected, "", "  ")
-		t.Errorf("Bad partial unmartial: expected\n-----\n%s\n-----\ngot\n-----\n%s\n-----\n", expStr, resStr)
 	}
 }
 
@@ -568,52 +531,5 @@ func TestNestedUnmarshal(t *testing.T) {
 	}
 	if !reflect.DeepEqual(result, expected) {
 		t.Errorf("Bad nested unmarshal: expected %v, got %v", expected, result)
-	}
-}
-
-type customMarshalerParent struct {
-	Self    customMarshaler   `toml:"me"`
-	Friends []customMarshaler `toml:"friends"`
-}
-
-type customMarshaler struct {
-	FirsName string
-	LastName string
-}
-
-func (c customMarshaler) MarshalTOML() ([]byte, error) {
-	fullName := fmt.Sprintf("%s %s", c.FirsName, c.LastName)
-	return []byte(fullName), nil
-}
-
-var customMarshalerData = customMarshaler{FirsName: "Sally", LastName: "Fields"}
-var customMarshalerToml = []byte(`Sally Fields`)
-var nestedCustomMarshalerData = customMarshalerParent{
-	Self:    customMarshaler{FirsName: "Maiku", LastName: "Suteda"},
-	Friends: []customMarshaler{customMarshalerData},
-}
-var nestedCustomMarshalerToml = []byte(`friends = ["Sally Fields"]
-me = "Maiku Suteda"
-`)
-
-func TestCustomMarshaler(t *testing.T) {
-	result, err := Marshal(customMarshalerData)
-	if err != nil {
-		t.Fatal(err)
-	}
-	expected := customMarshalerToml
-	if !bytes.Equal(result, expected) {
-		t.Errorf("Bad custom marshaler: expected\n-----\n%s\n-----\ngot\n-----\n%s\n-----\n", expected, result)
-	}
-}
-
-func TestNestedCustomMarshaler(t *testing.T) {
-	result, err := Marshal(nestedCustomMarshalerData)
-	if err != nil {
-		t.Fatal(err)
-	}
-	expected := nestedCustomMarshalerToml
-	if !bytes.Equal(result, expected) {
-		t.Errorf("Bad nested custom marshaler: expected\n-----\n%s\n-----\ngot\n-----\n%s\n-----\n", expected, result)
 	}
 }

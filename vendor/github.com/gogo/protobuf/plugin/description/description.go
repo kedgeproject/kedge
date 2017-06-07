@@ -77,7 +77,6 @@ import (
 	"bytes"
 	"compress/gzip"
 	"fmt"
-
 	"github.com/gogo/protobuf/gogoproto"
 	"github.com/gogo/protobuf/proto"
 	descriptor "github.com/gogo/protobuf/protoc-gen-gogo/descriptor"

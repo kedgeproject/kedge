@@ -1,11 +1,10 @@
 package main
 
 import (
+	"github.com/emicklei/go-restful"
 	"io"
 	"log"
 	"net/http"
-
-	"github.com/emicklei/go-restful"
 )
 
 // This example shows how the different types of filters are called in the request-response flow.

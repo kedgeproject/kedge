@@ -21,11 +21,10 @@ limitations under the License.
 package authentication
 
 import (
-	reflect "reflect"
-
 	api "k8s.io/client-go/pkg/api"
 	conversion "k8s.io/client-go/pkg/conversion"
 	runtime "k8s.io/client-go/pkg/runtime"
+	reflect "reflect"
 )
 
 func init() {

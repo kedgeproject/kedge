@@ -27,11 +27,10 @@
 package codec
 
 import (
+	"github.com/gogo/protobuf/test"
 	"math/rand"
 	"testing"
 	"time"
-
-	"github.com/gogo/protobuf/test"
 )
 
 func TestCodec(t *testing.T) {

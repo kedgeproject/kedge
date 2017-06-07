@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"io/ioutil"
-
 	restful "github.com/emicklei/go-restful"
+	"gopkg.in/vmihailenco/msgpack.v2"
+	"io/ioutil"
 )
 
 func TestMsgPack(t *testing.T) {

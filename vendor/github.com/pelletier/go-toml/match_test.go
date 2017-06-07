@@ -1,10 +1,8 @@
-package query
+package toml
 
 import (
 	"fmt"
 	"testing"
-
-	"github.com/pelletier/go-toml"
 )
 
 // dump path tree to a string
@@ -196,8 +194,8 @@ func TestPathFilterExpr(t *testing.T) {
 		"$[?('foo'),?(bar)]",
 		buildPath(
 			&matchUnionFn{[]pathFn{
-				newMatchFilterFn("foo", toml.Position{}),
-				newMatchFilterFn("bar", toml.Position{}),
+				newMatchFilterFn("foo", Position{}),
+				newMatchFilterFn("bar", Position{}),
 			}},
 		))
 }

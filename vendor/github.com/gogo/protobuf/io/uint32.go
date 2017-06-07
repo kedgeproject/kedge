@@ -30,9 +30,8 @@ package io
 
 import (
 	"encoding/binary"
-	"io"
-
 	"github.com/gogo/protobuf/proto"
+	"io"
 )
 
 func NewUint32DelimitedWriter(w io.Writer, byteOrder binary.ByteOrder) WriteCloser {

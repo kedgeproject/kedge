@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"fmt"
-
 	ctx "github.com/docker/distribution/context"
 	storagedriver "github.com/docker/distribution/registry/storage/driver"
 	"github.com/docker/distribution/registry/storage/driver/testsuites"
@@ -16,6 +15,7 @@ import (
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/cloud/storage"
+	"gopkg.in/check.v1"
 )
 
 // Hook up gocheck into the "go test" runner.

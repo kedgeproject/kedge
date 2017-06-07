@@ -1,12 +1,11 @@
 package main
 
 import (
+	"github.com/emicklei/go-restful"
 	"io"
 	"log"
 	"os"
 	"runtime/pprof"
-
-	"github.com/emicklei/go-restful"
 )
 
 // ProfilingService is a WebService that can start/stop a CPU profile and write results to a file

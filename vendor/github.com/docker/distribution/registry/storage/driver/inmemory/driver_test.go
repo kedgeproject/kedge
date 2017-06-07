@@ -5,6 +5,7 @@ import (
 
 	storagedriver "github.com/docker/distribution/registry/storage/driver"
 	"github.com/docker/distribution/registry/storage/driver/testsuites"
+	"gopkg.in/check.v1"
 )
 
 // Hook up gocheck into the "go test" runner.

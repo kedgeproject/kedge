@@ -1,10 +1,26 @@
-package query
+package toml
 
 import (
 	"fmt"
-
-	"github.com/pelletier/go-toml"
 )
+
+// support function to set positions for tomlValues
+// NOTE: this is done to allow ctx.lastPosition to indicate the start of any
+// values returned by the query engines
+func tomlValueCheck(node interface{}, ctx *queryContext) interface{} {
+	switch castNode := node.(type) {
+	case *tomlValue:
+		ctx.lastPosition = castNode.position
+		return castNode.value
+	case []*TomlTree:
+		if len(castNode) > 0 {
+			ctx.lastPosition = castNode[0].position
+		}
+		return node
+	default:
+		return node
+	}
+}
 
 // base match
 type matchBase struct {
@@ -29,7 +45,15 @@ func (f *terminatingFn) setNext(next pathFn) {
 }
 
 func (f *terminatingFn) call(node interface{}, ctx *queryContext) {
-	ctx.result.appendResult(node, ctx.lastPosition)
+	switch castNode := node.(type) {
+	case *TomlTree:
+		ctx.result.appendResult(node, castNode.position)
+	case *tomlValue:
+		ctx.result.appendResult(node, castNode.position)
+	default:
+		// use last position for scalars
+		ctx.result.appendResult(node, ctx.lastPosition)
+	}
 }
 
 // match single key
@@ -43,18 +67,16 @@ func newMatchKeyFn(name string) *matchKeyFn {
 }
 
 func (f *matchKeyFn) call(node interface{}, ctx *queryContext) {
-	if array, ok := node.([]*toml.Tree); ok {
+	if array, ok := node.([]*TomlTree); ok {
 		for _, tree := range array {
-			item := tree.Get(f.Name)
+			item := tree.values[f.Name]
 			if item != nil {
-				ctx.lastPosition = tree.GetPosition(f.Name)
 				f.next.call(item, ctx)
 			}
 		}
-	} else if tree, ok := node.(*toml.Tree); ok {
-		item := tree.Get(f.Name)
+	} else if tree, ok := node.(*TomlTree); ok {
+		item := tree.values[f.Name]
 		if item != nil {
-			ctx.lastPosition = tree.GetPosition(f.Name)
 			f.next.call(item, ctx)
 		}
 	}
@@ -71,13 +93,8 @@ func newMatchIndexFn(idx int) *matchIndexFn {
 }
 
 func (f *matchIndexFn) call(node interface{}, ctx *queryContext) {
-	if arr, ok := node.([]interface{}); ok {
+	if arr, ok := tomlValueCheck(node, ctx).([]interface{}); ok {
 		if f.Idx < len(arr) && f.Idx >= 0 {
-			if treesArray, ok := node.([]*toml.Tree); ok {
-				if len(treesArray) > 0 {
-					ctx.lastPosition = treesArray[0].Position()
-				}
-			}
 			f.next.call(arr[f.Idx], ctx)
 		}
 	}
@@ -94,7 +111,7 @@ func newMatchSliceFn(start, end, step int) *matchSliceFn {
 }
 
 func (f *matchSliceFn) call(node interface{}, ctx *queryContext) {
-	if arr, ok := node.([]interface{}); ok {
+	if arr, ok := tomlValueCheck(node, ctx).([]interface{}); ok {
 		// adjust indexes for negative values, reverse ordering
 		realStart, realEnd := f.Start, f.End
 		if realStart < 0 {
@@ -108,11 +125,6 @@ func (f *matchSliceFn) call(node interface{}, ctx *queryContext) {
 		}
 		// loop and gather
 		for idx := realStart; idx < realEnd; idx += f.Step {
-			if treesArray, ok := node.([]*toml.Tree); ok {
-				if len(treesArray) > 0 {
-					ctx.lastPosition = treesArray[0].Position()
-				}
-			}
 			f.next.call(arr[idx], ctx)
 		}
 	}
@@ -128,10 +140,8 @@ func newMatchAnyFn() *matchAnyFn {
 }
 
 func (f *matchAnyFn) call(node interface{}, ctx *queryContext) {
-	if tree, ok := node.(*toml.Tree); ok {
-		for _, k := range tree.Keys() {
-			v := tree.Get(k)
-			ctx.lastPosition = tree.GetPosition(k)
+	if tree, ok := node.(*TomlTree); ok {
+		for _, v := range tree.values {
 			f.next.call(v, ctx)
 		}
 	}
@@ -164,25 +174,21 @@ func newMatchRecursiveFn() *matchRecursiveFn {
 }
 
 func (f *matchRecursiveFn) call(node interface{}, ctx *queryContext) {
-	originalPosition := ctx.lastPosition
-	if tree, ok := node.(*toml.Tree); ok {
-		var visit func(tree *toml.Tree)
-		visit = func(tree *toml.Tree) {
-			for _, k := range tree.Keys() {
-				v := tree.Get(k)
-				ctx.lastPosition = tree.GetPosition(k)
+	if tree, ok := node.(*TomlTree); ok {
+		var visit func(tree *TomlTree)
+		visit = func(tree *TomlTree) {
+			for _, v := range tree.values {
 				f.next.call(v, ctx)
 				switch node := v.(type) {
-				case *toml.Tree:
+				case *TomlTree:
 					visit(node)
-				case []*toml.Tree:
+				case []*TomlTree:
 					for _, subtree := range node {
 						visit(subtree)
 					}
 				}
 			}
 		}
-		ctx.lastPosition = originalPosition
 		f.next.call(tree, ctx)
 		visit(tree)
 	}
@@ -191,11 +197,11 @@ func (f *matchRecursiveFn) call(node interface{}, ctx *queryContext) {
 // match based on an externally provided functional filter
 type matchFilterFn struct {
 	matchBase
-	Pos  toml.Position
+	Pos  Position
 	Name string
 }
 
-func newMatchFilterFn(name string, pos toml.Position) *matchFilterFn {
+func newMatchFilterFn(name string, pos Position) *matchFilterFn {
 	return &matchFilterFn{Name: name, Pos: pos}
 }
 
@@ -205,22 +211,17 @@ func (f *matchFilterFn) call(node interface{}, ctx *queryContext) {
 		panic(fmt.Sprintf("%s: query context does not have filter '%s'",
 			f.Pos.String(), f.Name))
 	}
-	switch castNode := node.(type) {
-	case *toml.Tree:
-		for _, k := range castNode.Keys() {
-			v := castNode.Get(k)
-			if fn(v) {
-				ctx.lastPosition = castNode.GetPosition(k)
-				f.next.call(v, ctx)
-			}
-		}
-	case []*toml.Tree:
-		for _, v := range castNode {
-			if fn(v) {
-				if len(castNode) > 0 {
-					ctx.lastPosition = castNode[0].Position()
+	switch castNode := tomlValueCheck(node, ctx).(type) {
+	case *TomlTree:
+		for _, v := range castNode.values {
+			if tv, ok := v.(*tomlValue); ok {
+				if fn(tv.value) {
+					f.next.call(v, ctx)
 				}
-				f.next.call(v, ctx)
+			} else {
+				if fn(v) {
+					f.next.call(v, ctx)
+				}
 			}
 		}
 	case []interface{}:
