@@ -1,0 +1,9 @@
+name: foo
+containers:
+- image: foo
+  ports:
+  - containerPort: 6000
+  volumeMounts:
+  - name: foovol
+    mountPath: /foo/bar
+
