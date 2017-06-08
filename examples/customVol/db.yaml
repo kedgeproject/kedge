@@ -32,5 +32,7 @@ containers:
 persistentVolumes:
 - name: database
   size: 500Mi
+  accessModes:
+  - ReadWriteOnce
   persistentVolumeClaim:
     claimName: database

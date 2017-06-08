@@ -27,7 +27,8 @@ import (
 
 type Volume struct {
 	api_v1.Volume `yaml:",inline"`
-	Size          string
+	Size          string   `yaml:"size"`
+	AccessModes   []string `yaml:"accessModes"`
 }
 
 type App struct {
@@ -168,12 +169,15 @@ func searchVolumeIndex(app *App, name string) int {
 
 func createPVC(v *Volume) (*api_v1.PersistentVolumeClaim, error) {
 	// create pvc
+	if v.Size == "" {
+		v.Size = "100Mi"
+	}
 	size, err := resource.ParseQuantity(v.Size)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not read volume size")
 	}
 
-	return &api_v1.PersistentVolumeClaim{
+	pvc := &api_v1.PersistentVolumeClaim{
 		ObjectMeta: api_v1.ObjectMeta{
 			Name: v.Name,
 		},
@@ -183,9 +187,23 @@ func createPVC(v *Volume) (*api_v1.PersistentVolumeClaim, error) {
 					api_v1.ResourceStorage: size,
 				},
 			},
-			AccessModes: []api_v1.PersistentVolumeAccessMode{api_v1.ReadWriteOnce},
 		},
-	}, nil
+	}
+	for _, mode := range v.AccessModes {
+		switch mode {
+		case "ReadWriteOnce":
+			pvc.Spec.AccessModes = append(pvc.Spec.AccessModes, api_v1.ReadWriteOnce)
+		case "ReadOnlyMany":
+			pvc.Spec.AccessModes = append(pvc.Spec.AccessModes, api_v1.ReadOnlyMany)
+		case "ReadWriteMany":
+			pvc.Spec.AccessModes = append(pvc.Spec.AccessModes, api_v1.ReadWriteMany)
+		}
+	}
+	if len(v.AccessModes) == 0 {
+		pvc.Spec.AccessModes = []api_v1.PersistentVolumeAccessMode{api_v1.ReadWriteOnce}
+	}
+
+	return pvc, nil
 }
 
 func CreateK8sObjects(app *App) ([]runtime.Object, error) {
@@ -242,7 +260,7 @@ func CreateK8sObjects(app *App) ([]runtime.Object, error) {
 				continue
 			}
 
-			v := Volume{podVolume, "100Mi"}
+			v := Volume{podVolume, "100Mi", []string{"ReadWriteOnce"}}
 			app.PersistentVolumes = append(app.PersistentVolumes, v)
 			pvc, err := createPVC(&v)
 			if err != nil {
