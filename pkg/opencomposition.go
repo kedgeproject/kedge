@@ -1,8 +1,12 @@
 package pkg
 
 import (
+	"fmt"
 	"io/ioutil"
+	"os"
+	"strings"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/ghodss/yaml"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -12,24 +16,20 @@ import (
 	"k8s.io/client-go/pkg/runtime"
 	"k8s.io/client-go/pkg/util/intstr"
 
-	"fmt"
-	"os"
-	"strings"
-
 	log "github.com/Sirupsen/logrus"
 	api_v1 "k8s.io/client-go/pkg/api/v1"
 	ext_v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
 
 	// install api
-	"github.com/davecgh/go-spew/spew"
 	_ "k8s.io/client-go/pkg/api/install"
 	_ "k8s.io/client-go/pkg/apis/extensions/install"
 )
 
 type App struct {
 	Name           string `yaml:"name"`
-	Replicas       *int32 `yaml:"replicas"`
+	Replicas       *int32 `yaml:"replicas,omitempty"`
 	api_v1.PodSpec `yaml:",inline"`
+	Expose         bool `yaml:"expose,omitempty"`
 }
 
 func ReadFile(f string) ([]byte, error) {
@@ -53,9 +53,9 @@ func Convert(v *viper.Viper, cmd *cobra.Command) error {
 		if err != nil {
 			return errors.Wrap(err, "could not unmarshal into internal struct")
 		}
+		log.Debugf("file: %s, object unmrashalled: %s", file, spew.Sprint(app))
 
 		runtimeObjects, err := CreateK8sObjects(&app)
-		//fmt.Println("%s", spew.Sprint(runtimeObjects))
 
 		for _, runtimeObject := range runtimeObjects {
 			gvk, isUnversioned, err := api.Scheme.ObjectKind(runtimeObject)
@@ -93,12 +93,8 @@ func Convert(v *viper.Viper, cmd *cobra.Command) error {
 	return nil
 }
 
-func CreateK8sObjects(app *App) ([]runtime.Object, error) {
-
-	var objects []runtime.Object
-
-	// bare minimum service
-	svc := &api_v1.Service{
+func initService(app *App) *api_v1.Service {
+	return &api_v1.Service{
 		ObjectMeta: api_v1.ObjectMeta{
 			Name: app.Name,
 			Labels: map[string]string{
@@ -111,11 +107,33 @@ func CreateK8sObjects(app *App) ([]runtime.Object, error) {
 			},
 		},
 	}
+}
 
-	// update the service based on the ports given in the app
-	var vols []api_v1.VolumeMount
+func allPorts(app *App) []api_v1.ContainerPort {
+	var ports []api_v1.ContainerPort
 	for _, c := range app.Containers {
 		for _, p := range c.Ports {
+			ports = append(ports, p)
+		}
+	}
+	return ports
+}
+
+func CreateK8sObjects(app *App) ([]runtime.Object, error) {
+
+	var objects []runtime.Object
+	var svc *api_v1.Service
+
+	ports := allPorts(app)
+	if len(ports) > 0 {
+		// bare minimum service
+		svc = initService(app)
+		if app.Expose {
+			svc.Spec.Type = api_v1.ServiceTypeLoadBalancer
+			// TODO: create ingress
+		}
+		// update the service based on the ports given in the app
+		for _, p := range ports {
 			// adding the ports to the service
 			svc.Spec.Ports = append(svc.Spec.Ports, api_v1.ServicePort{
 				Name:       fmt.Sprintf("port-%d", p.ContainerPort),
@@ -123,7 +141,10 @@ func CreateK8sObjects(app *App) ([]runtime.Object, error) {
 				TargetPort: intstr.FromInt(int(p.ContainerPort)),
 			})
 		}
+	}
 
+	var vols []api_v1.VolumeMount
+	for _, c := range app.Containers {
 		// get all the volumes and create a pvc
 		vols = append(vols, c.VolumeMounts...)
 	}
@@ -144,7 +165,7 @@ func CreateK8sObjects(app *App) ([]runtime.Object, error) {
 		// create pvc
 		size, err := resource.ParseQuantity("100Mi")
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "could not read volume size")
 		}
 
 		pvc := &api_v1.PersistentVolumeClaim{
@@ -163,7 +184,7 @@ func CreateK8sObjects(app *App) ([]runtime.Object, error) {
 		pvcs = append(pvcs, pvc)
 	}
 	// if only one container set name of it as app name
-	if len(app.Containers) == 1 {
+	if len(app.Containers) == 1 && app.Containers[0].Name == "" {
 		app.Containers[0].Name = app.Name
 	}
 
@@ -200,3 +221,7 @@ func CreateK8sObjects(app *App) ([]runtime.Object, error) {
 
 	return objects, nil
 }
+
+// how to specify volume size
+// how to expose certain service using ingress
+//
