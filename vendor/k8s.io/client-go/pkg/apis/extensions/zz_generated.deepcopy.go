@@ -21,12 +21,13 @@ limitations under the License.
 package extensions
 
 import (
+	reflect "reflect"
+
 	api "k8s.io/client-go/pkg/api"
 	unversioned "k8s.io/client-go/pkg/api/unversioned"
 	conversion "k8s.io/client-go/pkg/conversion"
 	runtime "k8s.io/client-go/pkg/runtime"
 	intstr "k8s.io/client-go/pkg/util/intstr"
-	reflect "reflect"
 )
 
 func init() {

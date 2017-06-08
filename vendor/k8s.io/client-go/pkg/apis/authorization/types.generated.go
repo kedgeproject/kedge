@@ -24,13 +24,14 @@ package authorization
 import (
 	"errors"
 	"fmt"
+	"reflect"
+	"runtime"
+	time "time"
+
 	codec1978 "github.com/ugorji/go/codec"
 	pkg2_api "k8s.io/client-go/pkg/api"
 	pkg1_unversioned "k8s.io/client-go/pkg/api/unversioned"
 	pkg3_types "k8s.io/client-go/pkg/types"
-	"reflect"
-	"runtime"
-	time "time"
 )
 
 const (

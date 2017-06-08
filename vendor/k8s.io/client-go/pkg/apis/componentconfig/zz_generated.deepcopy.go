@@ -21,10 +21,11 @@ limitations under the License.
 package componentconfig
 
 import (
+	reflect "reflect"
+
 	conversion "k8s.io/client-go/pkg/conversion"
 	runtime "k8s.io/client-go/pkg/runtime"
 	config "k8s.io/client-go/pkg/util/config"
-	reflect "reflect"
 )
 
 func init() {

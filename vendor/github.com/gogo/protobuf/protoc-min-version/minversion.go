@@ -30,10 +30,11 @@ package main
 
 import (
 	"fmt"
-	"github.com/gogo/protobuf/version"
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/gogo/protobuf/version"
 )
 
 func filter(ss []string, flag string) ([]string, string) {

@@ -1,10 +1,11 @@
 package main
 
 import (
-	"github.com/emicklei/go-restful"
 	"log"
 	"net/http"
 	"time"
+
+	"github.com/emicklei/go-restful"
 )
 
 type User struct {

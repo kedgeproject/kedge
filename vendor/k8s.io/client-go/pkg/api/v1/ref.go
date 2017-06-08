@@ -19,9 +19,10 @@ package v1
 import (
 	"errors"
 	"fmt"
-	"k8s.io/client-go/pkg/api"
 	"net/url"
 	"strings"
+
+	"k8s.io/client-go/pkg/api"
 
 	"k8s.io/client-go/pkg/api/meta"
 	"k8s.io/client-go/pkg/api/unversioned"

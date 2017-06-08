@@ -21,11 +21,12 @@ limitations under the License.
 package autoscaling
 
 import (
+	reflect "reflect"
+
 	api "k8s.io/client-go/pkg/api"
 	unversioned "k8s.io/client-go/pkg/api/unversioned"
 	conversion "k8s.io/client-go/pkg/conversion"
 	runtime "k8s.io/client-go/pkg/runtime"
-	reflect "reflect"
 )
 
 func init() {

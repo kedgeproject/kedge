@@ -29,8 +29,9 @@
 package io
 
 import (
-	"github.com/gogo/protobuf/proto"
 	"io"
+
+	"github.com/gogo/protobuf/proto"
 )
 
 func NewFullWriter(w io.Writer) WriteCloser {

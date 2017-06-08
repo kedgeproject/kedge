@@ -27,11 +27,12 @@
 package test
 
 import (
-	"github.com/gogo/protobuf/proto"
 	"math"
 	math_rand "math/rand"
 	"testing"
 	"time"
+
+	"github.com/gogo/protobuf/proto"
 )
 
 //func SetRawExtension(base extendableProto, id int32, b []byte) {

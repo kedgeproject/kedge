@@ -21,8 +21,9 @@ limitations under the License.
 package unversioned
 
 import (
-	conversion "k8s.io/client-go/pkg/conversion"
 	time "time"
+
+	conversion "k8s.io/client-go/pkg/conversion"
 )
 
 func DeepCopy_unversioned_APIGroup(in interface{}, out interface{}, c *conversion.Cloner) error {
