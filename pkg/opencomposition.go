@@ -8,21 +8,27 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"k8s.io/client-go/pkg/api"
+	"k8s.io/client-go/pkg/api/resource"
 	"k8s.io/client-go/pkg/runtime"
+	"k8s.io/client-go/pkg/util/intstr"
 
 	"fmt"
 	"os"
+	"strings"
 
+	log "github.com/Sirupsen/logrus"
 	api_v1 "k8s.io/client-go/pkg/api/v1"
 	ext_v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
 
 	// install api
+	"github.com/davecgh/go-spew/spew"
 	_ "k8s.io/client-go/pkg/api/install"
 	_ "k8s.io/client-go/pkg/apis/extensions/install"
 )
 
 type App struct {
 	Name           string `yaml:"name"`
+	Replicas       *int32 `yaml:"replicas"`
 	api_v1.PodSpec `yaml:",inline"`
 }
 
@@ -36,7 +42,7 @@ func ReadFile(f string) ([]byte, error) {
 
 func Convert(v *viper.Viper, cmd *cobra.Command) error {
 
-	for _, file := range v.GetStringSlice("files") {
+	for _, file := range strings.Split(v.GetStringSlice("files")[0], ",") {
 		d, err := ReadFile(file)
 		if err != nil {
 			return errors.New(err.Error())
@@ -91,8 +97,80 @@ func CreateK8sObjects(app *App) ([]runtime.Object, error) {
 
 	var objects []runtime.Object
 
-	p := api_v1.PodSpec(app.PodSpec)
-	d := &ext_v1beta1.Deployment{
+	// bare minimum service
+	svc := &api_v1.Service{
+		ObjectMeta: api_v1.ObjectMeta{
+			Name: app.Name,
+			Labels: map[string]string{
+				"app": app.Name,
+			},
+		},
+		Spec: api_v1.ServiceSpec{
+			Selector: map[string]string{
+				"app": app.Name,
+			},
+		},
+	}
+
+	// update the service based on the ports given in the app
+	var vols []api_v1.VolumeMount
+	for _, c := range app.Containers {
+		for _, p := range c.Ports {
+			// adding the ports to the service
+			svc.Spec.Ports = append(svc.Spec.Ports, api_v1.ServicePort{
+				Name:       fmt.Sprintf("port-%d", p.ContainerPort),
+				Port:       int32(p.ContainerPort),
+				TargetPort: intstr.FromInt(int(p.ContainerPort)),
+			})
+		}
+
+		// get all the volumes and create a pvc
+		vols = append(vols, c.VolumeMounts...)
+	}
+
+	// update the app with volumes info
+	var pvcs []runtime.Object
+	for _, vm := range vols {
+		// update the pod, volumes info
+		app.Volumes = append(app.Volumes, api_v1.Volume{
+			Name: vm.Name,
+			VolumeSource: api_v1.VolumeSource{
+				PersistentVolumeClaim: &api_v1.PersistentVolumeClaimVolumeSource{
+					ClaimName: vm.Name,
+				},
+			},
+		})
+
+		// create pvc
+		size, err := resource.ParseQuantity("100Mi")
+		if err != nil {
+			return nil, err
+		}
+
+		pvc := &api_v1.PersistentVolumeClaim{
+			ObjectMeta: api_v1.ObjectMeta{
+				Name: vm.Name,
+			},
+			Spec: api_v1.PersistentVolumeClaimSpec{
+				Resources: api_v1.ResourceRequirements{
+					Requests: api_v1.ResourceList{
+						api_v1.ResourceStorage: size,
+					},
+				},
+				AccessModes: []api_v1.PersistentVolumeAccessMode{api_v1.ReadWriteOnce},
+			},
+		}
+		pvcs = append(pvcs, pvc)
+	}
+	// if only one container set name of it as app name
+	if len(app.Containers) == 1 {
+		app.Containers[0].Name = app.Name
+	}
+
+	// get pod spec out of the original info
+	pod := api_v1.PodSpec(app.PodSpec)
+	// bare minimum deployment
+	deployment := &ext_v1beta1.Deployment{
 		ObjectMeta: api_v1.ObjectMeta{
 			Name: app.Name,
 			Labels: map[string]string{
@@ -100,6 +178,7 @@ func CreateK8sObjects(app *App) ([]runtime.Object, error) {
 			},
 		},
 		Spec: ext_v1beta1.DeploymentSpec{
+			Replicas: app.Replicas,
 			Template: api_v1.PodTemplateSpec{
 				ObjectMeta: api_v1.ObjectMeta{
 					Name: app.Name,
@@ -107,11 +186,17 @@ func CreateK8sObjects(app *App) ([]runtime.Object, error) {
 						"app": app.Name,
 					},
 				},
-				Spec: p,
+				Spec: pod,
 			},
 		},
 	}
 
-	objects = append(objects, d)
+	objects = append(objects, deployment)
+	log.Debugf("app: %s, deployment: %s", app.Name, spew.Sprint(deployment))
+	objects = append(objects, svc)
+	log.Debugf("app: %s, service: %s", app.Name, spew.Sprint(svc))
+	objects = append(objects, pvcs...)
+	log.Debugf("app: %s, pvc: %s", app.Name)
+
 	return objects, nil
 }
