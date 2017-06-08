@@ -148,6 +148,46 @@ func createDeployment(app *App) *ext_v1beta1.Deployment {
 	}
 }
 
+func isVolumeDefined(app *App, name string) bool {
+	for _, v := range app.PersistentVolumes {
+		if name == v.Name {
+			return true
+		}
+	}
+	return false
+}
+
+func searchVolumeIndex(app *App, name string) int {
+	for i := 0; i < len(app.PersistentVolumes); i++ {
+		if name == app.PersistentVolumes[i].Name {
+			return i
+		}
+	}
+	return -1
+}
+
+func createPVC(v *Volume) (*api_v1.PersistentVolumeClaim, error) {
+	// create pvc
+	size, err := resource.ParseQuantity(v.Size)
+	if err != nil {
+		return nil, errors.Wrap(err, "could not read volume size")
+	}
+
+	return &api_v1.PersistentVolumeClaim{
+		ObjectMeta: api_v1.ObjectMeta{
+			Name: v.Name,
+		},
+		Spec: api_v1.PersistentVolumeClaimSpec{
+			Resources: api_v1.ResourceRequirements{
+				Requests: api_v1.ResourceList{
+					api_v1.ResourceStorage: size,
+				},
+			},
+			AccessModes: []api_v1.PersistentVolumeAccessMode{api_v1.ReadWriteOnce},
+		},
+	}, nil
+}
+
 func CreateK8sObjects(app *App) ([]runtime.Object, error) {
 
 	var objects []runtime.Object
@@ -176,46 +216,42 @@ func CreateK8sObjects(app *App) ([]runtime.Object, error) {
 		}
 	}
 
-	var vols []api_v1.VolumeMount
-	for _, c := range app.Containers {
-		// get all the volumes and create a pvc
-		vols = append(vols, c.VolumeMounts...)
-	}
-
-	// update the app with volumes info
 	var pvcs []runtime.Object
-	for _, vm := range vols {
-		// update the pod, volumes info
-		app.Volumes = append(app.Volumes, api_v1.Volume{
-			Name: vm.Name,
-			VolumeSource: api_v1.VolumeSource{
-				PersistentVolumeClaim: &api_v1.PersistentVolumeClaimVolumeSource{
-					ClaimName: vm.Name,
-				},
-			},
-		})
+	for _, c := range app.Containers {
+		for _, vm := range c.VolumeMounts {
 
-		// create pvc
-		size, err := resource.ParseQuantity("100Mi")
-		if err != nil {
-			return nil, errors.Wrap(err, "could not read volume size")
-		}
-
-		pvc := &api_v1.PersistentVolumeClaim{
-			ObjectMeta: api_v1.ObjectMeta{
+			// User won't be giving this so we have to create it
+			// so that the pod spec is complete
+			podVolume := api_v1.Volume{
 				Name: vm.Name,
-			},
-			Spec: api_v1.PersistentVolumeClaimSpec{
-				Resources: api_v1.ResourceRequirements{
-					Requests: api_v1.ResourceList{
-						api_v1.ResourceStorage: size,
+				VolumeSource: api_v1.VolumeSource{
+					PersistentVolumeClaim: &api_v1.PersistentVolumeClaimVolumeSource{
+						ClaimName: vm.Name,
 					},
 				},
-				AccessModes: []api_v1.PersistentVolumeAccessMode{api_v1.ReadWriteOnce},
-			},
+			}
+			app.Volumes = append(app.Volumes, podVolume)
+
+			if isVolumeDefined(app, vm.Name) {
+				i := searchVolumeIndex(app, vm.Name)
+				pvc, err := createPVC(&app.PersistentVolumes[i])
+				if err != nil {
+					return nil, errors.Wrap(err, "cannot create pvc")
+				}
+				pvcs = append(pvcs, pvc)
+				continue
+			}
+
+			v := Volume{podVolume, "100Mi"}
+			app.PersistentVolumes = append(app.PersistentVolumes, v)
+			pvc, err := createPVC(&v)
+			if err != nil {
+				return nil, errors.Wrap(err, "cannot create pvc")
+			}
+			pvcs = append(pvcs, pvc)
 		}
-		pvcs = append(pvcs, pvc)
 	}
+
 	// if only one container set name of it as app name
 	if len(app.Containers) == 1 && app.Containers[0].Name == "" {
 		app.Containers[0].Name = app.Name
@@ -233,6 +269,5 @@ func CreateK8sObjects(app *App) ([]runtime.Object, error) {
 	return objects, nil
 }
 
-// how to specify volume size
 // how to expose certain service using ingress
 //
