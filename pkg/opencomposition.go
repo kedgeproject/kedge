@@ -25,11 +25,18 @@ import (
 	_ "k8s.io/client-go/pkg/apis/extensions/install"
 )
 
+type Volume struct {
+	api_v1.Volume `yaml:",inline"`
+	Size          string
+}
+
 type App struct {
-	Name           string `yaml:"name"`
-	Replicas       *int32 `yaml:"replicas,omitempty"`
-	api_v1.PodSpec `yaml:",inline"`
-	Expose         bool `yaml:"expose,omitempty"`
+	Name              string            `yaml:"name"`
+	Replicas          *int32            `yaml:"replicas,omitempty"`
+	Expose            bool              `yaml:"expose,omitempty"`
+	Labels            map[string]string `yaml:"labels,omitempty"`
+	PersistentVolumes []Volume          `yaml:"persistentVolumes,omitempty"`
+	api_v1.PodSpec    `yaml:",inline"`
 }
 
 func ReadFile(f string) ([]byte, error) {
@@ -53,7 +60,7 @@ func Convert(v *viper.Viper, cmd *cobra.Command) error {
 		if err != nil {
 			return errors.Wrap(err, "could not unmarshal into internal struct")
 		}
-		log.Debugf("file: %s, object unmrashalled: %s", file, spew.Sprint(app))
+		log.Debugf("file: %s, object unmrashalled: %#v", file, app)
 
 		runtimeObjects, err := CreateK8sObjects(&app)
 
@@ -93,18 +100,19 @@ func Convert(v *viper.Viper, cmd *cobra.Command) error {
 	return nil
 }
 
+func getLabels(app *App) map[string]string {
+	labels := map[string]string{"app": app.Name}
+	return labels
+}
+
 func initService(app *App) *api_v1.Service {
 	return &api_v1.Service{
 		ObjectMeta: api_v1.ObjectMeta{
-			Name: app.Name,
-			Labels: map[string]string{
-				"app": app.Name,
-			},
+			Name:   app.Name,
+			Labels: app.Labels,
 		},
 		Spec: api_v1.ServiceSpec{
-			Selector: map[string]string{
-				"app": app.Name,
-			},
+			Selector: app.Labels,
 		},
 	}
 }
@@ -119,10 +127,35 @@ func allPorts(app *App) []api_v1.ContainerPort {
 	return ports
 }
 
+func createDeployment(app *App) *ext_v1beta1.Deployment {
+	// bare minimum deployment
+	return &ext_v1beta1.Deployment{
+		ObjectMeta: api_v1.ObjectMeta{
+			Name:   app.Name,
+			Labels: app.Labels,
+		},
+		Spec: ext_v1beta1.DeploymentSpec{
+			Replicas: app.Replicas,
+			Template: api_v1.PodTemplateSpec{
+				ObjectMeta: api_v1.ObjectMeta{
+					Name:   app.Name,
+					Labels: app.Labels,
+				},
+				// get pod spec out of the original info
+				Spec: api_v1.PodSpec(app.PodSpec),
+			},
+		},
+	}
+}
+
 func CreateK8sObjects(app *App) ([]runtime.Object, error) {
 
 	var objects []runtime.Object
 	var svc *api_v1.Service
+
+	if app.Labels == nil {
+		app.Labels = getLabels(app)
+	}
 
 	ports := allPorts(app)
 	if len(ports) > 0 {
@@ -188,36 +221,14 @@ func CreateK8sObjects(app *App) ([]runtime.Object, error) {
 		app.Containers[0].Name = app.Name
 	}
 
-	// get pod spec out of the original info
-	pod := api_v1.PodSpec(app.PodSpec)
-	// bare minimum deployment
-	deployment := &ext_v1beta1.Deployment{
-		ObjectMeta: api_v1.ObjectMeta{
-			Name: app.Name,
-			Labels: map[string]string{
-				"app": app.Name,
-			},
-		},
-		Spec: ext_v1beta1.DeploymentSpec{
-			Replicas: app.Replicas,
-			Template: api_v1.PodTemplateSpec{
-				ObjectMeta: api_v1.ObjectMeta{
-					Name: app.Name,
-					Labels: map[string]string{
-						"app": app.Name,
-					},
-				},
-				Spec: pod,
-			},
-		},
-	}
+	deployment := createDeployment(app)
 
 	objects = append(objects, deployment)
 	log.Debugf("app: %s, deployment: %s", app.Name, spew.Sprint(deployment))
 	objects = append(objects, svc)
 	log.Debugf("app: %s, service: %s", app.Name, spew.Sprint(svc))
 	objects = append(objects, pvcs...)
-	log.Debugf("app: %s, pvc: %s", app.Name)
+	log.Debugf("app: %s, pvc: %s", app.Name, spew.Sprint(pvcs))
 
 	return objects, nil
 }
