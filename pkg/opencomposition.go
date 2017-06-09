@@ -14,13 +14,13 @@ import (
 	"k8s.io/client-go/pkg/api"
 	"k8s.io/client-go/pkg/api/resource"
 	"k8s.io/client-go/pkg/runtime"
-	"k8s.io/client-go/pkg/util/intstr"
 
 	log "github.com/Sirupsen/logrus"
 	api_v1 "k8s.io/client-go/pkg/api/v1"
 	ext_v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
 
 	// install api
+
 	_ "k8s.io/client-go/pkg/api/install"
 	_ "k8s.io/client-go/pkg/apis/extensions/install"
 )
@@ -31,12 +31,19 @@ type Volume struct {
 	AccessModes   []string `yaml:"accessModes"`
 }
 
+type Service struct {
+	Name               string `yaml:"name,omitempty"`
+	api_v1.ServiceSpec `yaml:",inline"`
+}
+
 type App struct {
 	Name              string            `yaml:"name"`
 	Replicas          *int32            `yaml:"replicas,omitempty"`
 	Expose            bool              `yaml:"expose,omitempty"`
 	Labels            map[string]string `yaml:"labels,omitempty"`
 	PersistentVolumes []Volume          `yaml:"persistentVolumes,omitempty"`
+	ConfigData        map[string]string `yaml:"configData,omitempty"`
+	Services          []Service         `yaml:"services,omitempty"`
 	api_v1.PodSpec    `yaml:",inline"`
 }
 
@@ -106,26 +113,26 @@ func getLabels(app *App) map[string]string {
 	return labels
 }
 
-func initService(app *App) *api_v1.Service {
-	return &api_v1.Service{
-		ObjectMeta: api_v1.ObjectMeta{
-			Name:   app.Name,
-			Labels: app.Labels,
-		},
-		Spec: api_v1.ServiceSpec{
-			Selector: app.Labels,
-		},
-	}
-}
+func createServices(app *App) []runtime.Object {
+	var svcs []runtime.Object
+	for _, s := range app.Services {
+		svc := &api_v1.Service{
+			ObjectMeta: api_v1.ObjectMeta{
+				Name:   s.Name,
+				Labels: app.Labels,
+			},
+			Spec: s.ServiceSpec,
+		}
+		if len(svc.Spec.Selector) == 0 {
+			svc.Spec.Selector = app.Labels
+		}
+		svcs = append(svcs, svc)
 
-func allPorts(app *App) []api_v1.ContainerPort {
-	var ports []api_v1.ContainerPort
-	for _, c := range app.Containers {
-		for _, p := range c.Ports {
-			ports = append(ports, p)
+		if s.Type == api_v1.ServiceTypeLoadBalancer {
+			// TODO: create a ingress resource
 		}
 	}
-	return ports
+	return svcs
 }
 
 func createDeployment(app *App) *ext_v1beta1.Deployment {
@@ -206,33 +213,22 @@ func createPVC(v *Volume) (*api_v1.PersistentVolumeClaim, error) {
 	return pvc, nil
 }
 
+func add(objects *[]runtime.Object, object runtime.Object) {
+	if object != nil {
+		*objects = append(*objects, object)
+		log.Debugf("%s\n", spew.Sprint(object))
+	}
+}
+
 func CreateK8sObjects(app *App) ([]runtime.Object, error) {
 
 	var objects []runtime.Object
-	var svc *api_v1.Service
 
 	if app.Labels == nil {
 		app.Labels = getLabels(app)
 	}
 
-	ports := allPorts(app)
-	if len(ports) > 0 {
-		// bare minimum service
-		svc = initService(app)
-		if app.Expose {
-			svc.Spec.Type = api_v1.ServiceTypeLoadBalancer
-			// TODO: create ingress
-		}
-		// update the service based on the ports given in the app
-		for _, p := range ports {
-			// adding the ports to the service
-			svc.Spec.Ports = append(svc.Spec.Ports, api_v1.ServicePort{
-				Name:       fmt.Sprintf("port-%d", p.ContainerPort),
-				Port:       int32(p.ContainerPort),
-				TargetPort: intstr.FromInt(int(p.ContainerPort)),
-			})
-		}
-	}
+	svcs := createServices(app)
 
 	var pvcs []runtime.Object
 	for _, c := range app.Containers {
@@ -275,13 +271,29 @@ func CreateK8sObjects(app *App) ([]runtime.Object, error) {
 		app.Containers[0].Name = app.Name
 	}
 
+	//var configMap *api_v1.ConfigMap
+	//if len(app.ConfigData) > 0 {
+	//	configMap = &api_v1.ConfigMap{
+	//		ObjectMeta: api_v1.ObjectMeta{
+	//			Name: app.Name,
+	//		},
+	//		Data: app.ConfigData,
+	//	}
+	//}
+
 	deployment := createDeployment(app)
 
-	objects = append(objects, deployment)
+	add(&objects, deployment)
 	log.Debugf("app: %s, deployment: %s", app.Name, spew.Sprint(deployment))
-	objects = append(objects, svc)
-	log.Debugf("app: %s, service: %s", app.Name, spew.Sprint(svc))
-	objects = append(objects, pvcs...)
+	//add(&objects, configMap)
+	//log.Debugf("app: %s, configMap: %s", spew.Sprint(configMap))
+	for _, svc := range svcs {
+		add(&objects, svc)
+	}
+	log.Debugf("app: %s, service: %s", app.Name, spew.Sprint(svcs))
+	for _, pvc := range pvcs {
+		add(&objects, pvc)
+	}
 	log.Debugf("app: %s, pvc: %s", app.Name, spew.Sprint(pvcs))
 
 	return objects, nil

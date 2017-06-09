@@ -11,8 +11,6 @@ containers:
     value: wordpress
   - name: WORDPRESS_DB_NAME
     value: wordpress
-  ports:
-  - containerPort: 80
   livenessProbe:
     httpGet:
       path: /
@@ -25,4 +23,9 @@ containers:
       port: 80
     initialDelaySeconds: 5
     timeoutSeconds: 2
-
+services:
+- name: wordpress
+  type: LoadBalancer
+  ports:
+  - port: 8080
+    targetPort: 80

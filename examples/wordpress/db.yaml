@@ -10,8 +10,6 @@ containers:
     value: wordpress
   - name: MYSQL_PASSWORD
     value: wordpress
-  ports:
-  - containerPort: 3306
   volumeMounts:
   - name: database
     mountPath: /var/lib/mysql
@@ -29,4 +27,7 @@ containers:
       - ping
     initialDelaySeconds: 5
     timeoutSeconds: 1
-
+services:
+- name: database
+  ports:
+  - port: 3306
