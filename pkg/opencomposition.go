@@ -157,17 +157,15 @@ func createDeployment(app *App) *ext_v1beta1.Deployment {
 }
 
 func isVolumeDefined(app *App, name string) bool {
-	for _, v := range app.PersistentVolumes {
-		if name == v.Name {
-			return true
-		}
+	if i := searchVolumeIndex(app, name); i != -1 {
+		return true
 	}
 	return false
 }
 
 func searchVolumeIndex(app *App, name string) int {
-	for i := 0; i < len(app.PersistentVolumes); i++ {
-		if name == app.PersistentVolumes[i].Name {
+	for i, v := range app.PersistentVolumes {
+		if name == v.Name {
 			return i
 		}
 	}
