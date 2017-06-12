@@ -23,3 +23,9 @@ See following code snippet from [db.yaml](./db.yaml):
     timeoutSeconds: 1
 
 ```
+
+## Ref:
+
+- [Health API reference](https://kubernetes.io/docs/api-reference/v1.6/#probe-v1)
+- [Configure Liveness and Readiness Probes](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-probes/)
+- [Container probes](https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#container-probes)
