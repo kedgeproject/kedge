@@ -21,7 +21,7 @@ containers:
     timeoutSeconds: 2
 services:
 - name: wordpress
-  type: LoadBalancer
+  type: NodePort
   ports:
   - port: 8080
     targetPort: 80

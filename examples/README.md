@@ -6,3 +6,5 @@ Go in the following order:
 2. [Add HealthChecks](./helathchecks)
 3. [Custom Volumes](./customVol)
 4. [Defining ConfigMap](./configmap)
+5. [Ingress](./ingress)
+
