@@ -14,6 +14,7 @@ import (
 	"k8s.io/client-go/pkg/api"
 	"k8s.io/client-go/pkg/api/resource"
 	"k8s.io/client-go/pkg/runtime"
+	"k8s.io/client-go/pkg/util/intstr"
 
 	log "github.com/Sirupsen/logrus"
 	api_v1 "k8s.io/client-go/pkg/api/v1"
@@ -32,8 +33,9 @@ type Volume struct {
 }
 
 type Service struct {
-	Name               string `yaml:"name,omitempty"`
-	api_v1.ServiceSpec `yaml:",inline"`
+	Name                    string `yaml:"name,omitempty"`
+	api_v1.ServiceSpec      `yaml:",inline"`
+	ext_v1beta1.IngressSpec `yaml:",inline"`
 }
 
 type App struct {
@@ -129,7 +131,55 @@ func createServices(app *App) []runtime.Object {
 		svcs = append(svcs, svc)
 
 		if s.Type == api_v1.ServiceTypeLoadBalancer {
-			// TODO: create a ingress resource
+			// if more than one port given then we enforce user to specify in the http
+
+			// autogenerate
+			if len(s.Rules) == 1 && len(s.Ports) == 1 {
+				http := s.Rules[0].HTTP
+				if http == nil {
+					http = &ext_v1beta1.HTTPIngressRuleValue{
+						Paths: []ext_v1beta1.HTTPIngressPath{
+							{
+								Path: "/",
+								Backend: ext_v1beta1.IngressBackend{
+									ServiceName: s.Name,
+									ServicePort: intstr.FromInt(int(s.Ports[0].Port)),
+								},
+							},
+						},
+					}
+				}
+				ing := &ext_v1beta1.Ingress{
+					ObjectMeta: api_v1.ObjectMeta{
+						Name:   s.Name,
+						Labels: app.Labels,
+					},
+					Spec: ext_v1beta1.IngressSpec{
+						Rules: []ext_v1beta1.IngressRule{
+							{
+								IngressRuleValue: ext_v1beta1.IngressRuleValue{
+									HTTP: http,
+								},
+								Host: s.Rules[0].Host,
+							},
+						},
+					},
+				}
+				svcs = append(svcs, ing)
+			} else if len(s.Rules) == 1 && len(s.Ports) > 1 {
+				if s.Rules[0].HTTP == nil {
+					log.Warnf("No HTTP given for multiple ports")
+				}
+			} else if len(s.Rules) > 1 {
+				ing := &ext_v1beta1.Ingress{
+					ObjectMeta: api_v1.ObjectMeta{
+						Name:   s.Name,
+						Labels: app.Labels,
+					},
+					Spec: s.IngressSpec,
+				}
+				svcs = append(svcs, ing)
+			}
 		}
 	}
 	return svcs
@@ -329,6 +379,3 @@ func CreateK8sObjects(app *App) ([]runtime.Object, error) {
 
 	return objects, nil
 }
-
-// how to expose certain service using ingress
-//
