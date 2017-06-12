@@ -68,7 +68,7 @@ func Convert(v *viper.Viper, cmd *cobra.Command) error {
 		if err != nil {
 			return errors.Wrap(err, "could not unmarshal into internal struct")
 		}
-		log.Debugf("file: %s, object unmrashalled: %#v", file, app)
+		log.Debugf("file: %s, object unmrashalled: %#v\n", file, app)
 
 		runtimeObjects, err := CreateK8sObjects(&app)
 
@@ -173,7 +173,6 @@ func searchVolumeIndex(app *App, name string) int {
 }
 
 func createPVC(v *Volume) (*api_v1.PersistentVolumeClaim, error) {
-	// create pvc
 	if v.Size == "" {
 		v.Size = "100Mi"
 	}
@@ -211,11 +210,21 @@ func createPVC(v *Volume) (*api_v1.PersistentVolumeClaim, error) {
 	return pvc, nil
 }
 
-func add(objects *[]runtime.Object, object runtime.Object) {
-	if object != nil {
-		*objects = append(*objects, object)
-		log.Debugf("%s\n", spew.Sprint(object))
+func isAnyConfigMapRef(app *App) bool {
+	for _, c := range app.Containers {
+		for _, env := range c.Env {
+			if env.ValueFrom != nil && env.ValueFrom.ConfigMapKeyRef != nil && env.ValueFrom.ConfigMapKeyRef.Name == app.Name {
+				return true
+			}
+		}
 	}
+	for _, v := range app.Volumes {
+		if v.ConfigMap != nil && v.ConfigMap.Name == app.Name {
+			return true
+		}
+	}
+
+	return false
 }
 
 func CreateK8sObjects(app *App) ([]runtime.Object, error) {
@@ -269,30 +278,54 @@ func CreateK8sObjects(app *App) ([]runtime.Object, error) {
 		app.Containers[0].Name = app.Name
 	}
 
-	//var configMap *api_v1.ConfigMap
-	//if len(app.ConfigData) > 0 {
-	//	configMap = &api_v1.ConfigMap{
-	//		ObjectMeta: api_v1.ObjectMeta{
-	//			Name: app.Name,
-	//		},
-	//		Data: app.ConfigData,
-	//	}
-	//}
+	var configMap *api_v1.ConfigMap
+	if len(app.ConfigData) > 0 {
+		configMap = &api_v1.ConfigMap{
+			ObjectMeta: api_v1.ObjectMeta{
+				Name: app.Name,
+			},
+			Data: app.ConfigData,
+		}
+
+		// add it to the envs if there is no configMapRef
+		// we cannot re-create the entries for configMap
+		// because there is no way we will know which container wants to use it
+		if len(app.Containers) == 1 && !isAnyConfigMapRef(app) {
+			// iterate over the data in the configMap
+			for k, _ := range app.ConfigData {
+				app.Containers[0].Env = append(app.Containers[0].Env,
+					api_v1.EnvVar{
+						Name: k,
+						ValueFrom: &api_v1.EnvVarSource{
+							ConfigMapKeyRef: &api_v1.ConfigMapKeySelector{
+								api_v1.LocalObjectReference{
+									Name: app.Name,
+								},
+								k,
+							},
+						},
+					})
+			}
+		} else if len(app.Containers) > 1 && !isAnyConfigMapRef(app) {
+			log.Warnf("You have defined a configMap but you have not mentioned where you gonna consume it!")
+		}
+
+	}
 
 	deployment := createDeployment(app)
+	objects = append(objects, deployment)
+	log.Debugf("app: %s, deployment: %s\n", app.Name, spew.Sprint(deployment))
 
-	add(&objects, deployment)
-	log.Debugf("app: %s, deployment: %s", app.Name, spew.Sprint(deployment))
-	//add(&objects, configMap)
-	//log.Debugf("app: %s, configMap: %s", spew.Sprint(configMap))
-	for _, svc := range svcs {
-		add(&objects, svc)
+	if configMap != nil {
+		objects = append(objects, configMap)
 	}
-	log.Debugf("app: %s, service: %s", app.Name, spew.Sprint(svcs))
-	for _, pvc := range pvcs {
-		add(&objects, pvc)
-	}
-	log.Debugf("app: %s, pvc: %s", app.Name, spew.Sprint(pvcs))
+	log.Debugf("app: %s, configMap: %s\n", app.Name, spew.Sprint(configMap))
+
+	objects = append(objects, svcs...)
+	log.Debugf("app: %s, service: %s\n", app.Name, spew.Sprint(svcs))
+
+	objects = append(objects, pvcs...)
+	log.Debugf("app: %s, pvc: %s\n", app.Name, spew.Sprint(pvcs))
 
 	return objects, nil
 }
