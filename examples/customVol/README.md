@@ -4,7 +4,7 @@ To define a custom volume you have to do two things
 
 - Define a `volumeMount` in `containers.volumeMounts`
 
-Check out the following snippet from [./db.yaml](./db.yaml)
+Check out the following snippet from [db.yaml](./db.yaml)
 ```yaml
   volumeMounts:
   - name: database
@@ -15,7 +15,7 @@ Here you mention what is the name of the volume from the root level in `name` fi
 
 - Secondly define root level `persistentVolumes`
 
-Check out the following snippet from [./db.yaml](./db.yaml)
+Check out the following snippet from [db.yaml](./db.yaml)
 ```yaml
 persistentVolumes:
 - name: database
