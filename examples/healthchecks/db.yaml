@@ -10,9 +10,6 @@ containers:
     value: wordpress
   - name: MYSQL_PASSWORD
     value: wordpress
-  volumeMounts:
-  - name: database
-    mountPath: /var/lib/mysql
   livenessProbe:
     exec:
       command:

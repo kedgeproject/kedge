@@ -7,4 +7,5 @@ Go in the following order:
 3. [Custom Volumes](./customVol)
 4. [Defining ConfigMap](./configmap)
 5. [Ingress](./ingress)
+6. [Secrets](./secrets)
 
