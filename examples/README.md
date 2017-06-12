@@ -3,7 +3,7 @@
 Go in the following order:
 
 1. [Simple Example](./wordpress)
-2. [Add HealthChecks](./helathchecks)
+2. [Add HealthChecks](./healthchecks)
 3. [Custom Volumes](./customVol)
 4. [Defining ConfigMap](./configmap)
 5. [Ingress](./ingress)
