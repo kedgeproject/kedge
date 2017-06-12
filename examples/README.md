@@ -9,3 +9,4 @@ Go in the following order:
 5. [Ingress](./ingress)
 6. [Secrets](./secrets)
 7. [All constructs](./all)
+8. [All constructs no magic](./allnomagic)
