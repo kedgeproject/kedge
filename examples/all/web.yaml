@@ -1,0 +1,31 @@
+name: web
+replicas: 1
+containers:
+- image: wordpress:4
+  env:
+  - name: WORDPRESS_DB_PASSWORD
+    value: wordpress
+  livenessProbe:
+    httpGet:
+      path: /
+      port: 80
+    initialDelaySeconds: 120
+    timeoutSeconds: 5
+  readinessProbe:
+    httpGet:
+      path: /
+      port: 80
+    initialDelaySeconds: 5
+    timeoutSeconds: 2
+services:
+- name: wordpress
+  type: LoadBalancer
+  ports:
+  - port: 8080
+    targetPort: 80
+  rules:
+  - host: minikube.local
+configData:
+  WORDPRESS_DB_NAME: wordpress
+  WORDPRESS_DB_HOST: "database:3306"
+  WORDPRESS_DB_USER: wordpress
