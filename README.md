@@ -34,7 +34,7 @@ each and everything by herself.
 ## Install
 
 ```bash
-go install
+go get github.com/surajssd/opencomposition
 ```
 
 ## Usage
