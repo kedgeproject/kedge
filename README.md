@@ -2,6 +2,8 @@
 
 Experiment to openly composing apps for Kuberentes.
 
+![gif](./docs/demo.gif)
+
 ## Why?
 
 You must be wondering why this project when we have other projects to do the same
