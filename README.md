@@ -56,3 +56,21 @@ spec:
 Goto [examples](examples) directory to find more examples where the way to define apps is
 also documented.
 
+
+## TODOs
+
+* Root level `services` are confusing so find a better name for it, also consider
+moving it somewhere else.
+* The way secrets and configmaps are referred in containers.env it is too much
+indirection, making it easier.
+* `persistentVolumes`, `configData` are confusing terms rename them.
+* Add convenient shortcuts to the make `configMapKeyRef` and `secretKeyRef`
+usage becomes easier.
+* Add such shortcuts to other part of the spec, but user can choose to use
+shortcuts or define everything without having to use shortcuts.
+* Improve the way volume definition is done, size is not common to everything
+it's only in `pvc`.
+* Create intelligent defaults to the tool, to reduce what a user will write.
+* Generate OpenShift artifacts? All things related to OpenShift like builds,
+routes, etc.
+* Fields could be renamed to have easier or better name.
