@@ -7,6 +7,9 @@ Experiment to openly composing apps for Kuberentes.
 You must be wondering why this project when we have other projects to do the same
 the answer to that is below:
 
+**Note**: User here is someone using the spec to define and deploy her
+application.
+
 #### Compared with OpenCompose
 
 * No new language invented, using Kubernetes structs.
