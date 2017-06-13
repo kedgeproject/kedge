@@ -50,4 +50,6 @@ spec:
 ...
 ```
 
+Goto [examples](examples) directory to find more examples where the way to define apps is
+also documented.
 
