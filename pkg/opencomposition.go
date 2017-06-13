@@ -26,6 +26,11 @@ import (
 	_ "k8s.io/client-go/pkg/apis/extensions/install"
 )
 
+var (
+	DefaultVolumeSize string = "100Mi"
+	DefaultVolumeType string = "ReadWriteOnce"
+)
+
 type Volume struct {
 	api_v1.Volume `yaml:",inline"`
 	Size          string   `yaml:"size"`
@@ -224,7 +229,7 @@ func searchVolumeIndex(app *App, name string) int {
 
 func createPVC(v *Volume) (*api_v1.PersistentVolumeClaim, error) {
 	if v.Size == "" {
-		v.Size = "100Mi"
+		v.Size = DefaultVolumeSize
 	}
 	size, err := resource.ParseQuantity(v.Size)
 	if err != nil {
@@ -313,7 +318,9 @@ func CreateK8sObjects(app *App) ([]runtime.Object, error) {
 				continue
 			}
 
-			v := Volume{podVolume, "100Mi", []string{"ReadWriteOnce"}}
+			// Retrieve a default configuration
+			v := Volume{podVolume, DefaultVolumeSize, []string{DefaultVolumeType}}
+
 			app.PersistentVolumes = append(app.PersistentVolumes, v)
 			pvc, err := createPVC(&v)
 			if err != nil {
