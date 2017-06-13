@@ -1,16 +1,18 @@
-name: database
-containers:
-- image: mariadb:10
-  env:
-  - name: MYSQL_ROOT_PASSWORD
-    value: rootpasswd
-  - name: MYSQL_DATABASE
-    value: wordpress
-  - name: MYSQL_USER
-    value: wordpress
-  - name: MYSQL_PASSWORD
-    value: wordpress
+version: '0.1-dev'
+
 services:
 - name: database
-  ports:
-  - port: 3306
+  containers:
+  - image: mariadb:10
+    name: mariadb
+    env:
+    - name: MYSQL_ROOT_PASSWORD
+      value: rootpasswd
+    - name: MYSQL_DATABASE
+      value: wordpress
+    - name: MYSQL_USER
+      value: wordpress
+    - name: MYSQL_PASSWORD
+      value: wordpress
+    ports:
+    - port: 3306

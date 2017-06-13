@@ -1,19 +1,20 @@
-name: web
-replicas: 2
-containers:
-- image: wordpress:4
-  env:
-  - name: WORDPRESS_DB_HOST
-    value: database:3306
-  - name: WORDPRESS_DB_PASSWORD
-    value: wordpress
-  - name: WORDPRESS_DB_USER
-    value: wordpress
-  - name: WORDPRESS_DB_NAME
-    value: wordpress
+version: '0.1-dev'
+
 services:
-- name: wordpress
-  type: NodePort
-  ports:
-  - port: 8080
-    targetPort: 80
+- name: web
+  replicas: 2
+  containers:
+  - image: wordpress:4
+    name: wordpress
+    env:
+    - name: WORDPRESS_DB_HOST
+      value: database:3306
+    - name: WORDPRESS_DB_PASSWORD
+      value: wordpress
+    - name: WORDPRESS_DB_USER
+      value: wordpress
+    - name: WORDPRESS_DB_NAME
+      value: wordpress
+    ports:
+    - port: 80:8080
+      type: external
