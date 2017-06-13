@@ -4,13 +4,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"strings"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/ghodss/yaml"
 	"github.com/pkg/errors"
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"k8s.io/client-go/pkg/api"
 	"k8s.io/client-go/pkg/api/resource"
 	"k8s.io/client-go/pkg/runtime"
@@ -62,9 +59,9 @@ func ReadFile(f string) ([]byte, error) {
 	return data, nil
 }
 
-func Convert(v *viper.Viper, cmd *cobra.Command) error {
+func Convert(files []string) error {
 
-	for _, file := range strings.Split(v.GetStringSlice("files")[0], ",") {
+	for _, file := range files {
 		d, err := ReadFile(file)
 		if err != nil {
 			return errors.New(err.Error())
