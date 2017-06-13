@@ -2,6 +2,7 @@
 
 Go in the following order:
 
+0. [Simplest of examples](./simplest)
 1. [Simple Example](./wordpress)
 2. [Add HealthChecks](./healthchecks)
 3. [Custom Volumes](./customVol)
@@ -10,3 +11,4 @@ Go in the following order:
 6. [Secrets](./secrets)
 7. [All constructs](./all)
 8. [All constructs no magic](./allnomagic)
+
