@@ -1,31 +1,40 @@
 package cmd
 
 import (
-	"errors"
-	"strings"
+	"fmt"
+	"os"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
-func NewRootCommand() *cobra.Command {
-	v := viper.New()
-	v.SetEnvPrefix("opencomposition")
-	v.AutomaticEnv()
-	replacer := strings.NewReplacer("-", "_")
-	v.SetEnvKeyReplacer(replacer)
+// Global variables
+var (
+	GlobalVerbose bool
+)
 
-	var rootCmd = &cobra.Command{
-		Use: "opencomposition",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			//if err := cmd.Help(); err != nil {
-			//	return err
-			//}
-			return errors.New("Use 'opencomposition convert'")
-		},
+// RootCmd represents the base command when called without any subcommands
+var RootCmd = &cobra.Command{
+	Use:   "opencomposition",
+	Short: "Compose Kubernetes applications using Kubernetes constructs",
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+
+		// Add extra logging when verbosity is passed
+		if GlobalVerbose {
+			log.SetLevel(log.DebugLevel)
+		}
+
+	},
+}
+
+func Execute() {
+	if err := RootCmd.Execute(); err != nil {
+		fmt.Println(err)
+		os.Exit(-1)
 	}
+}
 
-	rootCmd.AddCommand(NewConvertCommand(v))
-
-	return rootCmd
+// Initialize all flags
+func init() {
+	RootCmd.PersistentFlags().BoolVarP(&GlobalVerbose, "verbose", "v", false, "verbose output")
 }

@@ -1,33 +1,31 @@
 package cmd
 
 import (
-	"github.com/pkg/errors"
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
-	"github.com/surajssd/opencomposition/pkg"
+	"fmt"
+	"os"
 
-	log "github.com/Sirupsen/logrus"
+	"github.com/spf13/cobra"
+	"github.com/surajssd/opencomposition/pkg"
 )
 
-func NewConvertCommand(v *viper.Viper) *cobra.Command {
-	cmd := &cobra.Command{
-		Use: "convert",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return RunConvert(v, cmd)
-		},
-	}
-	cmd.PersistentFlags().StringSliceP("files", "f", []string{}, "Specify opencompose files")
-	v.BindPFlag("files", cmd.PersistentFlags().Lookup("files"))
-	cmd.PersistentFlags().BoolP("verbose", "v", false, "Specify if you want to see debug mode output")
-	v.BindPFlag("verbose", cmd.PersistentFlags().Lookup("verbose"))
+// Variables
+var (
+	ConvertFiles []string
+)
 
-	return cmd
+// convertCmd represents the convert command
+var convertCmd = &cobra.Command{
+	Use:   "convert",
+	Short: "Convert an application to Kubernetes resources",
+	Run: func(cmd *cobra.Command, args []string) {
+		if err := pkg.Convert(ConvertFiles); err != nil {
+			fmt.Println(err)
+			os.Exit(-1)
+		}
+	},
 }
 
-func RunConvert(v *viper.Viper, cmd *cobra.Command) error {
-	if v.GetBool("verbose") {
-		log.SetLevel(log.DebugLevel)
-	}
-
-	return errors.Wrap(pkg.Convert(v, cmd), "failed conversion")
+func init() {
+	convertCmd.Flags().StringArrayVarP(&ConvertFiles, "files", "f", []string{}, "Specify files")
+	RootCmd.AddCommand(convertCmd)
 }
