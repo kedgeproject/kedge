@@ -21,13 +21,12 @@ limitations under the License.
 package v1beta1
 
 import (
-	reflect "reflect"
-
 	unversioned "k8s.io/client-go/pkg/api/unversioned"
 	v1 "k8s.io/client-go/pkg/api/v1"
 	conversion "k8s.io/client-go/pkg/conversion"
 	runtime "k8s.io/client-go/pkg/runtime"
 	intstr "k8s.io/client-go/pkg/util/intstr"
+	reflect "reflect"
 )
 
 func init() {
