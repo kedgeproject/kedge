@@ -43,7 +43,6 @@ type Service struct {
 type App struct {
 	Name              string            `yaml:"name"`
 	Replicas          *int32            `yaml:"replicas,omitempty"`
-	Expose            bool              `yaml:"expose,omitempty"`
 	Labels            map[string]string `yaml:"labels,omitempty"`
 	PersistentVolumes []Volume          `yaml:"persistentVolumes,omitempty"`
 	ConfigData        map[string]string `yaml:"configData,omitempty"`
