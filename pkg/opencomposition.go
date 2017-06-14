@@ -352,10 +352,10 @@ func CreateK8sObjects(app *App) ([]runtime.Object, error) {
 						Name: k,
 						ValueFrom: &api_v1.EnvVarSource{
 							ConfigMapKeyRef: &api_v1.ConfigMapKeySelector{
-								api_v1.LocalObjectReference{
+								LocalObjectReference: api_v1.LocalObjectReference{
 									Name: app.Name,
 								},
-								k,
+								Key: k,
 							},
 						},
 					})
