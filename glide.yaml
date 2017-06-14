@@ -11,3 +11,5 @@ import:
   - pkg/api/v1
   - pkg/runtime
   - pkg/apis
+- package: github.com/Sirupsen/logrus
+  version: v1.0.0
