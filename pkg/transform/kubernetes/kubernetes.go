@@ -1,122 +1,41 @@
-package pkg
+package kubernetes
 
 import (
-	"fmt"
-	"io/ioutil"
-	"os"
-
 	"github.com/davecgh/go-spew/spew"
-	"github.com/ghodss/yaml"
 	"github.com/pkg/errors"
 	"k8s.io/client-go/pkg/api"
+
 	"k8s.io/client-go/pkg/api/resource"
 	"k8s.io/client-go/pkg/runtime"
 	"k8s.io/client-go/pkg/util/intstr"
 
 	log "github.com/Sirupsen/logrus"
-	api_v1 "k8s.io/client-go/pkg/api/v1"
-	ext_v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
 
-	// install api
+	"fmt"
 
 	_ "k8s.io/client-go/pkg/api/install"
 	_ "k8s.io/client-go/pkg/apis/extensions/install"
+
+	"github.com/surajssd/opencomposition/pkg/spec"
+
+	// install api
+	api_v1 "k8s.io/client-go/pkg/api/v1"
+	ext_v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
 )
+
+type App spec.App
 
 var (
 	DefaultVolumeSize string = "100Mi"
 	DefaultVolumeType string = "ReadWriteOnce"
 )
 
-type Volume struct {
-	api_v1.Volume `yaml:",inline"`
-	Size          string   `yaml:"size"`
-	AccessModes   []string `yaml:"accessModes"`
-}
-
-type Service struct {
-	Name                    string `yaml:"name,omitempty"`
-	api_v1.ServiceSpec      `yaml:",inline"`
-	ext_v1beta1.IngressSpec `yaml:",inline"`
-}
-
-type App struct {
-	Name              string            `yaml:"name"`
-	Replicas          *int32            `yaml:"replicas,omitempty"`
-	Labels            map[string]string `yaml:"labels,omitempty"`
-	PersistentVolumes []Volume          `yaml:"persistentVolumes,omitempty"`
-	ConfigData        map[string]string `yaml:"configData,omitempty"`
-	Services          []Service         `yaml:"services,omitempty"`
-	api_v1.PodSpec    `yaml:",inline"`
-}
-
-func ReadFile(f string) ([]byte, error) {
-	data, err := ioutil.ReadFile(f)
-	if err != nil {
-		return nil, errors.Wrap(err, "file reading failed")
-	}
-	return data, nil
-}
-
-func Convert(files []string) error {
-
-	for _, file := range files {
-		d, err := ReadFile(file)
-		if err != nil {
-			return errors.New(err.Error())
-		}
-
-		var app App
-		err = yaml.Unmarshal(d, &app)
-		if err != nil {
-			return errors.Wrap(err, "could not unmarshal into internal struct")
-		}
-		log.Debugf("file: %s, object unmrashalled: %#v\n", file, app)
-
-		runtimeObjects, err := CreateK8sObjects(&app)
-
-		for _, runtimeObject := range runtimeObjects {
-			gvk, isUnversioned, err := api.Scheme.ObjectKind(runtimeObject)
-			if err != nil {
-				return errors.Wrap(err, "ConvertToVersion failed")
-			}
-			if isUnversioned {
-				return errors.New(fmt.Sprintf("ConvertToVersion failed: can't output unversioned type: %T", runtimeObject))
-			}
-
-			runtimeObject.GetObjectKind().SetGroupVersionKind(gvk)
-
-			data, err := yaml.Marshal(runtimeObject)
-			if err != nil {
-				return errors.Wrap(err, "failed to marshal object")
-			}
-
-			writeObject := func(o runtime.Object, data []byte) error {
-				_, err := fmt.Fprintln(os.Stdout, "---")
-				if err != nil {
-					return errors.Wrap(err, "could not print to STDOUT")
-				}
-
-				_, err = os.Stdout.Write(data)
-				return errors.Wrap(err, "could not write to STDOUT")
-			}
-
-			err = writeObject(runtimeObject, data)
-			if err != nil {
-				return errors.Wrap(err, "failed to write object")
-			}
-		}
-	}
-
-	return nil
-}
-
-func getLabels(app *App) map[string]string {
+func getLabels(app *spec.App) map[string]string {
 	labels := map[string]string{"app": app.Name}
 	return labels
 }
 
-func createServices(app *App) []runtime.Object {
+func createServices(app *spec.App) []runtime.Object {
 	var svcs []runtime.Object
 	for _, s := range app.Services {
 		svc := &api_v1.Service{
@@ -186,7 +105,7 @@ func createServices(app *App) []runtime.Object {
 	return svcs
 }
 
-func createDeployment(app *App) *ext_v1beta1.Deployment {
+func createDeployment(app *spec.App) *ext_v1beta1.Deployment {
 	// bare minimum deployment
 	return &ext_v1beta1.Deployment{
 		ObjectMeta: api_v1.ObjectMeta{
@@ -207,14 +126,14 @@ func createDeployment(app *App) *ext_v1beta1.Deployment {
 	}
 }
 
-func isVolumeDefined(app *App, name string) bool {
+func isVolumeDefined(app *spec.App, name string) bool {
 	if i := searchVolumeIndex(app, name); i != -1 {
 		return true
 	}
 	return false
 }
 
-func searchVolumeIndex(app *App, name string) int {
+func searchVolumeIndex(app *spec.App, name string) int {
 	for i, v := range app.PersistentVolumes {
 		if name == v.Name {
 			return i
@@ -223,7 +142,7 @@ func searchVolumeIndex(app *App, name string) int {
 	return -1
 }
 
-func createPVC(v *Volume) (*api_v1.PersistentVolumeClaim, error) {
+func createPVC(v *spec.Volume) (*api_v1.PersistentVolumeClaim, error) {
 	if v.Size == "" {
 		v.Size = DefaultVolumeSize
 	}
@@ -261,7 +180,7 @@ func createPVC(v *Volume) (*api_v1.PersistentVolumeClaim, error) {
 	return pvc, nil
 }
 
-func isAnyConfigMapRef(app *App) bool {
+func isAnyConfigMapRef(app *spec.App) bool {
 	for _, c := range app.Containers {
 		for _, env := range c.Env {
 			if env.ValueFrom != nil && env.ValueFrom.ConfigMapKeyRef != nil && env.ValueFrom.ConfigMapKeyRef.Name == app.Name {
@@ -278,7 +197,7 @@ func isAnyConfigMapRef(app *App) bool {
 	return false
 }
 
-func CreateK8sObjects(app *App) ([]runtime.Object, error) {
+func CreateK8sObjects(app *spec.App) ([]runtime.Object, error) {
 
 	var objects []runtime.Object
 
@@ -315,7 +234,7 @@ func CreateK8sObjects(app *App) ([]runtime.Object, error) {
 			}
 
 			// Retrieve a default configuration
-			v := Volume{podVolume, DefaultVolumeSize, []string{DefaultVolumeType}}
+			v := spec.Volume{podVolume, DefaultVolumeSize, []string{DefaultVolumeType}}
 
 			app.PersistentVolumes = append(app.PersistentVolumes, v)
 			pvc, err := createPVC(&v)
@@ -381,4 +300,27 @@ func CreateK8sObjects(app *App) ([]runtime.Object, error) {
 	log.Debugf("app: %s, pvc: %s\n", app.Name, spew.Sprint(pvcs))
 
 	return objects, nil
+}
+
+func Transform(app *spec.App) ([]runtime.Object, error) {
+
+	runtimeObjects, err := CreateK8sObjects(app)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create Kubernetes objects")
+	}
+
+	for _, runtimeObject := range runtimeObjects {
+
+		gvk, isUnversioned, err := api.Scheme.ObjectKind(runtimeObject)
+		if err != nil {
+			return nil, errors.Wrap(err, "ConvertToVersion failed")
+		}
+		if isUnversioned {
+			return nil, errors.New(fmt.Sprintf("ConvertToVersion failed: can't output unversioned type: %T", runtimeObject))
+		}
+
+		runtimeObject.GetObjectKind().SetGroupVersionKind(gvk)
+	}
+
+	return runtimeObjects, nil
 }
