@@ -5,10 +5,10 @@ import (
 	ext_v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
 )
 
-type Volume struct {
-	api_v1.Volume `yaml:",inline"`
-	Size          string   `yaml:"size"`
-	AccessModes   []string `yaml:"accessModes"`
+type PersistentVolume struct {
+	api_v1.PersistentVolumeClaimSpec `yaml:",inline"`
+	Name                             string `yaml:"name"`
+	Size                             string `yaml:"size"`
 }
 
 type Service struct {
@@ -18,11 +18,11 @@ type Service struct {
 }
 
 type App struct {
-	Name              string            `yaml:"name"`
-	Replicas          *int32            `yaml:"replicas,omitempty"`
-	Labels            map[string]string `yaml:"labels,omitempty"`
-	PersistentVolumes []Volume          `yaml:"persistentVolumes,omitempty"`
-	ConfigData        map[string]string `yaml:"configData,omitempty"`
-	Services          []Service         `yaml:"services,omitempty"`
+	Name              string             `yaml:"name"`
+	Replicas          *int32             `yaml:"replicas,omitempty"`
+	Labels            map[string]string  `yaml:"labels,omitempty"`
+	PersistentVolumes []PersistentVolume `yaml:"persistentVolumes,omitempty"`
+	ConfigData        map[string]string  `yaml:"configData,omitempty"`
+	Services          []Service          `yaml:"services,omitempty"`
 	api_v1.PodSpec    `yaml:",inline"`
 }

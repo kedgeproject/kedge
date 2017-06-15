@@ -45,11 +45,11 @@ services:
   - port: 3306
 persistentVolumes:
 - name: database
-  size: 500Mi
+  resources:
+    requests:
+      storage: 100Mi
   accessModes:
   - ReadWriteOnce
-  persistentVolumeClaim:
-    claimName: database
 configData:
   MYSQL_DATABASE: wordpress
   MYSQL_USER: wordpress

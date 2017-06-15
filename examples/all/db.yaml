@@ -30,10 +30,6 @@ services:
 persistentVolumes:
 - name: database
   size: 500Mi
-  accessModes:
-  - ReadWriteOnce
-  persistentVolumeClaim:
-    claimName: database
 configData:
   MYSQL_DATABASE: wordpress
   MYSQL_USER: wordpress
