@@ -179,7 +179,7 @@ func isVolumeDefined(app *spec.App, name string) bool {
 }
 
 func isAnyConfigMapRef(app *spec.App) bool {
-	for _, c := range app.Containers {
+	for _, c := range app.PodSpec.Containers {
 		for _, env := range c.Env {
 			if env.ValueFrom != nil && env.ValueFrom.ConfigMapKeyRef != nil && env.ValueFrom.ConfigMapKeyRef.Name == app.Name {
 				return true
@@ -199,7 +199,7 @@ func isAnyConfigMapRef(app *spec.App) bool {
 // root level persistent volume and entry in the container
 // volume mount, we alse need to update the pod's volume field
 func populateVolumes(app *spec.App) error {
-	for cn, c := range app.Containers {
+	for cn, c := range app.PodSpec.Containers {
 		for vn, vm := range c.VolumeMounts {
 			if isPVCDefined(app, vm.Name) {
 				app.Volumes = append(app.Volumes, api_v1.Volume{
@@ -223,14 +223,34 @@ func populateVolumes(app *spec.App) error {
 	return nil
 }
 
+func populateContainerHealth(app *spec.App) error {
+	for cn, c := range app.Containers {
+		// check if health and liveness given together
+		if c.Health != nil && (c.ReadinessProbe != nil || c.LivenessProbe != nil) {
+			return errors.New(fmt.Sprintf("cannot define field health and livnessProbe"+
+				" or readinessProbe together in app.containers[%d]", cn))
+		}
+		if c.Health != nil {
+			c.LivenessProbe = c.Health
+			c.ReadinessProbe = c.Health
+		}
+		app.PodSpec.Containers = append(app.PodSpec.Containers, c.Container)
+	}
+	return nil
+}
+
 func CreateK8sObjects(app *spec.App) ([]runtime.Object, error) {
 	var objects []runtime.Object
 
 	if app.Labels == nil {
 		app.Labels = getLabels(app)
 	}
-
 	svcs := createServices(app)
+
+	// withdraw the health and populate actual pod spec
+	if err := populateContainerHealth(app); err != nil {
+		return nil, errors.Wrapf(err, "app %q", app.Name)
+	}
 
 	// create pvc for each root level persistent volume
 	var pvcs []runtime.Object
@@ -246,8 +266,8 @@ func CreateK8sObjects(app *spec.App) ([]runtime.Object, error) {
 	}
 
 	// if only one container set name of it as app name
-	if len(app.Containers) == 1 && app.Containers[0].Name == "" {
-		app.Containers[0].Name = app.Name
+	if len(app.PodSpec.Containers) == 1 && app.PodSpec.Containers[0].Name == "" {
+		app.PodSpec.Containers[0].Name = app.Name
 	}
 
 	var configMap *api_v1.ConfigMap
@@ -262,10 +282,10 @@ func CreateK8sObjects(app *spec.App) ([]runtime.Object, error) {
 		// add it to the envs if there is no configMapRef
 		// we cannot re-create the entries for configMap
 		// because there is no way we will know which container wants to use it
-		if len(app.Containers) == 1 && !isAnyConfigMapRef(app) {
+		if len(app.PodSpec.Containers) == 1 && !isAnyConfigMapRef(app) {
 			// iterate over the data in the configMap
 			for k, _ := range app.ConfigData {
-				app.Containers[0].Env = append(app.Containers[0].Env,
+				app.PodSpec.Containers[0].Env = append(app.PodSpec.Containers[0].Env,
 					api_v1.EnvVar{
 						Name: k,
 						ValueFrom: &api_v1.EnvVarSource{
@@ -278,7 +298,7 @@ func CreateK8sObjects(app *spec.App) ([]runtime.Object, error) {
 						},
 					})
 			}
-		} else if len(app.Containers) > 1 && !isAnyConfigMapRef(app) {
+		} else if len(app.PodSpec.Containers) > 1 && !isAnyConfigMapRef(app) {
 			log.Warnf("You have defined a configMap but you have not mentioned where you gonna consume it!")
 		}
 
