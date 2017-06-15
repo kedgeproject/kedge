@@ -1,6 +1,6 @@
-# Custom Volumes
+# Volumes
 
-To define a custom volume you have to do two things
+To define a volume you have to do two things
 
 - Define a `volumeMount` in `containers.volumeMounts`
 
@@ -22,15 +22,11 @@ persistentVolumes:
   size: 500Mi
   accessModes:
   - ReadWriteOnce
-  persistentVolumeClaim:
-    claimName: database
 ```
 
 The `name` here should match with the `name` field in `containers.volumeMounts`. This is where you define the `size` of the volume as well.
 
 Field `accessModes` is optional and defaults to `ReadWriteOnce`.
-
-Define the PVC name in the field `persistentVolumeClaim`.
 
 ## Ref:
 

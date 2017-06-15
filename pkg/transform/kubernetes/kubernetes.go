@@ -1,33 +1,23 @@
 package kubernetes
 
 import (
+	"fmt"
+
 	"github.com/davecgh/go-spew/spew"
 	"github.com/pkg/errors"
+	"github.com/surajssd/opencomposition/pkg/spec"
 	"k8s.io/client-go/pkg/api"
-
 	"k8s.io/client-go/pkg/api/resource"
 	"k8s.io/client-go/pkg/runtime"
 	"k8s.io/client-go/pkg/util/intstr"
 
 	log "github.com/Sirupsen/logrus"
-
-	"fmt"
-
-	_ "k8s.io/client-go/pkg/api/install"
-	_ "k8s.io/client-go/pkg/apis/extensions/install"
-
-	"github.com/surajssd/opencomposition/pkg/spec"
-
-	// install api
 	api_v1 "k8s.io/client-go/pkg/api/v1"
 	ext_v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
-)
 
-type App spec.App
-
-var (
-	DefaultVolumeSize string = "100Mi"
-	DefaultVolumeType string = "ReadWriteOnce"
+	// install api
+	_ "k8s.io/client-go/pkg/api/install"
+	_ "k8s.io/client-go/pkg/apis/extensions/install"
 )
 
 func getLabels(app *spec.App) map[string]string {
@@ -126,58 +116,66 @@ func createDeployment(app *spec.App) *ext_v1beta1.Deployment {
 	}
 }
 
-func isVolumeDefined(app *spec.App, name string) bool {
-	if i := searchVolumeIndex(app, name); i != -1 {
-		return true
+// search through all the persistent volumes defined in the root level
+func isPVCDefined(app *spec.App, name string) bool {
+	for _, v := range app.PersistentVolumes {
+		if v.Name == name {
+			return true
+		}
 	}
 	return false
 }
 
-func searchVolumeIndex(app *spec.App, name string) int {
-	for i, v := range app.PersistentVolumes {
-		if name == v.Name {
-			return i
+// create PVC reading the root level persistent volume field
+func createPVC(v spec.PersistentVolume, labels map[string]string) (*api_v1.PersistentVolumeClaim, error) {
+	// check for conditions where user has given both conflicting fields
+	// or not given either fields
+	if v.Size != "" && v.Resources.Requests != nil {
+		return nil, errors.New(fmt.Sprintf("persistent volume %q, cannot provide size and resources at the same time", v.Name))
+	}
+	if v.Size == "" && v.Resources.Requests == nil {
+		return nil, errors.New(fmt.Sprintf("persistent volume %q, please provide size or resources, none given", v.Name))
+	}
+
+	// if user has given size then create a "api_v1.ResourceRequirements"
+	// because this can be fed to pvc directly
+	if v.Size != "" {
+		size, err := resource.ParseQuantity(v.Size)
+		if err != nil {
+			return nil, errors.Wrap(err, "could not read volume size")
+		}
+		// update the volume's resource so that it can be fed
+		v.Resources = api_v1.ResourceRequirements{
+			Requests: api_v1.ResourceList{
+				api_v1.ResourceStorage: size,
+			},
 		}
 	}
-	return -1
-}
-
-func createPVC(v *spec.Volume) (*api_v1.PersistentVolumeClaim, error) {
-	if v.Size == "" {
-		v.Size = DefaultVolumeSize
+	// setting the default accessmode if none given by user
+	if len(v.AccessModes) == 0 {
+		v.AccessModes = []api_v1.PersistentVolumeAccessMode{api_v1.ReadWriteOnce}
 	}
-	size, err := resource.ParseQuantity(v.Size)
-	if err != nil {
-		return nil, errors.Wrap(err, "could not read volume size")
-	}
-
 	pvc := &api_v1.PersistentVolumeClaim{
 		ObjectMeta: api_v1.ObjectMeta{
-			Name: v.Name,
+			Name:   v.Name,
+			Labels: labels,
 		},
-		Spec: api_v1.PersistentVolumeClaimSpec{
-			Resources: api_v1.ResourceRequirements{
-				Requests: api_v1.ResourceList{
-					api_v1.ResourceStorage: size,
-				},
-			},
-		},
+		// since we updated the pvc spec before so this can be directly fed
+		// without having to do any addition extra
+		Spec: api_v1.PersistentVolumeClaimSpec(v.PersistentVolumeClaimSpec),
 	}
-	for _, mode := range v.AccessModes {
-		switch mode {
-		case "ReadWriteOnce":
-			pvc.Spec.AccessModes = append(pvc.Spec.AccessModes, api_v1.ReadWriteOnce)
-		case "ReadOnlyMany":
-			pvc.Spec.AccessModes = append(pvc.Spec.AccessModes, api_v1.ReadOnlyMany)
-		case "ReadWriteMany":
-			pvc.Spec.AccessModes = append(pvc.Spec.AccessModes, api_v1.ReadWriteMany)
+	return pvc, nil
+}
+
+// This function will search in the pod level volumes
+// and see if the volume with given name is defined
+func isVolumeDefined(app *spec.App, name string) bool {
+	for _, v := range app.Volumes {
+		if v.Name == name {
+			return true
 		}
 	}
-	if len(v.AccessModes) == 0 {
-		pvc.Spec.AccessModes = []api_v1.PersistentVolumeAccessMode{api_v1.ReadWriteOnce}
-	}
-
-	return pvc, nil
+	return false
 }
 
 func isAnyConfigMapRef(app *spec.App) bool {
@@ -197,8 +195,35 @@ func isAnyConfigMapRef(app *spec.App) bool {
 	return false
 }
 
-func CreateK8sObjects(app *spec.App) ([]runtime.Object, error) {
+// Since we are automatically creating pvc from
+// root level persistent volume and entry in the container
+// volume mount, we alse need to update the pod's volume field
+func populateVolumes(app *spec.App) error {
+	for cn, c := range app.Containers {
+		for vn, vm := range c.VolumeMounts {
+			if isPVCDefined(app, vm.Name) {
+				app.Volumes = append(app.Volumes, api_v1.Volume{
+					Name: vm.Name,
+					VolumeSource: api_v1.VolumeSource{
+						PersistentVolumeClaim: &api_v1.PersistentVolumeClaimVolumeSource{
+							ClaimName: vm.Name,
+						},
+					},
+				})
+			} else if !isVolumeDefined(app, vm.Name) {
+				// pvc is not defined so we need to check if the entry is made in the pod volumes
+				// since a volumeMount entry without entry in pod level volumes might cause failure
+				// while deployment since that would not be a complete configuration
+				return errors.New(fmt.Sprintf("neither root level Persistent Volume"+
+					" nor Volume in pod spec defined for %q, "+
+					"in app.containers[%d].volumeMounts[%d]", vm.Name, cn, vn))
+			}
+		}
+	}
+	return nil
+}
 
+func CreateK8sObjects(app *spec.App) ([]runtime.Object, error) {
 	var objects []runtime.Object
 
 	if app.Labels == nil {
@@ -207,42 +232,17 @@ func CreateK8sObjects(app *spec.App) ([]runtime.Object, error) {
 
 	svcs := createServices(app)
 
+	// create pvc for each root level persistent volume
 	var pvcs []runtime.Object
-	for _, c := range app.Containers {
-		for _, vm := range c.VolumeMounts {
-
-			// User won't be giving this so we have to create it
-			// so that the pod spec is complete
-			podVolume := api_v1.Volume{
-				Name: vm.Name,
-				VolumeSource: api_v1.VolumeSource{
-					PersistentVolumeClaim: &api_v1.PersistentVolumeClaimVolumeSource{
-						ClaimName: vm.Name,
-					},
-				},
-			}
-			app.Volumes = append(app.Volumes, podVolume)
-
-			if isVolumeDefined(app, vm.Name) {
-				i := searchVolumeIndex(app, vm.Name)
-				pvc, err := createPVC(&app.PersistentVolumes[i])
-				if err != nil {
-					return nil, errors.Wrap(err, "cannot create pvc")
-				}
-				pvcs = append(pvcs, pvc)
-				continue
-			}
-
-			// Retrieve a default configuration
-			v := spec.Volume{podVolume, DefaultVolumeSize, []string{DefaultVolumeType}}
-
-			app.PersistentVolumes = append(app.PersistentVolumes, v)
-			pvc, err := createPVC(&v)
-			if err != nil {
-				return nil, errors.Wrap(err, "cannot create pvc")
-			}
-			pvcs = append(pvcs, pvc)
+	for _, v := range app.PersistentVolumes {
+		pvc, err := createPVC(v, app.Labels)
+		if err != nil {
+			return nil, errors.Wrapf(err, "app %q", app.Name)
 		}
+		pvcs = append(pvcs, pvc)
+	}
+	if err := populateVolumes(app); err != nil {
+		return nil, errors.Wrapf(err, "app %q", app.Name)
 	}
 
 	// if only one container set name of it as app name
