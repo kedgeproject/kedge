@@ -1,16 +1,39 @@
 # Kapp (Kubernetes + App)
 
-Experiment to openly composing apps for Kubernetes.
+What is Kapp? Kapp is an experiment to openly compose apps for Kubernetes. Using an effective but familiar YAML format similar to traditional Kubernetes artifacts.
 
 ![gif](./docs/demo.gif)
 
-## Why?
+## Install
+
+```bash
+go get github.com/surajssd/kapp
+```
+
+## Usage
+
+```sh
+kapp convert -f examples/wordpress/web.yaml -f examples/wordpress/db.yaml
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  creationTimestamp: null
+  labels:
+    app: web
+  name: web
+spec:
+  replicas: 2
+  strategy: {}
+...
+```
+
+More examples are located in the [examples](examples) directory.
+
+## Comparison to other projects
 
 You must be wondering why this project when we have other projects to do the same
 the answer to that is below:
-
-**Note**: User here is someone using the spec to define and deploy her
-application.
 
 #### Compared with OpenCompose
 
@@ -30,49 +53,16 @@ and other things will be assumed as defaults by the tool.
 * User can choose to define minimum required essentials or define
 each and everything by herself.
 
+## TODOs (Road to 0.1.0)
 
-## Install
-
-```bash
-go get github.com/surajssd/kapp
-```
-
-## Usage
-
-```bash
-$ kapp convert -f examples/wordpress/web.yaml -f examples/wordpress/db.yaml
----
-apiVersion: extensions/v1beta1
-kind: Deployment
-metadata:
-  creationTimestamp: null
-  labels:
-    app: web
-  name: web
-spec:
-  replicas: 2
-  strategy: {}
-...
-```
-
-Goto [examples](examples) directory to find more examples where the way to define apps is
-also documented.
-
-
-## TODOs
-
-* Parameterize the ingress host value or `endpoint` value
-* Rename `persistentVolumes` to something better like `volumeClaims`
-* Add support for `Jobs`, `CronJobs`, `HorizontalPodAutoScaler`, etc.
-* Comprehensive documentation of each and every feature
-* The way secrets and configmaps are referred in containers.env it is too much
-indirection, making it easier.
-* `configData` are confusing terms rename them.
-* Add convenient shortcuts to the make `configMapKeyRef` and `secretKeyRef`
-usage becomes easier.
-* Add such shortcuts to other part of the spec, but user can choose to use
-shortcuts or define everything without having to use shortcuts.
-* Create intelligent defaults to the tool, to reduce what a user will write.
-* Generate OpenShift artifacts? All things related to OpenShift like builds,
-routes, etc.
-* Fields could be renamed to have easier or better name.
+* [ ] Parameterize the ingress host value or endpoint value
+* [ ] Rename persistentVolumes to something better like volumeClaims
+* [ ] Add support for Jobs, CronJobs, HorizontalPodAutoScaler, etc.
+* [ ] Comprehensive documentation of each and every feature
+* [ ] The way secrets and configmaps are referred in containers.env it is too much indirection, making it easier.
+* [ ] configData are confusing terms rename them.
+* [ ] Add convenient shortcuts to the make configMapKeyRef and secretKeyRef usage becomes easier.
+* [ ] Add such shortcuts to other part of the spec, but user can choose to use shortcuts or define everything without having to use shortcuts.
+* [ ] Create intelligent defaults to the tool, to reduce what a user will write.
+* [ ] Generate OpenShift artifacts? All things related to OpenShift like builds, routes, etc.
+* [ ] Fields could be renamed to have easier or better name.
