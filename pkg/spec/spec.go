@@ -6,23 +6,29 @@ import (
 )
 
 type PersistentVolume struct {
-	api_v1.PersistentVolumeClaimSpec `yaml:",inline"`
-	Name                             string `yaml:"name"`
-	Size                             string `yaml:"size"`
+	api_v1.PersistentVolumeClaimSpec `json:",inline"`
+	Name                             string `json:"name"`
+	Size                             string `json:"size"`
 }
 
 type Service struct {
-	Name                    string `yaml:"name,omitempty"`
-	api_v1.ServiceSpec      `yaml:",inline"`
-	ext_v1beta1.IngressSpec `yaml:",inline"`
+	Name                    string `json:"name,omitempty"`
+	api_v1.ServiceSpec      `json:",inline"`
+	ext_v1beta1.IngressSpec `json:",inline"`
+}
+
+type Container struct {
+	Health           *api_v1.Probe `json:"health,omitempty"`
+	api_v1.Container `json:",inline"`
 }
 
 type App struct {
-	Name              string             `yaml:"name"`
-	Replicas          *int32             `yaml:"replicas,omitempty"`
-	Labels            map[string]string  `yaml:"labels,omitempty"`
-	PersistentVolumes []PersistentVolume `yaml:"persistentVolumes,omitempty"`
-	ConfigData        map[string]string  `yaml:"configData,omitempty"`
-	Services          []Service          `yaml:"services,omitempty"`
-	api_v1.PodSpec    `yaml:",inline"`
+	Name              string             `json:"name"`
+	Replicas          *int32             `json:"replicas,omitempty"`
+	Labels            map[string]string  `json:"labels,omitempty"`
+	PersistentVolumes []PersistentVolume `json:"persistentVolumes,omitempty"`
+	ConfigData        map[string]string  `json:"configData,omitempty"`
+	Services          []Service          `json:"services,omitempty"`
+	Containers        []Container        `json:"containers,omitempty"`
+	api_v1.PodSpec    `json:",inline"`
 }
