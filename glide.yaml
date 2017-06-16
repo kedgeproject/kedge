@@ -1,4 +1,4 @@
-package: github.com/surajssd/opencomposition
+package: github.com/surajssd/kapp
 import:
 - package: github.com/ghodss/yaml
 - package: github.com/spf13/cobra

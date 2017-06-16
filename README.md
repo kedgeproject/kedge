@@ -1,6 +1,6 @@
-# OpenComposition
+# Kapp (Kubernetes + App)
 
-Experiment to openly composing apps for Kuberentes.
+Experiment to openly composing apps for Kubernetes.
 
 ![gif](./docs/demo.gif)
 
@@ -34,13 +34,13 @@ each and everything by herself.
 ## Install
 
 ```bash
-go get github.com/surajssd/opencomposition
+go get github.com/surajssd/kapp
 ```
 
 ## Usage
 
 ```bash
-$ opencomposition convert -f examples/wordpress/web.yaml -f examples/wordpress/db.yaml
+$ kapp convert -f examples/wordpress/web.yaml -f examples/wordpress/db.yaml
 ---
 apiVersion: extensions/v1beta1
 kind: Deployment

@@ -15,7 +15,7 @@ var (
 
 // RootCmd represents the base command when called without any subcommands
 var RootCmd = &cobra.Command{
-	Use:   "opencomposition",
+	Use:   "kapp",
 	Short: "Compose Kubernetes applications using Kubernetes constructs",
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 

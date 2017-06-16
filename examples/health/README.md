@@ -23,7 +23,7 @@ When this is converted the same content is replicated in both
 fields:
 
 ```yaml
-$ opencomposition convert -f web.yaml
+$ kapp convert -f web.yaml
 ...
         livenessProbe:
           httpGet:
