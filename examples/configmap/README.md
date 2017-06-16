@@ -21,7 +21,7 @@ In [web.yaml](./web.yaml) only `configData` is defined but it is not referred an
 The converted output snippet of the `deployment` generated for the `web` app looks as follows:
 
 ```yaml
-$ opencomposition convert -f web.yaml
+$ kapp convert -f web.yaml
 ---
 apiVersion: extensions/v1beta1
 kind: Deployment

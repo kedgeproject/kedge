@@ -6,7 +6,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 
-	"github.com/surajssd/opencomposition/pkg/spec"
+	"github.com/surajssd/kapp/pkg/spec"
 )
 
 func Decode(data []byte) (*spec.App, error) {

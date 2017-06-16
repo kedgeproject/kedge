@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	pkgcmd "github.com/surajssd/opencomposition/pkg/cmd"
+	pkgcmd "github.com/surajssd/kapp/pkg/cmd"
 )
 
 // Variables

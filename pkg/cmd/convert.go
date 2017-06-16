@@ -8,8 +8,8 @@ import (
 
 	"github.com/ghodss/yaml"
 	"github.com/pkg/errors"
-	"github.com/surajssd/opencomposition/pkg/encoding"
-	"github.com/surajssd/opencomposition/pkg/transform/kubernetes"
+	"github.com/surajssd/kapp/pkg/encoding"
+	"github.com/surajssd/kapp/pkg/transform/kubernetes"
 	"k8s.io/client-go/pkg/runtime"
 )
 
