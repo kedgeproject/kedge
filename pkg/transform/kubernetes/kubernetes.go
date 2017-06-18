@@ -16,6 +16,10 @@ import (
 	ext_v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
 
 	// install api
+	"strings"
+
+	"strconv"
+
 	_ "k8s.io/client-go/pkg/api/install"
 	_ "k8s.io/client-go/pkg/apis/extensions/install"
 )
@@ -25,7 +29,23 @@ func getLabels(app *spec.App) map[string]string {
 	return labels
 }
 
-func createServices(app *spec.App) []runtime.Object {
+func createIngresses(app *spec.App) ([]runtime.Object, error) {
+	var ings []runtime.Object
+
+	for _, i := range app.Ingress {
+		ing := &ext_v1beta1.Ingress{
+			ObjectMeta: api_v1.ObjectMeta{
+				Name:   i.Name,
+				Labels: app.Labels,
+			},
+			Spec: i.IngressSpec,
+		}
+		ings = append(ings, ing)
+	}
+	return ings, nil
+}
+
+func createServices(app *spec.App) ([]runtime.Object, error) {
 	var svcs []runtime.Object
 	for _, s := range app.Services {
 		svc := &api_v1.Service{
@@ -35,64 +55,65 @@ func createServices(app *spec.App) []runtime.Object {
 			},
 			Spec: s.ServiceSpec,
 		}
+		for _, servicePortMod := range s.Ports {
+			svc.Spec.Ports = append(svc.Spec.Ports, servicePortMod.ServicePort)
+		}
 		if len(svc.Spec.Selector) == 0 {
 			svc.Spec.Selector = app.Labels
 		}
 		svcs = append(svcs, svc)
 
-		if s.Type == api_v1.ServiceTypeLoadBalancer {
-			// if more than one port given then we enforce user to specify in the http
-
-			// autogenerate
-			if len(s.Rules) == 1 && len(s.Ports) == 1 {
-				http := s.Rules[0].HTTP
-				if http == nil {
-					http = &ext_v1beta1.HTTPIngressRuleValue{
-						Paths: []ext_v1beta1.HTTPIngressPath{
-							{
-								Path: "/",
-								Backend: ext_v1beta1.IngressBackend{
-									ServiceName: s.Name,
-									ServicePort: intstr.FromInt(int(s.Ports[0].Port)),
-								},
-							},
-						},
-					}
+		// Generate ingress if "endpoint" is mentioned in app.Services.Ports[].Endpoint
+		for _, port := range s.Ports {
+			if port.Endpoint != "" {
+				var host string
+				var path string
+				endpoint := strings.SplitN(port.Endpoint, "/", 2)
+				switch len(endpoint) {
+				case 1:
+					host = endpoint[0]
+					path = "/"
+				case 2:
+					host = endpoint[0]
+					path = "/" + endpoint[1]
+				default:
+					return nil, errors.New(fmt.Sprintf("Invalid syntax for endpoint: %v", port.Endpoint))
 				}
-				ing := &ext_v1beta1.Ingress{
+
+				ingressName := s.Name + "-" + strconv.FormatInt(int64(port.Port), 10)
+				endpointIngress := &ext_v1beta1.Ingress{
 					ObjectMeta: api_v1.ObjectMeta{
-						Name:   s.Name,
+						Name:   ingressName,
 						Labels: app.Labels,
 					},
 					Spec: ext_v1beta1.IngressSpec{
 						Rules: []ext_v1beta1.IngressRule{
 							{
+								Host: host,
 								IngressRuleValue: ext_v1beta1.IngressRuleValue{
-									HTTP: http,
+									HTTP: &ext_v1beta1.HTTPIngressRuleValue{
+										Paths: []ext_v1beta1.HTTPIngressPath{
+											{
+												Path: path,
+												Backend: ext_v1beta1.IngressBackend{
+													ServiceName: s.Name,
+													ServicePort: intstr.IntOrString{
+														IntVal: port.Port,
+													},
+												},
+											},
+										},
+									},
 								},
-								Host: s.Rules[0].Host,
 							},
 						},
 					},
 				}
-				svcs = append(svcs, ing)
-			} else if len(s.Rules) == 1 && len(s.Ports) > 1 {
-				if s.Rules[0].HTTP == nil {
-					log.Warnf("No HTTP given for multiple ports")
-				}
-			} else if len(s.Rules) > 1 {
-				ing := &ext_v1beta1.Ingress{
-					ObjectMeta: api_v1.ObjectMeta{
-						Name:   s.Name,
-						Labels: app.Labels,
-					},
-					Spec: s.IngressSpec,
-				}
-				svcs = append(svcs, ing)
+				svcs = append(svcs, endpointIngress)
 			}
 		}
 	}
-	return svcs
+	return svcs, nil
 }
 
 func createDeployment(app *spec.App) *ext_v1beta1.Deployment {
@@ -245,7 +266,16 @@ func CreateK8sObjects(app *spec.App) ([]runtime.Object, error) {
 	if app.Labels == nil {
 		app.Labels = getLabels(app)
 	}
-	svcs := createServices(app)
+
+	svcs, err := createServices(app)
+	if err != nil {
+		return nil, errors.Wrap(err, "Unable to create Kubernetes Service")
+	}
+
+	ings, err := createIngresses(app)
+	if err != nil {
+		return nil, errors.Wrap(err, "Unable to create Kubernetes Ingresses")
+	}
 
 	// withdraw the health and populate actual pod spec
 	if err := populateContainerHealth(app); err != nil {
@@ -315,6 +345,9 @@ func CreateK8sObjects(app *spec.App) ([]runtime.Object, error) {
 
 	objects = append(objects, svcs...)
 	log.Debugf("app: %s, service: %s\n", app.Name, spew.Sprint(svcs))
+
+	objects = append(objects, ings...)
+	log.Debugf("app: %s, ingress: %s\n", app.Name, spew.Sprint(ings))
 
 	objects = append(objects, pvcs...)
 	log.Debugf("app: %s, pvc: %s\n", app.Name, spew.Sprint(pvcs))

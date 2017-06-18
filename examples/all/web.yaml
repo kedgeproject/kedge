@@ -23,8 +23,7 @@ services:
   ports:
   - port: 8080
     targetPort: 80
-  rules:
-  - host: minikube.local
+    endpoint: minikube.local
 configData:
   WORDPRESS_DB_NAME: wordpress
   WORDPRESS_DB_HOST: "database:3306"

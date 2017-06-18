@@ -13,9 +13,18 @@ containers:
     value: wordpress
 services:
 - name: wordpress
-  type: LoadBalancer
   ports:
   - port: 8080
     targetPort: 80
+    endpoint: minikube.local/foo
+ingress:
+- name: root-ingress
   rules:
-  - host: minikube.local
+  - host: minikube.external
+    http:
+      paths:
+      - backend:
+          serviceName: wordpress
+          servicePort: 8080
+        path: /
+
