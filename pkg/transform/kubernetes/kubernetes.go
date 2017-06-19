@@ -22,6 +22,7 @@ import (
 
 	_ "k8s.io/client-go/pkg/api/install"
 	_ "k8s.io/client-go/pkg/apis/extensions/install"
+	"reflect"
 )
 
 func getLabels(app *spec.App) map[string]string {
@@ -116,25 +117,39 @@ func createServices(app *spec.App) ([]runtime.Object, error) {
 	return svcs, nil
 }
 
-func createDeployment(app *spec.App) *ext_v1beta1.Deployment {
-	// bare minimum deployment
-	return &ext_v1beta1.Deployment{
+func createDeployment(app *spec.App) (*ext_v1beta1.Deployment, error) {
+
+	// We are merging whole DeploymentSpec with PodSpec.
+	// This means that someone could specify containers in template.spec and also in top level PodSpec.
+	// This stupid check is supposed to make sure that only one of them set.
+	// TODO: merge DeploymentSpec.Template.Spec and top level PodSpec
+	if !(reflect.DeepEqual(app.DeploymentSpec.Template.Spec, api_v1.PodSpec{}) || reflect.DeepEqual(app.PodSpec, api_v1.PodSpec{})) {
+		return nil, fmt.Errorf("Pod can't be specfied in two places. Use top level PodSpec or template.spec (DeploymentSpec.Template.Spec) not both")
+	}
+
+	deploymentSpec := app.DeploymentSpec
+
+	// top level PodSpec is not empty, use it for deployment template
+	// we already know that if app.PodSpec is not empty app.DeploymentSpec.Template.Spec is empty
+	if !reflect.DeepEqual(app.PodSpec, api_v1.PodSpec{}) {
+		deploymentSpec.Template.Spec = app.PodSpec
+	}
+
+	// TODO: check if this wasn't set by user, in that case we shouldn't ovewrite it
+	deploymentSpec.Template.ObjectMeta.Name = app.Name
+
+	// TODO: merge with already existing labels and avoid duplication
+	deploymentSpec.Template.ObjectMeta.Labels = app.Labels
+
+	deployment := ext_v1beta1.Deployment{
 		ObjectMeta: api_v1.ObjectMeta{
 			Name:   app.Name,
 			Labels: app.Labels,
 		},
-		Spec: ext_v1beta1.DeploymentSpec{
-			Replicas: app.Replicas,
-			Template: api_v1.PodTemplateSpec{
-				ObjectMeta: api_v1.ObjectMeta{
-					Name:   app.Name,
-					Labels: app.Labels,
-				},
-				// get pod spec out of the original info
-				Spec: api_v1.PodSpec(app.PodSpec),
-			},
-		},
+		Spec: deploymentSpec,
 	}
+
+	return &deployment, nil
 }
 
 // search through all the persistent volumes defined in the root level
@@ -334,7 +349,10 @@ func CreateK8sObjects(app *spec.App) ([]runtime.Object, error) {
 
 	}
 
-	deployment := createDeployment(app)
+	deployment, err := createDeployment(app)
+	if err != nil {
+		return nil, errors.Wrapf(err, "app %q", app.Name)
+	}
 	objects = append(objects, deployment)
 	log.Debugf("app: %s, deployment: %s\n", app.Name, spew.Sprint(deployment))
 
