@@ -3,9 +3,7 @@ containers:
 - image: centos/httpd
 services:
 - name: httpd
-  type: LoadBalancer
   ports:
   - port: 8080
     targetPort: 80
-  rules:
-  - host: minikube.local
+    endpoint: minikube.local

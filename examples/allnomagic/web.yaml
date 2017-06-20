@@ -41,6 +41,8 @@ services:
   ports:
   - port: 8080
     targetPort: 80
+ingress:
+- name: wordpress-ingress
   rules:
   - host: minikube.local
     http:

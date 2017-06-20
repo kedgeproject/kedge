@@ -11,9 +11,21 @@ type PersistentVolume struct {
 	Size                             string `json:"size"`
 }
 
-type Service struct {
-	Name                    string `json:"name,omitempty"`
-	api_v1.ServiceSpec      `json:",inline"`
+type ServicePortMod struct {
+	api_v1.ServicePort `json:",inline"`
+	// Endpoint allows specifying an ingress resource in the format
+	// `<Host>/<Path>`
+	Endpoint           string `json:"endpoint"`
+}
+
+type ServiceSpecMod struct {
+	api_v1.ServiceSpec `json:",inline"`
+	Name               string           `json:"name,omitempty"`
+	Ports              []ServicePortMod `json:"ports"`
+}
+
+type IngressSpecMod struct {
+	Name                    string `json:"name"`
 	ext_v1beta1.IngressSpec `json:",inline"`
 }
 
@@ -28,7 +40,8 @@ type App struct {
 	Labels            map[string]string  `json:"labels,omitempty"`
 	PersistentVolumes []PersistentVolume `json:"persistentVolumes,omitempty"`
 	ConfigData        map[string]string  `json:"configData,omitempty"`
-	Services          []Service          `json:"services,omitempty"`
+	Services          []ServiceSpecMod   `json:"services,omitempty"`
 	Containers        []Container        `json:"containers,omitempty"`
+	Ingress           []IngressSpecMod   `json:"ingress,omitempty"`
 	api_v1.PodSpec    `json:",inline"`
 }
