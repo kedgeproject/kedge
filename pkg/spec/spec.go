@@ -15,7 +15,7 @@ type ServicePortMod struct {
 	api_v1.ServicePort `json:",inline"`
 	// Endpoint allows specifying an ingress resource in the format
 	// `<Host>/<Path>`
-	Endpoint           string `json:"endpoint"`
+	Endpoint string `json:"endpoint"`
 }
 
 type ServiceSpecMod struct {
