@@ -201,7 +201,7 @@ func isAnyConfigMapRef(app *spec.App) bool {
 func populateVolumes(app *spec.App) error {
 	for cn, c := range app.PodSpec.Containers {
 		for vn, vm := range c.VolumeMounts {
-			if isPVCDefined(app, vm.Name) {
+			if isPVCDefined(app, vm.Name) && !isVolumeDefined(app, vm.Name) {
 				app.Volumes = append(app.Volumes, api_v1.Volume{
 					Name: vm.Name,
 					VolumeSource: api_v1.VolumeSource{
