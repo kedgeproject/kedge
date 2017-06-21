@@ -298,6 +298,14 @@ func CreateK8sObjects(app *spec.App) ([]runtime.Object, error) {
 	// if only one container set name of it as app name
 	if len(app.PodSpec.Containers) == 1 && app.PodSpec.Containers[0].Name == "" {
 		app.PodSpec.Containers[0].Name = app.Name
+	} else if len(app.PodSpec.Containers) > 1 {
+		// check if all the containers have a name
+		// if not fail giving error
+		for cn, c := range app.PodSpec.Containers {
+			if c.Name == "" {
+				return nil, fmt.Errorf("app %q: container name not defined for app.containers[%d]", app.Name, cn)
+			}
+		}
 	}
 
 	var configMap *api_v1.ConfigMap
