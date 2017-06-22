@@ -30,6 +30,8 @@ type IngressSpecMod struct {
 }
 
 type Container struct {
+	// one common definitions for livenessProbe and readinessProbe
+	// this allows to have only one place to define both probes (if they are the same)
 	Health           *api_v1.Probe `json:"health,omitempty"`
 	api_v1.Container `json:",inline"`
 }
@@ -41,7 +43,11 @@ type App struct {
 	PersistentVolumes []PersistentVolume `json:"persistentVolumes,omitempty"`
 	ConfigData        map[string]string  `json:"configData,omitempty"`
 	Services          []ServiceSpecMod   `json:"services,omitempty"`
-	Containers        []Container        `json:"containers,omitempty"`
 	Ingress           []IngressSpecMod   `json:"ingress,omitempty"`
-	api_v1.PodSpec    `json:",inline"`
+
+	// overwrite containers from PodSpec
+	Containers []Container `json:"containers,omitempty"`
+
+	api_v1.PodSpec             `json:",inline"`
+	ext_v1beta1.DeploymentSpec `json:",inline"`
 }
