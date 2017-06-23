@@ -1,15 +1,15 @@
 package cmd
 
 import (
-	"io/ioutil"
-
 	"fmt"
+	"io/ioutil"
 	"os"
+
+	"github.com/surajssd/kapp/pkg/encoding"
+	"github.com/surajssd/kapp/pkg/transform/kubernetes"
 
 	"github.com/ghodss/yaml"
 	"github.com/pkg/errors"
-	"github.com/surajssd/kapp/pkg/encoding"
-	"github.com/surajssd/kapp/pkg/transform/kubernetes"
 	"k8s.io/client-go/pkg/runtime"
 )
 

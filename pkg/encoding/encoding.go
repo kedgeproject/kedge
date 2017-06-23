@@ -1,10 +1,9 @@
 package encoding
 
 import (
+	log "github.com/Sirupsen/logrus"
 	"github.com/ghodss/yaml"
 	"github.com/pkg/errors"
-
-	log "github.com/Sirupsen/logrus"
 
 	"github.com/surajssd/kapp/pkg/spec"
 )
