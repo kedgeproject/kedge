@@ -13,7 +13,7 @@ import (
 	"k8s.io/client-go/pkg/runtime"
 )
 
-func Convert(files []string) error {
+func Generate(files []string) error {
 
 	for _, file := range files {
 
@@ -29,7 +29,7 @@ func Convert(files []string) error {
 
 		ros, err := kubernetes.Transform(app)
 		if err != nil {
-			return errors.Wrap(err, "unable to convert data")
+			return errors.Wrap(err, "unable to transorm data")
 		}
 
 		for _, runtimeObject := range ros {

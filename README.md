@@ -13,7 +13,7 @@ go get github.com/surajssd/kapp
 ## Usage
 
 ```sh
-kapp convert -f examples/wordpress/web.yaml -f examples/wordpress/db.yaml
+kapp generate -f examples/wordpress/web.yaml -f examples/wordpress/db.yaml
 ---
 apiVersion: extensions/v1beta1
 kind: Deployment

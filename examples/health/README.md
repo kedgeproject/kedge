@@ -19,11 +19,11 @@ containers:
 ...
 ```
 
-When this is converted the same content is replicated in both 
+When this is expanded the same content is replicated in both 
 fields:
 
 ```yaml
-$ kapp convert -f web.yaml
+$ kapp generate -f web.yaml
 ...
         livenessProbe:
           httpGet:
