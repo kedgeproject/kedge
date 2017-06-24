@@ -1,8 +1,8 @@
 # Health
 
-At container level instead of defining `livenessProbe` and 
+At container level instead of defining `livenessProbe` and
 `readinessProbe` you can define a field called `helath`.
-And then that gets replicated in `livenessProbe` and 
+And then that gets replicated in `livenessProbe` and
 `readinessProbe`.
 
 See the snippet below from [web.yaml](web.yaml):
@@ -19,11 +19,11 @@ containers:
 ...
 ```
 
-When this is converted the same content is replicated in both 
+When this is generated the same content is replicated in both
 fields:
 
 ```yaml
-$ kapp convert -f web.yaml
+$ kapp generate -f web.yaml
 ...
         livenessProbe:
           httpGet:

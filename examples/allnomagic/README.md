@@ -8,6 +8,6 @@ Deploying application in this requires secrets to be created already:
 
 ```bash
 oc create secret generic wordpress --from-literal='MYSQL_ROOT_PASSWORD=rootpasswd,DB_PASSWD=wordpress'
-kapp convert -f web.yaml -f db.yaml | oc create -f -
+kapp generate -f web.yaml -f db.yaml | oc create -f -
 ```
 
