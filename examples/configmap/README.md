@@ -18,10 +18,10 @@ If just `configData` is defined and in no place in the app it is referred and if
 
 In [web.yaml](./web.yaml) only `configData` is defined but it is not referred anywhere. So the entire configData is populated as env in the container.
 
-The converted output snippet of the `deployment` generated for the `web` app looks as follows:
+The generated output snippet of the `deployment` generated for the `web` app looks as follows:
 
 ```yaml
-$ kapp convert -f web.yaml
+$ kapp generate -f web.yaml
 ---
 apiVersion: extensions/v1beta1
 kind: Deployment

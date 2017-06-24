@@ -132,7 +132,7 @@ List of `volume` struct.
 
 ### persistentVolume
 
-A `pvc` is created for each `persistentVolume`. This is PersistentVolumeClaimSpec and added 
+A `pvc` is created for each `persistentVolume`. This is PersistentVolumeClaimSpec and added
 fields. More info: https://kubernetes.io/docs/api-reference/v1.6/#persistentvolumeclaimspec-v1-core
 
 ```yaml
@@ -152,7 +152,7 @@ resources:
 ```
 
 A user needs to define this list of volumes and then use it in the `volumeMounts` field in
-`containers`. In the resultant output the `volumes` in `podSpec` will be populated 
+`containers`. In the resultant output the `volumes` in `podSpec` will be populated
 automatically by the tool.
 
 #### name
@@ -205,7 +205,7 @@ accessModes:
 |-----------------|--------------|
 | array of string | no           |
 
-AccessModes contains the desired access modes the volume should have. Defaults to 
+AccessModes contains the desired access modes the volume should have. Defaults to
 `ReadWriteOnce`.
 
 The access modes are:
@@ -220,7 +220,7 @@ More info: http://kubernetes.io/docs/user-guide/persistent-volumes#access-modes-
 ```yaml
 configData:
   MYSQL_DATABASE: wordpress
-  app_data: /etc/app/data  
+  app_data: /etc/app/data
 ```
 
 | **Type** | **Required** |
@@ -266,7 +266,7 @@ ports:
 
 ```
 
-Each service gets converted into a Kubernetes service and ingresses respectively.
+Each service gets generated into a Kubernetes service and ingresses respectively.
 
 #### name
 
