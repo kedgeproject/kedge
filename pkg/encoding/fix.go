@@ -1,6 +1,8 @@
 package encoding
 
 import (
+	"fmt"
+
 	"github.com/pkg/errors"
 	"github.com/surajssd/kapp/pkg/spec"
 )
@@ -15,6 +17,11 @@ func fixApp(app *spec.App) error {
 	// fix app.PersistentVolumes
 	if err := fixPersistentVolumes(app); err != nil {
 		return errors.Wrap(err, "Unable to fix persistentVolume")
+	}
+
+	// fix app.configMaps
+	if err := fixConfigMaps(app); err != nil {
+		return errors.Wrap(err, "unable to fix configMaps")
 	}
 
 	return nil
@@ -44,6 +51,21 @@ func fixPersistentVolumes(app *spec.App) error {
 			}
 		}
 		app.PersistentVolumes[i] = pVolume
+	}
+	return nil
+}
+
+func fixConfigMaps(app *spec.App) error {
+	// if only one configMap is defined and it's name is not specified
+	if len(app.ConfigMaps) == 1 && app.ConfigMaps[0].Name == "" {
+		app.ConfigMaps[0].Name = app.Name
+	} else if len(app.ConfigMaps) > 1 {
+		// if multiple configMaps is defined then each should have a name
+		for cdn, cd := range app.ConfigMaps {
+			if cd.Name == "" {
+				return fmt.Errorf("name not specified for app.configMaps[%d]", cdn)
+			}
+		}
 	}
 	return nil
 }

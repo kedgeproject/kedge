@@ -5,63 +5,25 @@
 See the following snippet from [web.yaml](./web.yaml)
 
 ```yaml
-configData:
-  WORDPRESS_DB_NAME: wordpress
-  WORDPRESS_DB_HOST: "database:3306"
+configMaps:
+- data:
+    WORDPRESS_DB_NAME: wordpress
+    WORDPRESS_DB_HOST: "database:3306"
 ```
 
-Define a root level field called `configData`. It is just a key value pair. If this is define a configMap with the `name` of app is created.
+Define a root level field called `configMaps`. It is just a key value pair.
+If this is defined a `configMap` with the `name` of app is created.
 
-## Automatic population
+You can also define the name of `configMap` using field called `name`.
 
-If just `configData` is defined and in no place in the app it is referred and if there is only one container in the pod, then data in `configData` is populated as env in the pod.
-
-In [web.yaml](./web.yaml) only `configData` is defined but it is not referred anywhere. So the entire configData is populated as env in the container.
-
-The generated output snippet of the `deployment` generated for the `web` app looks as follows:
+e.g.
 
 ```yaml
-$ kapp generate -f web.yaml
----
-apiVersion: extensions/v1beta1
-kind: Deployment
-metadata:
-  creationTimestamp: null
-  labels:
-    app: web
-  name: web
-spec:
-  replicas: 2
-  strategy: {}
-  template:
-    metadata:
-      creationTimestamp: null
-      labels:
-        app: web
-      name: web
-    spec:
-      containers:
-      - env:
-        - name: WORDPRESS_DB_PASSWORD
-          value: wordpress
-        - name: WORDPRESS_DB_USER
-          value: wordpress
-        - name: WORDPRESS_DB_HOST
-          valueFrom:
-            configMapKeyRef:
-              key: WORDPRESS_DB_HOST
-              name: web
-        - name: WORDPRESS_DB_NAME
-          valueFrom:
-            configMapKeyRef:
-              key: WORDPRESS_DB_NAME
-              name: web
-        image: wordpress:4
-        livenessProbe:
-...
+configMaps:
+- name: web
+  data:
+    WORDPRESS_DB_NAME: wordpress
 ```
-
-See that `WORDPRESS_DB_HOST` and `WORDPRESS_DB_NAME` are automatically populated, even though it is not defined in `containers.env` section in the [web.yaml](./web.yaml).
 
 ## Consuming the configMap
 
@@ -75,7 +37,7 @@ See the following code snippet from [db.yaml](./db.yaml)
         name: database
 ```
 
-This is similar to the way configMap is referred in Kubernetes.
+This is similar to the way `configMap` is referred in Kubernetes.
 
 
 ## Ref

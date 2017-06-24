@@ -36,12 +36,17 @@ type Container struct {
 	api_v1.Container `json:",inline"`
 }
 
+type ConfigMapMod struct {
+	Name string            `json:"name,omitempty"`
+	Data map[string]string `json:"data,omitempty"`
+}
+
 type App struct {
 	Name              string             `json:"name"`
 	Replicas          *int32             `json:"replicas,omitempty"`
 	Labels            map[string]string  `json:"labels,omitempty"`
 	PersistentVolumes []PersistentVolume `json:"persistentVolumes,omitempty"`
-	ConfigData        map[string]string  `json:"configData,omitempty"`
+	ConfigMaps        []ConfigMapMod     `json:"configMaps,omitempty"`
 	Services          []ServiceSpecMod   `json:"services,omitempty"`
 	Ingress           []IngressSpecMod   `json:"ingress,omitempty"`
 

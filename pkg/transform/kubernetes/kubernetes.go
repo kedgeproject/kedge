@@ -2,6 +2,7 @@ package kubernetes
 
 import (
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 
@@ -20,7 +21,6 @@ import (
 	// install api (register and add types to api.Schema)
 	_ "k8s.io/client-go/pkg/api/install"
 	_ "k8s.io/client-go/pkg/apis/extensions/install"
-	"reflect"
 )
 
 func getLabels(app *spec.App) map[string]string {
@@ -321,38 +321,17 @@ func CreateK8sObjects(app *spec.App) ([]runtime.Object, error) {
 		}
 	}
 
-	var configMap *api_v1.ConfigMap
-	if len(app.ConfigData) > 0 {
-		configMap = &api_v1.ConfigMap{
+	var configMap []runtime.Object
+	for _, cd := range app.ConfigMaps {
+		cm := &api_v1.ConfigMap{
 			ObjectMeta: api_v1.ObjectMeta{
-				Name: app.Name,
+				Name:   cd.Name,
+				Labels: app.Labels,
 			},
-			Data: app.ConfigData,
+			Data: cd.Data,
 		}
 
-		// add it to the envs if there is no configMapRef
-		// we cannot re-create the entries for configMap
-		// because there is no way we will know which container wants to use it
-		if len(app.PodSpec.Containers) == 1 && !isAnyConfigMapRef(app) {
-			// iterate over the data in the configMap
-			for k, _ := range app.ConfigData {
-				app.PodSpec.Containers[0].Env = append(app.PodSpec.Containers[0].Env,
-					api_v1.EnvVar{
-						Name: k,
-						ValueFrom: &api_v1.EnvVarSource{
-							ConfigMapKeyRef: &api_v1.ConfigMapKeySelector{
-								LocalObjectReference: api_v1.LocalObjectReference{
-									Name: app.Name,
-								},
-								Key: k,
-							},
-						},
-					})
-			}
-		} else if len(app.PodSpec.Containers) > 1 && !isAnyConfigMapRef(app) {
-			log.Warnf("You have defined a configMap but you have not mentioned where you gonna consume it!")
-		}
-
+		configMap = append(configMap, cm)
 	}
 
 	deployment, err := createDeployment(app)
@@ -362,9 +341,7 @@ func CreateK8sObjects(app *spec.App) ([]runtime.Object, error) {
 	objects = append(objects, deployment)
 	log.Debugf("app: %s, deployment: %s\n", app.Name, spew.Sprint(deployment))
 
-	if configMap != nil {
-		objects = append(objects, configMap)
-	}
+	objects = append(objects, configMap...)
 	log.Debugf("app: %s, configMap: %s\n", app.Name, spew.Sprint(configMap))
 
 	objects = append(objects, svcs...)

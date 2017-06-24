@@ -1,0 +1,9 @@
+name: nginx
+containers:
+- image: nginx
+configData:
+- data:
+    foo: bar
+  name: foo
+- data:
+    abc: def

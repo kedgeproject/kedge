@@ -15,8 +15,8 @@ containers:
       command:
       - mysqladmin
       - ping
-    initialDelaySeconds: 300
-    timeoutSeconds: 50
+    initialDelaySeconds: 30
+    timeoutSeconds: 5
 services:
 - name: database
   ports:

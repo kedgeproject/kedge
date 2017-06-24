@@ -38,8 +38,9 @@ services:
 persistentVolumes:
 - name: database
   size: 500Mi
-configData:
-  MYSQL_DATABASE: wordpress
+configMaps:
+- data:
+    MYSQL_DATABASE: wordpress
 ```
 
 # Rootlevel constructs
@@ -215,17 +216,52 @@ The access modes are:
 
 More info: http://kubernetes.io/docs/user-guide/persistent-volumes#access-modes-1
 
-## configData
+## configMaps
 
 ```yaml
-configData:
-  MYSQL_DATABASE: wordpress
-  app_data: /etc/app/data  
+configMaps:
+- <configMap>
+- <configMap>
 ```
+
+| **Type**                         | **Required** |
+|----------------------------------|--------------|
+| array of [configMap](#configMap) | no           |
+
+###configMap
+
+```yaml
+name: string
+data:
+  key1: value1
+  key2: value2
+```
+
+example:
+
+```yaml
+name: database
+data:
+  MYSQL_DATABASE: wordpress
+  app_data: /etc/app/data
+```
+
+#### Name
+
+`name: database`
 
 | **Type** | **Required** |
 |----------|--------------|
-| object   | no           |
+| string   | yes          |
+
+The name of the configMap. This is optional field if only one configMap is defined, the
+default name will be the app name.
+
+#### Data
+
+| **Type** | **Required** |
+|----------|--------------|
+| object   | yes          |
 
 Data contains the configuration data. Each key must be a valid
 DNS_SUBDOMAIN with an optional leading dot.
@@ -397,6 +433,7 @@ persistentVolumes:
   size: 500Mi
   accessModes:
   - ReadWriteOnce
-configData:
-  MYSQL_DATABASE: wordpress
+configMaps:
+- data:
+    MYSQL_DATABASE: wordpress
 ```

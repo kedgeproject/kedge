@@ -50,6 +50,6 @@ persistentVolumes:
       storage: 100Mi
   accessModes:
   - ReadWriteOnce
-configData:
+configMaps:
   MYSQL_DATABASE: wordpress
   MYSQL_USER: wordpress
