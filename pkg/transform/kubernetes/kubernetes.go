@@ -2,6 +2,8 @@ package kubernetes
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/pkg/errors"
@@ -15,11 +17,7 @@ import (
 	api_v1 "k8s.io/client-go/pkg/api/v1"
 	ext_v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
 
-	// install api
-	"strings"
-
-	"strconv"
-
+	// install api (register and add types to api.Schema)
 	_ "k8s.io/client-go/pkg/api/install"
 	_ "k8s.io/client-go/pkg/apis/extensions/install"
 	"reflect"
