@@ -3,6 +3,7 @@ package encoding
 import (
 	"github.com/pkg/errors"
 	"github.com/surajssd/kapp/pkg/spec"
+	"strconv"
 )
 
 func fixApp(app *spec.App) error {
@@ -22,6 +23,7 @@ func fixApp(app *spec.App) error {
 
 func fixServices(app *spec.App) error {
 	for i, service := range app.Services {
+		// auto populate service name if only one service is specified
 		if service.Name == "" {
 			if len(app.Services) == 1 {
 				service.Name = app.Name
@@ -30,6 +32,14 @@ func fixServices(app *spec.App) error {
 			}
 		}
 		app.Services[i] = service
+
+		for i, servicePort := range service.Ports {
+			// auto populate port names if not specified
+			if len(service.Ports) > 1 && servicePort.Name == "" {
+				servicePort.Name = service.Name + "-" + strconv.FormatInt(int64(servicePort.Port), 10)
+			}
+			service.Ports[i] = servicePort
+		}
 	}
 	return nil
 }

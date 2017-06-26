@@ -27,6 +27,26 @@ func TestDecode(t *testing.T) {
 			Data: fixtures.SinglePersistentVolume,
 			App:  &fixtures.SinglePersistentVolumeApp,
 		},
+		{
+			Name: "Multiple ports specified with any names",
+			Data: fixtures.MultiplePortsNoNames,
+			App:  &fixtures.MultiplePortsNoNamesApp,
+		},
+		{
+			Name: "Multiple ports, some with names specified, others with no names",
+			Data: fixtures.MultiplePortsWithAndWithoutNames,
+			App:  &fixtures.MultiplePortsWithAndWithoutNamesApp,
+		},
+		{
+			Name: "Multiple ports, all with names",
+			Data: fixtures.MultiplePortsWithNames,
+			App:  &fixtures.MultiplePortsWithNamesApp,
+		},
+		{
+			Name: "Single port, without any name",
+			Data: fixtures.SinglePortWithoutName,
+			App:  &fixtures.SinglePortWithoutNameApp,
+		},
 	}
 
 	for _, test := range tests {
