@@ -17,5 +17,6 @@ services:
 - name: database
   ports:
   - port: 3306
-configData:
-  MYSQL_DATABASE: wordpress
+configMaps:
+- data:
+    MYSQL_DATABASE: wordpress

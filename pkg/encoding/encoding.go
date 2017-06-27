@@ -17,7 +17,7 @@ func Decode(data []byte) (*spec.App, error) {
 	}
 	log.Debugf("object unmrashalled: %#v\n", app)
 	if err := fixApp(&app); err != nil {
-		return nil, errors.Wrapf(err, "Unable to fix app: %v", app.Name)
+		return nil, errors.Wrapf(err, "Unable to fix app %q", app.Name)
 	}
 	return &app, nil
 

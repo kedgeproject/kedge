@@ -51,5 +51,5 @@ ingress:
           serviceName: wordpress
           servicePort: 8080
         path: /
-configData:
+configMaps:
   WORDPRESS_DB_HOST: "database:3306"

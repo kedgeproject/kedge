@@ -6,6 +6,13 @@ containers:
     value: rootpasswd
   - name: MYSQL_PASSWORD
     value: wordpress
+  - name: MYSQL_DATABASE
+    valueFrom:
+      configMapKeyRef:
+        key: MYSQL_DATABASE
+        name: database
+  - name: MYSQL_USER
+    value: wordpress
   volumeMounts:
   - name: database
     mountPath: /var/lib/mysql
@@ -30,6 +37,6 @@ services:
 persistentVolumes:
 - name: database
   size: 500Mi
-configData:
-  MYSQL_DATABASE: wordpress
-  MYSQL_USER: wordpress
+configMaps:
+- data:
+    MYSQL_DATABASE: wordpress
