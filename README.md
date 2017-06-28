@@ -1,35 +1,35 @@
-# Kapp - Openly Compose Applications for Kubernetes
+# Kedge - Openly Compose Applications for Kubernetes
 
-## What is Kapp?
+## What is Kedge?
 
-Kapp is a CLI tool for deploying simple high-abstracted YAML files to container orchestrators such as Kubernetes.
+Kedge is a CLI tool for deploying simple high-abstracted YAML files to container orchestrators such as Kubernetes.
 
 Key features and goals include:
   
   - _Simplicity:_ Using a simple, high-abstracted specification that is easy to understand and define.
   - _Multi-container environments:_ Define your containers, services and applications in one simple file, or abstract into multiple files.
-  - _Familiar structure:_ Using a familiar YAML structure as Kubernetes, it's easy to pick-up and understand Kapp.
-  - _No need to define everything:_ Define the necessary services and Kapp will do the rest. Kapp will interprolate and pick the best defaults for your application to run on Kubernetes.
+  - _Familiar structure:_ Using a familiar YAML structure as Kubernetes, it's easy to pick-up and understand Kedge.
+  - _No need to define everything:_ Define the necessary services and Kedge will do the rest. Kedge will interprolate and pick the best defaults for your application to run on Kubernetes.
 
 ## Project status
 
-We are a very evolving project with high velocity, we have listed a [file reference specification](docs/file-reference.md) as well as document our RFC's and changes as [GitHub issues](https://github.com/surajssd/kapp/issues).
+We are a very evolving project with high velocity, we have listed a [file reference specification](docs/file-reference.md) as well as document our RFC's and changes as [GitHub issues](https://github.com/kedgeproject/kedge/issues).
 
 Check out our [roadmap](ROADMAP.md) as we push towards a __0.1.0__ release.
 
-## Using Kapp
+## Using Kedge
 
 ### Installation
 
-The _best_ way to try Kapp is to download the most up-to-date binary from the master GitHub branch:
+The _best_ way to try Kedge is to download the most up-to-date binary from the master GitHub branch:
 
 ```sh
-go get github.com/surajssd/kapp
+go get github.com/kedgeproject/kedge
 ```
 
 ### Trying it out
 
-We have an [extensive list of examples](examples) to check out, but the simplest of them all is a [standard http example](https://raw.githubusercontent.com/surajssd/kapp/master/examples/simplest/httpd.yaml) with [minikube](https://github.com/kubernetes/minikube):
+We have an [extensive list of examples](examples) to check out, but the simplest of them all is a [standard http example](https://raw.githubusercontent.com/kedgeproject/kedge/master/examples/simplest/httpd.yaml) with [minikube](https://github.com/kubernetes/minikube):
 
 ```yaml
 name: httpd
@@ -46,7 +46,7 @@ services:
 We can now generate and deploy this example to Kubernetes:
 
 ```sh
-kapp generate -f httpd.yaml | kubectl create -f -
+kedge generate -f httpd.yaml | kubectl create -f -
 deployment "httpd" created
 service "httpd" created
 ```
@@ -73,7 +73,7 @@ Our examples range from [as simple as you can get](examples/simplest) to [every 
 
 ## Contributing 
 
-Kapp is an evolving project and contributions are happily welcome. Feel free to open up an issue or even a PR. Read our [contributing guide](CONTRIBUTING.md) for more details. If you're interested in submitting a patch, feel free to check our [development guide](docs/development.md) as well for ease into the project. 
+Kedge is an evolving project and contributions are happily welcome. Feel free to open up an issue or even a PR. Read our [contributing guide](CONTRIBUTING.md) for more details. If you're interested in submitting a patch, feel free to check our [development guide](docs/development.md) as well for ease into the project. 
 
 ## License
 

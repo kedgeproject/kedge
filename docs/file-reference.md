@@ -1,10 +1,10 @@
-# Kapp file reference
+# Kedge file reference
 
 Each file defines one micro-service, which forms one `pod` controlled by it's
 controller(right now the default controller is `deployment`).
 
 
-A example using all the keys added in Kapp(not all keys from Kubernetes
+A example using all the keys added in Kedge(not all keys from Kubernetes
 API are included):
 
 ```yaml

@@ -1,7 +1,7 @@
 package fixtures
 
 import (
-	"github.com/surajssd/kapp/pkg/spec"
+	"github.com/kedgeproject/kedge/pkg/spec"
 	api_v1 "k8s.io/client-go/pkg/api/v1"
 )
 

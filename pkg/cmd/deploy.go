@@ -6,8 +6,8 @@ import (
 	"io/ioutil"
 	"os/exec"
 
-	"github.com/surajssd/kapp/pkg/encoding"
-	"github.com/surajssd/kapp/pkg/transform/kubernetes"
+	"github.com/kedgeproject/kedge/pkg/encoding"
+	"github.com/kedgeproject/kedge/pkg/transform/kubernetes"
 
 	"github.com/ghodss/yaml"
 	"github.com/pkg/errors"

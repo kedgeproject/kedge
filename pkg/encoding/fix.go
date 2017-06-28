@@ -5,7 +5,7 @@ import (
 	"strconv"
 
 	"github.com/pkg/errors"
-	"github.com/surajssd/kapp/pkg/spec"
+	"github.com/kedgeproject/kedge/pkg/spec"
 )
 
 func fixApp(app *spec.App) error {

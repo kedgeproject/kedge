@@ -2,7 +2,7 @@
 
 :+1::tada: First off, thanks for taking the time to contribute! :tada::+1:
 
-The following is a set of guidelines (not rules) for contributing to Kapp.
+The following is a set of guidelines (not rules) for contributing to Kedge.
 
 These are just guidelines, not rules, use your best judgment and feel free to
 propose changes to this document in a pull request.
@@ -17,7 +17,7 @@ Before you submit your pull request consider the following guidelines:
      ```
 
 * Create your patch, **including appropriate test cases**.
-* Include documentation that either describe a change to a behavior of kapp or the changed capability to an end user of kapp.
+* Include documentation that either describe a change to a behavior of kedge or the changed capability to an end user of kedge.
 * Commit your changes using **a descriptive commit message**. If you are fixing an issue please include something like 'this closes issue #xyz'.
 * Make sure your tests pass! 
 
@@ -31,7 +31,7 @@ Before you submit your pull request consider the following guidelines:
     git push origin bug/my-fix-branch
     ```
 
-* In GitHub, send a pull request to `kapp:master`.
+* In GitHub, send a pull request to `kedge:master`.
 * If we suggest changes then:
   * Make the required updates.
   * Rebase your branch and force push to your GitHub repository (this will update your Pull Request):
@@ -47,7 +47,7 @@ That's it! Thank you for your contribution!
 
 * Include unit or integration tests for the capability you have implemented
 * Include documentation for the capability you have implemented
-* If you are fixing an issue within Kapp, include the issue number you are fixing
+* If you are fixing an issue within Kedge, include the issue number you are fixing
 
 ### After your pull request is merged
 

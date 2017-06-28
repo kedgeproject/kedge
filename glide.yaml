@@ -1,4 +1,4 @@
-package: github.com/surajssd/kapp
+package: github.com/kedgeproject/kedge
 import:
 - package: github.com/ghodss/yaml
 - package: github.com/spf13/cobra

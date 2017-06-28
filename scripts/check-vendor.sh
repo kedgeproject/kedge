@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Check if there are nested vendor dirs inside kapp vendor.
+# Check if there are nested vendor dirs inside kedge vendor.
 # All dependencies should be flattened and there shouldn't be vendor in inside vendor.
 
 function check_nested_vendor() {

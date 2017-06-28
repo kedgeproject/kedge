@@ -5,9 +5,9 @@ import (
 
 	"reflect"
 
-	encodingFixtures "github.com/surajssd/kapp/pkg/encoding/fixtures"
-	"github.com/surajssd/kapp/pkg/spec"
-	transformFixtures "github.com/surajssd/kapp/pkg/transform/fixtures"
+	encodingFixtures "github.com/kedgeproject/kedge/pkg/encoding/fixtures"
+	"github.com/kedgeproject/kedge/pkg/spec"
+	transformFixtures "github.com/kedgeproject/kedge/pkg/transform/fixtures"
 	"k8s.io/client-go/pkg/runtime"
 )
 

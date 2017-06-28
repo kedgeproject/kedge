@@ -5,7 +5,7 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/pkg/errors"
 
-	"github.com/surajssd/kapp/pkg/spec"
+	"github.com/kedgeproject/kedge/pkg/spec"
 )
 
 func Decode(data []byte) (*spec.App, error) {
