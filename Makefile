@@ -1,7 +1,7 @@
 
 
 GITCOMMIT := $(shell git rev-parse --short HEAD)
-BUILD_FLAGS := -ldflags="-w -X github.com/surajssd/kapp/cmd.GITCOMMIT=$(GITCOMMIT)"
+BUILD_FLAGS := -ldflags="-w -X github.com/kedgeproject/kedge/cmd.GITCOMMIT=$(GITCOMMIT)"
 PKGS = $(shell glide novendor)
 
 default: bin
@@ -11,20 +11,20 @@ all: bin
 
 .PHONY: bin
 bin:
-	go build ${BUILD_FLAGS} -o kapp main.go
+	go build ${BUILD_FLAGS} -o kedge main.go
 
 .PHONY: install
 install:
 	go install ${BUILD_FLAGS}
 
-# kompile kapp for multiple platforms
+# kompile kedge for multiple platforms
 .PHONY: cross
 cross:
-	gox -osarch="darwin/amd64 linux/amd64 linux/arm windows/amd64" -output="bin/kapp-{{.OS}}-{{.Arch}}" $(BUILD_FLAGS)
+	gox -osarch="darwin/amd64 linux/amd64 linux/arm windows/amd64" -output="bin/kedge-{{.OS}}-{{.Arch}}" $(BUILD_FLAGS)
 
 .PHONY: clean
 clean:
-	rm -f kapp
+	rm -f kedge
 	rm -r -f bundles
 
 # run all validation tests

@@ -23,7 +23,7 @@ When this is expanded the same content is replicated in both
 fields:
 
 ```yaml
-$ kapp generate -f web.yaml
+$ kedge generate -f web.yaml
 ...
         livenessProbe:
           httpGet:

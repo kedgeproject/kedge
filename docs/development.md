@@ -1,23 +1,23 @@
 # Development Guide
 
-## Building Kapp
+## Building Kedge
 
-Read about building kapp [here](https://github.com/surajssd/kapp#building).
+Read about building kedge [here](https://github.com/kedgeproject/kedge#building).
 
 ## Workflow
 ### Fork the main repository
 
-1. Go to https://github.com/surajssd/kapp
+1. Go to https://github.com/kedgeproject/kedge
 2. Click the "Fork" button (at the top right)
 
 ### Clone your fork
 
-The commands below require that you have $GOPATH. We highly recommended you put Kapp' code into your $GOPATH.
+The commands below require that you have $GOPATH. We highly recommended you put Kedge' code into your $GOPATH.
 
 ```console
-git clone https://github.com/$YOUR_GITHUB_USERNAME/kapp.git $GOPATH/src/github.com/surajssd/kapp
-cd $GOPATH/src/github.com/surajssd/kapp
-git remote add upstream 'https://github.com/surajssd/kapp'
+git clone https://github.com/$YOUR_GITHUB_USERNAME/kedge.git $GOPATH/src/github.com/kedgeproject/kedge
+cd $GOPATH/src/github.com/kedgeproject/kedge
+git remote add upstream 'https://github.com/kedgeproject/kedge'
 ```
 
 ### Create a branch and make changes
@@ -34,7 +34,7 @@ git fetch upstream
 git rebase upstream/master
 ```
 
-Note: If you have write access to the main repository at github.com/surajssd/kapp, you should modify your git configuration so that you can't accidentally push to upstream:
+Note: If you have write access to the main repository at github.com/kedgeproject/kedge, you should modify your git configuration so that you can't accidentally push to upstream:
 
 ```console
 git remote set-url --push upstream no_push
@@ -49,14 +49,14 @@ git push -f origin myfeature
 
 ### Creating a pull request
 
-1. Visit https://github.com/$YOUR_GITHUB_USERNAME/kapp.git
+1. Visit https://github.com/$YOUR_GITHUB_USERNAME/kedge.git
 2. Click the "Compare and pull request" button next to your "myfeature" branch.
 3. Check out the pull request process for more details
 
 ## `glide`, `glide-vc` and dependency management
 
-Kapp uses `glide` to manage dependencies and `glide-vc` to clean vendor directory.
-They are not strictly required for building Kapp but they are required when managing dependencies under the `vendor/` directory.
+Kedge uses `glide` to manage dependencies and `glide-vc` to clean vendor directory.
+They are not strictly required for building Kedge but they are required when managing dependencies under the `vendor/` directory.
 If you want to make changes to dependencies please make sure that `glide` and `glide-vc` are installed and are in your `$PATH`.
 
 ### Installing glide

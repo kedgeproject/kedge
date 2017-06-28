@@ -3,8 +3,8 @@ package encoding
 import (
 	"testing"
 
-	"github.com/surajssd/kapp/pkg/encoding/fixtures"
-	"github.com/surajssd/kapp/pkg/spec"
+	"github.com/kedgeproject/kedge/pkg/encoding/fixtures"
+	"github.com/kedgeproject/kedge/pkg/spec"
 
 	"reflect"
 
