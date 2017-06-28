@@ -2,10 +2,10 @@ package encoding
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/pkg/errors"
 	"github.com/surajssd/kapp/pkg/spec"
-	"strconv"
 )
 
 func fixApp(app *spec.App) error {
