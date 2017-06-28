@@ -302,7 +302,8 @@ ports:
 
 ```
 
-Each service gets converted into a Kubernetes service and ingresses respectively.
+Each service gets converted into a Kubernetes `service` and `ingress`es
+respectively.
 
 #### name
 
@@ -318,18 +319,18 @@ The name of the service.
 
 `endpoint: www.mycoolapp.com/admin`
 
-This is an added field in the Service port, which if specified a ingress
-resource is created. The ingress resource name will be the same as the name
-of service.
+This is an added field in the Service port, which if specified an `ingress`
+resource is created. The `ingress` resource name will be the same as the name
+of `service`.
 
-The complete `endpoint` the way it is defined is actually can be divided into
+`endpoint` the way it is defined is can actually can be divided into
 two parts the `URL` and `Path`, it is delimited by a forward slash.
 
 
-## ingress
+## ingresses
 
 ```yaml
-ingress:
+ingresses:
 - <ingressObject>
 - <ingressObject>
 ```
@@ -342,7 +343,7 @@ ingress:
 ### ingressObject
 
 ```yaml
-ingress:
+ingresses:
 - name: <string>
   <Ingress Spec>
 ```
@@ -361,12 +362,12 @@ rules:
 ```
 
 
-Each ingress is Kubernetes Ingress spec and name field.
+Each `ingress` object is Kubernetes Ingress spec and `name` field.
 More info: https://kubernetes.io/docs/api-reference/v1.6/#ingressspec-v1beta1-extensions
 
-If there is only one port and user wants to expose the service then user should define one
-`ingress` with `host` atleast then the rest of the `ingress` spec(things like `http`, etc.)
-will be populated for the user.
+If there is only one port and user wants to expose the service then user should
+define one `ingress` with `host` atleast then the rest of the `ingress`
+spec(things like `http`, etc.) will be populated for the user.
 
 More info about Probe: https://kubernetes.io/docs/api-reference/v1.6/#probe-v1-core
 
@@ -418,7 +419,7 @@ services:
   - port: 8080
     targetPort: 80
     endpoint: minikube.external/foo
-ingress:
+ingresses:
 - name: pseudo-wordpress
   rules:
   - host: minikube.local

@@ -17,7 +17,7 @@ services:
   - port: 8080
     targetPort: 80
     endpoint: minikube.local/foo
-ingress:
+ingresses:
 - name: root-ingress
   rules:
   - host: minikube.external
@@ -27,4 +27,3 @@ ingress:
           serviceName: wordpress
           servicePort: 8080
         path: /
-

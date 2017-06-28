@@ -11,9 +11,13 @@ services:
     endpoint: minikube.local
 ```
 
-Services here is an extension of [`service` spec](https://kubernetes.io/docs/api-reference/v1.6/#servicespec-v1-core), such that the `ServicePort` struct is extended with an `endpoint` field.  So if you want a service to be exposed via an ingress set the `endpoint` field in the format `ingress_host/ingress_path`.
+Services here is an extension of [`service` spec](https://kubernetes.io/docs/api-reference/v1.6/#servicespec-v1-core),
+such that the `ServicePort` struct is extended with an `endpoint` field.  So if
+you want a service to be exposed via an ingress set the `endpoint` field in the
+format `ingress_host/ingress_path`.
 
-When the `generate` command is run against this file, we can see that an ingress resource is populated automatically with the following parameters -
+When the `generate` command is run against this file, we can see that an ingress
+resource is populated automatically with the following parameters -
 
 ```yaml
 apiVersion: extensions/v1beta1
@@ -36,10 +40,11 @@ status:
   loadBalancer: {}
 ```
 
-A valid `Ingress` resource can also be specified at the rool level of the spec, like we see in the web.yaml,
+A valid `Ingress` resource can also be specified at the rool level of the spec,
+in a field called `ingresses` like we see in the [web.yaml](web.yaml):
 
 ```yaml
-ingress:
+ingresses:
 - name: root-ingress
   rules:
   - host: minikube.external
