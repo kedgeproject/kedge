@@ -48,7 +48,7 @@ type App struct {
 	PersistentVolumes []PersistentVolume `json:"persistentVolumes,omitempty"`
 	ConfigMaps        []ConfigMapMod     `json:"configMaps,omitempty"`
 	Services          []ServiceSpecMod   `json:"services,omitempty"`
-	Ingress           []IngressSpecMod   `json:"ingress,omitempty"`
+	Ingresses         []IngressSpecMod   `json:"ingresses,omitempty"`
 
 	// overwrite containers from PodSpec
 	Containers []Container `json:"containers,omitempty"`

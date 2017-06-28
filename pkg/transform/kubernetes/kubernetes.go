@@ -31,7 +31,7 @@ func getLabels(app *spec.App) map[string]string {
 func createIngresses(app *spec.App) ([]runtime.Object, error) {
 	var ings []runtime.Object
 
-	for _, i := range app.Ingress {
+	for _, i := range app.Ingresses {
 		ing := &ext_v1beta1.Ingress{
 			ObjectMeta: api_v1.ObjectMeta{
 				Name:   i.Name,
