@@ -23,8 +23,8 @@ import (
 	"strings"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/pkg/errors"
 	"github.com/kedgeproject/kedge/pkg/spec"
+	"github.com/pkg/errors"
 	"k8s.io/client-go/pkg/api"
 	"k8s.io/client-go/pkg/api/resource"
 	"k8s.io/client-go/pkg/runtime"

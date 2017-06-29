@@ -19,7 +19,6 @@ package cmd
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os/exec"
 
 	"github.com/kedgeproject/kedge/pkg/encoding"
@@ -30,12 +29,13 @@ import (
 )
 
 func Deploy(files []string) error {
-	for _, file := range files {
 
-		data, err := ioutil.ReadFile(file)
-		if err != nil {
-			return errors.Wrap(err, "file reading failed")
-		}
+	appData, err := getApplicationsFromFiles(files)
+	if err != nil {
+		return errors.Wrap(err, "unable to get kedge definitions from input files")
+	}
+
+	for _, data := range appData {
 
 		app, err := encoding.Decode(data)
 		if err != nil {
