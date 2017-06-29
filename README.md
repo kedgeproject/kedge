@@ -1,15 +1,16 @@
-# Kedge - Openly Compose Applications for Kubernetes
+# Kedge - Concise Application Definition for Kubernetes
 
 ## What is Kedge?
 
-Kedge is a CLI tool for deploying simple high-abstracted YAML files to container orchestrators such as Kubernetes.
+Kedge is a simple and easy way to define and deploy applications on Kubernetes by writing very concise application definitions.
 
 Key features and goals include:
-  
-  - _Simplicity:_ Using a simple, high-abstracted specification that is easy to understand and define.
-  - _Multi-container environments:_ Define your containers, services and applications in one simple file, or abstract into multiple files.
+
+  - _Simplicity:_ Using a simple and concise specification that is easy to understand and define.
+  - _Multi-container environments:_ Define your containers, services and applications in one simple file, or abstract them into multiple files.
   - _Familiar structure:_ Using a familiar YAML structure as Kubernetes, it's easy to pick-up and understand Kedge.
-  - _No need to define everything:_ Define the necessary services and Kedge will do the rest. Kedge will interprolate and pick the best defaults for your application to run on Kubernetes.
+  - _Built on top of Kubernetes PodSpec:_ Leverages Kuberenetes PodSpec and avoids leaky abstractions.
+  - _No need to define everything:_ Define just the necessary bits and Kedge will do the rest. Kedge will interprolate and pick the best defaults for your application to run on Kubernetes.
 
 ## Project status
 
