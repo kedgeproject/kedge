@@ -20,8 +20,8 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/pkg/errors"
 	"github.com/kedgeproject/kedge/pkg/spec"
+	"github.com/pkg/errors"
 )
 
 func fixApp(app *spec.App) error {
