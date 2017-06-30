@@ -35,6 +35,7 @@ validate: gofmt vet lint
 vet:
 	go vet $(PKGS)
 
+# golint errors are only recommendations
 .PHONY: lint
 lint:
 	golint $(PKGS)
@@ -48,9 +49,13 @@ gofmt:
 check-vendor:
 	./scripts/check-vendor.sh
 
+.PHONY: test-unit
+test-unit:
+	go test $(PKGS)
+
 # Run all tests
 .PHONY: test
-test: test-dep check-vendor validate install
+test: test-dep check-vendor validate test-unit
 
 # Install all the required test-dependencies before executing tests (only valid when running `make test`)
 .PHONY: test-dep
