@@ -20,8 +20,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/spf13/cobra"
 	pkgcmd "github.com/kedgeproject/kedge/pkg/cmd"
+	"github.com/spf13/cobra"
 )
 
 var (
