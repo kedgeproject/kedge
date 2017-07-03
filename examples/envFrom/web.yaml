@@ -10,25 +10,12 @@ containers:
   envFrom:
   - configMapRef:
       name: web
-  livenessProbe:
-    httpGet:
-      path: /
-      port: 80
-    initialDelaySeconds: 120
-    timeoutSeconds: 5
-  readinessProbe:
-    httpGet:
-      path: /
-      port: 80
-    initialDelaySeconds: 5
-    timeoutSeconds: 2
 services:
 - name: wordpress
-  type: LoadBalancer
+  type: NodePort
   ports:
   - port: 8080
     targetPort: 80
-    endpoint: minikube.local
 configMaps:
 - data:
     WORDPRESS_DB_NAME: wordpress

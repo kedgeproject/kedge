@@ -289,6 +289,59 @@ func populateContainerHealth(app *spec.App) error {
 	return nil
 }
 
+func populateEnvFrom(app *spec.App) error {
+	// iterate on the containers so that we can extract envFrom
+	// that we have custom defined
+	for ci, c := range app.Containers {
+		for ei, e := range c.EnvFrom {
+			cmName := e.ConfigMapRef.Name
+
+			// we also need to check if the configMap specified if it exists
+			var cmFound bool
+			// to populate the envs we also need to know the data
+			// from configmaps defined in the app
+			for _, cm := range app.ConfigMaps {
+				// we will only populate the configMap that is specified
+				// not every configMap out there
+				if cm.Name != cmName {
+					continue
+				}
+				var envs []api_v1.EnvVar
+				// start populating
+				for k := range cm.Data {
+					// here we are directly referring to the containers
+					// from app.PodSpec.Containers because that is where data
+					// is parsed into so populating that is more valid thing to do
+					envs = append(envs, api_v1.EnvVar{
+						Name: k,
+						ValueFrom: &api_v1.EnvVarSource{
+							ConfigMapKeyRef: &api_v1.ConfigMapKeySelector{
+								LocalObjectReference: api_v1.LocalObjectReference{
+									Name: cmName,
+								},
+								Key: k,
+							},
+						},
+					})
+				}
+				// we collect all the envs from configMap before
+				// envs provided inside the container
+				envs = append(envs, app.PodSpec.Containers[ci].Env...)
+				app.PodSpec.Containers[ci].Env = envs
+
+				cmFound = true
+				// once the population is done we exit out of the loop
+				// we don't need to check other configMaps
+				break
+			}
+			if !cmFound {
+				return fmt.Errorf("undefined configMap in app.containers[%d].envFrom[%d].configMapRef.name", ci, ei)
+			}
+		}
+	}
+	return nil
+}
+
 func CreateK8sObjects(app *spec.App) ([]runtime.Object, error) {
 	var objects []runtime.Object
 
@@ -308,6 +361,12 @@ func CreateK8sObjects(app *spec.App) ([]runtime.Object, error) {
 
 	// withdraw the health and populate actual pod spec
 	if err := populateContainerHealth(app); err != nil {
+		return nil, errors.Wrapf(err, "app %q", app.Name)
+	}
+	log.Debugf("object after population: %#v\n", app)
+
+	// withdraw the envFrom and populate actual containers
+	if err := populateEnvFrom(app); err != nil {
 		return nil, errors.Wrapf(err, "app %q", app.Name)
 	}
 

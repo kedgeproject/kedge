@@ -45,10 +45,23 @@ type IngressSpecMod struct {
 	ext_v1beta1.IngressSpec `json:",inline"`
 }
 
+// EnvFromSource represents the source of a set of ConfigMaps
+type EnvFromSource struct {
+	ConfigMapRef *ConfigMapEnvSource `json:"configMapRef,omitempty"`
+}
+
+// ConfigMapEnvSource selects a ConfigMap to populate the environment
+// variables with.
+type ConfigMapEnvSource struct {
+	Name string `json:"name,omitempty"`
+}
+
 type Container struct {
 	// one common definitions for livenessProbe and readinessProbe
 	// this allows to have only one place to define both probes (if they are the same)
-	Health           *api_v1.Probe `json:"health,omitempty"`
+	Health  *api_v1.Probe   `json:"health,omitempty"`
+	EnvFrom []EnvFromSource `json:"envFrom,omitempty"`
+
 	api_v1.Container `json:",inline"`
 }
 
