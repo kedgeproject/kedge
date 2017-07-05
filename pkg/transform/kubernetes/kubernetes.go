@@ -247,7 +247,7 @@ func isAnyConfigMapRef(app *spec.App) bool {
 
 // Since we are automatically creating pvc from
 // root level persistent volume and entry in the container
-// volume mount, we alse need to update the pod's volume field
+// volume mount, we also need to update the pod's volume field
 func populateVolumes(app *spec.App) error {
 	for cn, c := range app.PodSpec.Containers {
 		for vn, vm := range c.VolumeMounts {
