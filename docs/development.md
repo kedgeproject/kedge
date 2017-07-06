@@ -98,3 +98,19 @@ glide-vc -h
 
 2. Run `glide update --strip-vendor` to update dependencies.
    Than run `glide-vc --only-code --no-tests` to delete all unnecessary files from vendor.
+
+
+### PR review guidelines
+
+- To merge a PR at least two LGTMs are needed to merge it
+
+- If a PR is opened for more than two weeks, find why it is open for so long
+if it is blocked on some other issue/pr label it as blocked and then also link
+the issue it is blocked on. If it is outstanding for review and there are no
+reviews on it ping maintainers.
+
+- For PRs that have more than 500 LOC break it into pieces and merge it one
+by one incrementally so that it is easy to review and going back and forth on
+it is easier.
+
+**Note**: Above guidelines are not hard rules use those with discretion
