@@ -23,10 +23,12 @@ import (
 
 var SinglePortWithoutNameApp spec.App = spec.App{
 	Name: "test",
-	Containers: []spec.Container{
-		{
-			Container: api_v1.Container{
-				Image: "nginx",
+	PodSpecMod: spec.PodSpecMod{
+		Containers: []spec.Container{
+			{
+				Container: api_v1.Container{
+					Image: "nginx",
+				},
 			},
 		},
 	},

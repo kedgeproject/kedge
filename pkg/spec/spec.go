@@ -70,18 +70,19 @@ type ConfigMapMod struct {
 	Data map[string]string `json:"data,omitempty"`
 }
 
+type PodSpecMod struct {
+	Containers     []Container `json:"containers,omitempty"`
+	api_v1.PodSpec `json:",inline"`
+}
+
 type App struct {
-	Name              string             `json:"name"`
-	Replicas          *int32             `json:"replicas,omitempty"`
-	Labels            map[string]string  `json:"labels,omitempty"`
-	PersistentVolumes []PersistentVolume `json:"persistentVolumes,omitempty"`
-	ConfigMaps        []ConfigMapMod     `json:"configMaps,omitempty"`
-	Services          []ServiceSpecMod   `json:"services,omitempty"`
-	Ingresses         []IngressSpecMod   `json:"ingresses,omitempty"`
-
-	// overwrite containers from PodSpec
-	Containers []Container `json:"containers,omitempty"`
-
-	api_v1.PodSpec             `json:",inline"`
+	Name                       string             `json:"name"`
+	Replicas                   *int32             `json:"replicas,omitempty"`
+	Labels                     map[string]string  `json:"labels,omitempty"`
+	PersistentVolumes          []PersistentVolume `json:"persistentVolumes,omitempty"`
+	ConfigMaps                 []ConfigMapMod     `json:"configMaps,omitempty"`
+	Services                   []ServiceSpecMod   `json:"services,omitempty"`
+	Ingresses                  []IngressSpecMod   `json:"ingresses,omitempty"`
+	PodSpecMod                 `json:",inline"`
 	ext_v1beta1.DeploymentSpec `json:",inline"`
 }
