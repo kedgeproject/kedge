@@ -44,7 +44,7 @@ func Generate(files []string) error {
 
 		ros, err := kubernetes.Transform(app)
 		if err != nil {
-			return errors.Wrap(err, "unable to transorm data")
+			return errors.Wrap(err, "unable to transform data")
 		}
 
 		for _, runtimeObject := range ros {
