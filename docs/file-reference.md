@@ -41,7 +41,7 @@ configMaps:
     MYSQL_DATABASE: wordpress
 ```
 
-# Rootlevel constructs
+# Root level constructs
 
 App is made of Pod Spec and added fields.
 More info: https://kubernetes.io/docs/api-reference/v1.6/#podspec-v1-core

@@ -31,7 +31,7 @@ func Decode(data []byte) (*spec.App, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "could not unmarshal into internal struct")
 	}
-	log.Debugf("object unmrashalled: %#v\n", app)
+	log.Debugf("object unmarshalled: %#v\n", app)
 	if err := fixApp(&app); err != nil {
 		return nil, errors.Wrapf(err, "Unable to fix app %q", app.Name)
 	}
