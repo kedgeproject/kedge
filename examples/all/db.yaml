@@ -6,11 +6,9 @@ containers:
     value: rootpasswd
   - name: MYSQL_PASSWORD
     value: wordpress
-  - name: MYSQL_DATABASE
-    valueFrom:
-      configMapKeyRef:
-        key: MYSQL_DATABASE
-        name: database
+  envFrom:
+  - configMapRef:
+      name: database
   - name: MYSQL_USER
     value: wordpress
   volumeMounts:

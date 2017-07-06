@@ -2,8 +2,8 @@ name: httpd
 containers:
 - image: centos/httpd
 services:
-- name: httpd
-  ports:
-  - port: 8080
-    targetPort: 80
-    endpoint: minikube.local
+  - name: httpd
+    type: NodePort
+    ports:
+    - port: 8080
+      targetPort: 80

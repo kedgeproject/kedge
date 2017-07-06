@@ -1,3 +1,19 @@
+/*
+Copyright 2017 The Kedge Authors All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package kubernetes
 
 import (
@@ -7,8 +23,8 @@ import (
 	"strings"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/pkg/errors"
 	"github.com/kedgeproject/kedge/pkg/spec"
+	"github.com/pkg/errors"
 	"k8s.io/client-go/pkg/api"
 	"k8s.io/client-go/pkg/api/resource"
 	"k8s.io/client-go/pkg/runtime"
@@ -115,7 +131,15 @@ func createServices(app *spec.App) ([]runtime.Object, error) {
 	return svcs, nil
 }
 
+// Creates a Deployment Kubernetes resource. The returned Deployment resource
+// will be nil if it could not be generated due to insufficient input data.
 func createDeployment(app *spec.App) (*ext_v1beta1.Deployment, error) {
+
+	// We need to error out if both, app.PodSpec and app.DeploymentSpec are empty
+	if reflect.DeepEqual(app.PodSpec, api_v1.PodSpec{}) && reflect.DeepEqual(app.DeploymentSpec, ext_v1beta1.DeploymentSpec{}) {
+		log.Debug("Both, app.PodSpec and app.DeploymentSpec are empty, not enough data to create a deployment.")
+		return nil, nil
+	}
 
 	// We are merging whole DeploymentSpec with PodSpec.
 	// This means that someone could specify containers in template.spec and also in top level PodSpec.
@@ -212,26 +236,9 @@ func isVolumeDefined(app *spec.App, name string) bool {
 	return false
 }
 
-func isAnyConfigMapRef(app *spec.App) bool {
-	for _, c := range app.PodSpec.Containers {
-		for _, env := range c.Env {
-			if env.ValueFrom != nil && env.ValueFrom.ConfigMapKeyRef != nil && env.ValueFrom.ConfigMapKeyRef.Name == app.Name {
-				return true
-			}
-		}
-	}
-	for _, v := range app.Volumes {
-		if v.ConfigMap != nil && v.ConfigMap.Name == app.Name {
-			return true
-		}
-	}
-
-	return false
-}
-
 // Since we are automatically creating pvc from
 // root level persistent volume and entry in the container
-// volume mount, we alse need to update the pod's volume field
+// volume mount, we also need to update the pod's volume field
 func populateVolumes(app *spec.App) error {
 	for cn, c := range app.PodSpec.Containers {
 		for vn, vm := range c.VolumeMounts {
@@ -273,6 +280,59 @@ func populateContainerHealth(app *spec.App) error {
 	return nil
 }
 
+func populateEnvFrom(app *spec.App) error {
+	// iterate on the containers so that we can extract envFrom
+	// that we have custom defined
+	for ci, c := range app.Containers {
+		for ei, e := range c.EnvFrom {
+			cmName := e.ConfigMapRef.Name
+
+			// we also need to check if the configMap specified if it exists
+			var cmFound bool
+			// to populate the envs we also need to know the data
+			// from configmaps defined in the app
+			for _, cm := range app.ConfigMaps {
+				// we will only populate the configMap that is specified
+				// not every configMap out there
+				if cm.Name != cmName {
+					continue
+				}
+				var envs []api_v1.EnvVar
+				// start populating
+				for k := range cm.Data {
+					// here we are directly referring to the containers
+					// from app.PodSpec.Containers because that is where data
+					// is parsed into so populating that is more valid thing to do
+					envs = append(envs, api_v1.EnvVar{
+						Name: k,
+						ValueFrom: &api_v1.EnvVarSource{
+							ConfigMapKeyRef: &api_v1.ConfigMapKeySelector{
+								LocalObjectReference: api_v1.LocalObjectReference{
+									Name: cmName,
+								},
+								Key: k,
+							},
+						},
+					})
+				}
+				// we collect all the envs from configMap before
+				// envs provided inside the container
+				envs = append(envs, app.PodSpec.Containers[ci].Env...)
+				app.PodSpec.Containers[ci].Env = envs
+
+				cmFound = true
+				// once the population is done we exit out of the loop
+				// we don't need to check other configMaps
+				break
+			}
+			if !cmFound {
+				return fmt.Errorf("undefined configMap in app.containers[%d].envFrom[%d].configMapRef.name", ci, ei)
+			}
+		}
+	}
+	return nil
+}
+
 func CreateK8sObjects(app *spec.App) ([]runtime.Object, error) {
 	var objects []runtime.Object
 
@@ -292,6 +352,12 @@ func CreateK8sObjects(app *spec.App) ([]runtime.Object, error) {
 
 	// withdraw the health and populate actual pod spec
 	if err := populateContainerHealth(app); err != nil {
+		return nil, errors.Wrapf(err, "app %q", app.Name)
+	}
+	log.Debugf("object after population: %#v\n", app)
+
+	// withdraw the envFrom and populate actual containers
+	if err := populateEnvFrom(app); err != nil {
 		return nil, errors.Wrapf(err, "app %q", app.Name)
 	}
 
@@ -338,9 +404,13 @@ func CreateK8sObjects(app *spec.App) ([]runtime.Object, error) {
 	if err != nil {
 		return nil, errors.Wrapf(err, "app %q", app.Name)
 	}
-	objects = append(objects, deployment)
-	log.Debugf("app: %s, deployment: %s\n", app.Name, spew.Sprint(deployment))
 
+	// deployment will be nil if no deployment is generated and no error occurs,
+	// so we only need to append this when a legit deployment resource is returned
+	if deployment != nil {
+		objects = append(objects, deployment)
+		log.Debugf("app: %s, deployment: %s\n", app.Name, spew.Sprint(deployment))
+	}
 	objects = append(objects, configMap...)
 	log.Debugf("app: %s, configMap: %s\n", app.Name, spew.Sprint(configMap))
 
@@ -361,6 +431,10 @@ func Transform(app *spec.App) ([]runtime.Object, error) {
 	runtimeObjects, err := CreateK8sObjects(app)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create Kubernetes objects")
+	}
+
+	if len(runtimeObjects) == 0 {
+		return nil, errors.New("No runtime objects created, possibly because not enough input data was passed")
 	}
 
 	for _, runtimeObject := range runtimeObjects {

@@ -17,11 +17,9 @@ containers:
       secretKeyRef:
         name: wordpress
         key: MYSQL_ROOT_PASSWORD
-  - name: MYSQL_DATABASE
-    valueFrom:
-      configMapKeyRef:
-        key: MYSQL_DATABASE
-        name: database
+  envFrom:
+  - configMapRef:
+      name: database
   volumeMounts:
   - name: database
     mountPath: /var/lib/mysql
@@ -43,7 +41,7 @@ configMaps:
     MYSQL_DATABASE: wordpress
 ```
 
-# Rootlevel constructs
+# Root level constructs
 
 App is made of Pod Spec and added fields.
 More info: https://kubernetes.io/docs/api-reference/v1.6/#podspec-v1-core
@@ -111,10 +109,32 @@ containers:
 health: <probe>
 ```
 
-This is `probe` spec. Rather than defining `livenessProbe` and `readinessProbe`, define only
-`health`. And then it gets copied in both in the resultant spec.
-But if `health` and `livenessProbe` or `readinessProbe` are defined simultaneously then the
-tool will error out.
+This is `probe` spec. Rather than defining `livenessProbe` and `readinessProbe`,
+define only `health`. And then it gets copied in both in the resultant spec.
+But if `health` and `livenessProbe` or `readinessProbe` are defined
+simultaneously then the tool will error out.
+
+#### envFrom
+
+```yaml
+envFrom:
+- configMapRef:
+    name: <string>
+```
+
+This is similar to the envFrom field in container which is added since Kubernetes
+1.6. `envFrom` is a list of references. Right now the only reference that is
+supported is of `configMap`. The `configMap` that you refer here, all the data
+from that `configMap` will be populated as `env` inside the container.
+
+The restriction being that the `configMap` also has to be defined in the file.
+If the `configMap` is not defined in the file under the root level field called
+`configMaps`, the tool will throw an error, since it has no way of knowing
+from where to populate the environment variables from.
+
+To read more about this field from the Kubernetes upstream docs see this:
+https://kubernetes.io/docs/api-reference/v1.6/#envfromsource-v1-core
+
 
 ## persistentVolumes
 
@@ -393,11 +413,9 @@ containers:
       secretKeyRef:
         name: wordpress
         key: MYSQL_ROOT_PASSWORD
-  - name: MYSQL_DATABASE
-    valueFrom:
-      configMapKeyRef:
-        key: MYSQL_DATABASE
-        name: database
+  envFrom:
+  - configMapRef:
+      name: database
   volumeMounts:
   - name: database
     mountPath: /var/lib/mysql

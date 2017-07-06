@@ -1,0 +1,20 @@
+dist: trusty
+
+language: go
+
+# make this also work for forks
+go_import_path: github.com/kedgeproject/kedge
+
+matrix:
+  include:
+    - go: 1.6
+    - go: 1.7
+    - go: 1.8
+  allow_failures:
+    - go: 1.6
+
+install:
+  - true
+
+script:
+  - make test

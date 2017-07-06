@@ -1,15 +1,16 @@
-# Kedge - Openly Compose Applications for Kubernetes
+# Kedge - Concise Application Definition for Kubernetes
 
 ## What is Kedge?
 
-Kedge is a CLI tool for deploying simple high-abstracted YAML files to container orchestrators such as Kubernetes.
+Kedge is a simple and easy way to define and deploy applications to Kubernetes by writing very concise application definitions.
 
 Key features and goals include:
-  
-  - _Simplicity:_ Using a simple, high-abstracted specification that is easy to understand and define.
-  - _Multi-container environments:_ Define your containers, services and applications in one simple file, or abstract into multiple files.
+
+  - _Simplicity:_ Using a simple and concise specification that is easy to understand and define.
+  - _Multi-container environments:_ Define your containers, services and applications in one simple file, or abstract them into multiple files.
   - _Familiar structure:_ Using a familiar YAML structure as Kubernetes, it's easy to pick-up and understand Kedge.
-  - _No need to define everything:_ Define the necessary services and Kedge will do the rest. Kedge will interprolate and pick the best defaults for your application to run on Kubernetes.
+  - _Built on top of Kubernetes Pod definition:_ Leverages Kuberenetes Pod definition (PodSpec) and avoids leaky abstractions.
+  - _No need to define everything:_ Define just the necessary bits and Kedge will do the rest. Kedge will interprolate and pick the best defaults for your application to run on Kubernetes.
 
 ## Project status
 
@@ -65,15 +66,15 @@ NAME             CLUSTER-IP   EXTERNAL-IP   PORT(S)          AGE
 svc/httpd        10.0.0.187   <nodes>       8080:31385/TCP   1m
 svc/kubernetes   10.0.0.1     <none>        443/TCP          18h
 
-minikube service httpd                           
+minikube service httpd
 Opening kubernetes service default/httpd in default browser...
 ```
 
 Our examples range from [as simple as you can get](examples/simplest) to [every possible key you can use](examples/all). More can be found in the [/examples](examples) directory.
 
-## Contributing 
+## Contributing
 
-Kedge is an evolving project and contributions are happily welcome. Feel free to open up an issue or even a PR. Read our [contributing guide](CONTRIBUTING.md) for more details. If you're interested in submitting a patch, feel free to check our [development guide](docs/development.md) as well for ease into the project. 
+Kedge is an evolving project and contributions are happily welcome. Feel free to open up an issue or even a PR. Read our [contributing guide](CONTRIBUTING.md) for more details. If you're interested in submitting a patch, feel free to check our [development guide](docs/development.md) as well for ease into the project.
 
 ## License
 
