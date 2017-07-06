@@ -236,23 +236,6 @@ func isVolumeDefined(app *spec.App, name string) bool {
 	return false
 }
 
-func isAnyConfigMapRef(app *spec.App) bool {
-	for _, c := range app.PodSpec.Containers {
-		for _, env := range c.Env {
-			if env.ValueFrom != nil && env.ValueFrom.ConfigMapKeyRef != nil && env.ValueFrom.ConfigMapKeyRef.Name == app.Name {
-				return true
-			}
-		}
-	}
-	for _, v := range app.Volumes {
-		if v.ConfigMap != nil && v.ConfigMap.Name == app.Name {
-			return true
-		}
-	}
-
-	return false
-}
-
 // Since we are automatically creating pvc from
 // root level persistent volume and entry in the container
 // volume mount, we also need to update the pod's volume field
