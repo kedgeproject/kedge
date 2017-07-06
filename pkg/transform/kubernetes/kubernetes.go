@@ -131,7 +131,15 @@ func createServices(app *spec.App) ([]runtime.Object, error) {
 	return svcs, nil
 }
 
+// Creates a Deployment Kubernetes resource. The returned Deployment resource
+// will be nil if it could not be generated due to insufficient input data.
 func createDeployment(app *spec.App) (*ext_v1beta1.Deployment, error) {
+
+	// We need to error out if both, app.PodSpec and app.DeploymentSpec are empty
+	if reflect.DeepEqual(app.PodSpec, api_v1.PodSpec{}) && reflect.DeepEqual(app.DeploymentSpec, ext_v1beta1.DeploymentSpec{}) {
+		log.Debug("Both, app.PodSpec and app.DeploymentSpec are empty, not enough data to create a deployment.")
+		return nil, nil
+	}
 
 	// We are merging whole DeploymentSpec with PodSpec.
 	// This means that someone could specify containers in template.spec and also in top level PodSpec.
@@ -413,9 +421,13 @@ func CreateK8sObjects(app *spec.App) ([]runtime.Object, error) {
 	if err != nil {
 		return nil, errors.Wrapf(err, "app %q", app.Name)
 	}
-	objects = append(objects, deployment)
-	log.Debugf("app: %s, deployment: %s\n", app.Name, spew.Sprint(deployment))
 
+	// deployment will be nil if no deployment is generated and no error occurs,
+	// so we only need to append this when a legit deployment resource is returned
+	if deployment != nil {
+		objects = append(objects, deployment)
+		log.Debugf("app: %s, deployment: %s\n", app.Name, spew.Sprint(deployment))
+	}
 	objects = append(objects, configMap...)
 	log.Debugf("app: %s, configMap: %s\n", app.Name, spew.Sprint(configMap))
 
@@ -436,6 +448,10 @@ func Transform(app *spec.App) ([]runtime.Object, error) {
 	runtimeObjects, err := CreateK8sObjects(app)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create Kubernetes objects")
+	}
+
+	if len(runtimeObjects) == 0 {
+		return nil, errors.New("No runtime objects created, possibly because not enough input data was passed")
 	}
 
 	for _, runtimeObject := range runtimeObjects {
