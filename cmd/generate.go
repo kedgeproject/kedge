@@ -21,14 +21,15 @@ import (
 	"os"
 
 	pkgcmd "github.com/kedgeproject/kedge/pkg/cmd"
-
 	"github.com/spf13/cobra"
 )
 
+// Variables
 var (
 	AppFiles []string
 )
 
+// Represents the "generate" command
 var generateCmd = &cobra.Command{
 	Use:   "generate",
 	Short: "Generate Kubernetes resources from App definition",

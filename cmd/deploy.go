@@ -19,10 +19,8 @@ package cmd
 import (
 	"fmt"
 	"os"
-
-	"github.com/spf13/cobra"
-
 	pkgcmd "github.com/kedgeproject/kedge/pkg/cmd"
+	"github.com/spf13/cobra"
 )
 
 // Variables
@@ -30,7 +28,7 @@ var (
 	DeployFiles []string
 )
 
-// convertCmd represents the convert command
+// Represents the "deploy" command
 var deployCmd = &cobra.Command{
 	Use:   "deploy",
 	Short: "Deploy an application to Kubernetes cluster",
