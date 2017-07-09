@@ -1,5 +1,8 @@
 # Kedge - Concise Application Definition for Kubernetes
 
+[![Build Status Widget]][Build Status] [![GoDoc Widget]][GoDoc] [![Slack Widget]][Slack]
+
+
 ## What is Kedge?
 
 Kedge is a simple and easy way to define and deploy applications to Kubernetes by writing very concise application definitions.
@@ -72,10 +75,19 @@ Opening kubernetes service default/httpd in default browser...
 
 Our examples range from [as simple as you can get](examples/simplest) to [every possible key you can use](examples/all). More can be found in the [/examples](examples) directory.
 
-## Contributing
+## Community, Discussion, Contribution, and Support
 
-Kedge is an evolving project and contributions are happily welcome. Feel free to open up an issue or even a PR. Read our [contributing guide](CONTRIBUTING.md) for more details. If you're interested in submitting a patch, feel free to check our [development guide](docs/development.md) as well for ease into the project.
+__Contributing:__ Kedge is an evolving project and contributions are happily welcome. Feel free to open up an issue or even a PR. Read our [contributing guide](CONTRIBUTING.md) for more details. If you're interested in submitting a patch, feel free to check our [development guide](docs/development.md) as well for ease into the project.
+
+__Chat (Slack):__ We're fairly active on [Slack](https://kedgeproject.slack.com#kedge). You can invite yourself at [slack.kedgeproject.org](http://slack.kedgeproject.org).
 
 ## License
 
 Unless otherwise stated (ex. `/vendor` files), all code is licensed under the [Apache 2.0 License](LICENSE). Portions of the project use libraries and code from other projects, the appropriate license can be found within the code (header of the file) or root directory within the `vendor` folder.
+
+[Build Status]: https://travis-ci.org/kedgeproject/kedge
+[Build Status Widget]: https://travis-ci.org/kedgeproject/kedge.svg?branch=master
+[GoDoc]: https://godoc.org/github.com/kedgeproject/kedge
+[GoDoc Widget]: https://godoc.org/github.com/kedgeproject/kedge?status.svg
+[Slack]: http://slack.kedgeproject.org
+[Slack Widget]: https://s3.eu-central-1.amazonaws.com/ngtuna/join-us-on-slack.png
