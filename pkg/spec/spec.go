@@ -37,7 +37,7 @@ type ServicePortMod struct {
 type ServiceSpecMod struct {
 	api_v1.ServiceSpec `json:",inline"`
 	Name               string           `json:"name,omitempty"`
-	Ports              []ServicePortMod `json:"ports"`
+	Ports              []ServicePortMod `json:"ports,conflicting"`
 }
 
 type IngressSpecMod struct {
@@ -59,7 +59,7 @@ type ConfigMapMod struct {
 }
 
 type PodSpecMod struct {
-	Containers     []Container `json:"containers,omitempty"`
+	Containers     []Container `json:"containers,conflicting,omitempty"`
 	api_v1.PodSpec `json:",inline"`
 }
 

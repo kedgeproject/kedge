@@ -1,0 +1,214 @@
+package spec
+
+import (
+	"fmt"
+	"reflect"
+	"strings"
+
+	"github.com/pkg/errors"
+)
+
+// This function takes an map as an input which stores the JSON tag as key and
+// the names of the structs holding that tag as the value. The passed in
+// blaclisted tags are ignored and are not populated at all.
+func getUnmarshalJSONTagsMap(inputMap map[string][]string, inputStruct interface{}, blacklistedTags []string) error {
+
+	// Checking if input is pointer to struct
+	if err := isPointerToStruct(inputStruct); err != nil {
+		return errors.Wrap(err, "Input parameter type mismatch")
+	}
+
+	val := reflect.ValueOf(inputStruct).Elem()
+
+	for i := 0; i < val.NumField(); i++ {
+		field := val.Type().Field(i)
+
+		// We do not need to store JSON tags like "inline" or "omitempty",
+		// instead we only need JSON tag which is used for unmarshalling the
+		// YAML. It's safe to assume that, that JSON tag is the one that
+		// is specified first.
+		// Let's split the JSON tag on ",", and store the first element of the
+		// resulting array.
+
+		unmarshalJsonTag := strings.SplitN(field.Tag.Get("json"), ",", 2)[0]
+
+		skipTag := false
+		// Populating only the non blacklisted tags
+		for _, blacklistedTag := range blacklistedTags {
+			if unmarshalJsonTag == blacklistedTag {
+				skipTag = true
+			}
+		}
+		if unmarshalJsonTag == "" {
+			// It does not make any sense to store anything for JSON tags with no
+			// first element, e.g. `json:",inline"`
+			skipTag = true
+		}
+
+		if skipTag {
+			continue
+		}
+		inputMap[unmarshalJsonTag] = append(inputMap[unmarshalJsonTag], val.Type().String())
+	}
+	return nil
+}
+
+// This function returns an array of pointers to all of the embedded structs
+// in the input struct.
+// The embedded structs in an embedded struct are also taken into considertation
+// in a recursive manner.
+func getEmbeddedStructs(inputStruct interface{}) ([]interface{}, error) {
+
+	// Checking if input is pointer to struct
+	if err := isPointerToStruct(inputStruct); err != nil {
+		return nil, errors.Wrap(err, "Input parameter type mismatch")
+	}
+
+	var embeddedStructs []interface{}
+
+	val := reflect.ValueOf(inputStruct).Elem()
+
+	for i := 0; i < val.NumField(); i++ {
+		// Checking for embedded structs
+		if val.Type().Field(i).Anonymous {
+
+			// Appending pointer to the embedded/anonymous struct to
+			// embeddedStructs
+			embeddedStructs = append(embeddedStructs, val.Field(i).Addr().Interface())
+
+			// Since the current field is an anonymous struct, we call the
+			// function recursively to get embedded structs under it
+			recursiveEmbeddedStructs, err := getEmbeddedStructs(val.Field(i).Addr().Interface())
+			if err != nil {
+				return nil, errors.Wrapf(err, "Unable to get embedded structs recursively from %v", val.Field(i).String())
+			}
+
+			// Adding the returned recursive structs to embeddedStructs
+			embeddedStructs = append(embeddedStructs, recursiveEmbeddedStructs...)
+		}
+	}
+	return embeddedStructs, nil
+}
+
+// This function returns an array of all the JSON tags used for unmarshalling
+// (which are the first ones specified) which have a JSON tag "conflicting", in
+// all of the input structs.
+// It's made sure that only the tags in "package spec" are checked and all other
+// packages are ignored. This is done because we are expecting the structs to
+// be handled, i.e. marked as "conflicting" only in spec.go, and we do not want
+// to populate the list with JSON tags from some other package which had the
+// "conflicting" JSON tag for some other reason
+func getMarkedAsConflictingJSONUnmarshalTags(inputStructs []interface{}) ([]string, error) {
+	var blacklistedTags []string
+	for _, inputStruct := range inputStructs {
+
+		// Checking if input is pointer to struct
+		if err := isPointerToStruct(inputStruct); err != nil {
+			return nil, errors.Wrap(err, "Input parameter type mismatch")
+		}
+
+		val := reflect.ValueOf(inputStruct).Elem()
+
+		// Proceeding only if the struct belongs to the kedge's spec package
+		if val.Type().PkgPath() == "github.com/kedgeproject/kedge/pkg/spec" {
+			for i := 0; i < val.NumField(); i++ {
+				field := val.Type().Field(i)
+
+				fieldJSONTags := strings.Split(field.Tag.Get("json"), ",")
+
+				// Adding fields that have "conflicting" as a JSON tag to the
+				// array. We need not check the first tag that is used for
+				// unmarshalling.
+				for _, tag := range fieldJSONTags[1:] {
+					if tag == "conflicting" {
+						blacklistedTags = append(blacklistedTags, fieldJSONTags[0])
+					}
+				}
+			}
+		}
+	}
+	return blacklistedTags, nil
+}
+
+// This function checks if the input parameter has the pointer to a struct as
+// its underlying type.
+// Returns "nil" if true, or an error if false
+func isPointerToStruct(input interface{}) error {
+	if reflect.Indirect(reflect.ValueOf(input)).Kind().String() != "struct" {
+		return errors.New(fmt.Sprintf("Expected pointer to struct, got %v", reflect.ValueOf(input).Kind().String()))
+	}
+	return nil
+}
+
+// This function takes in pointer to a struct struct as input, and returns a map
+// of conflicting JSON tags used for unmarshaling.
+// All of the embedded structs are taken into account, and the fields with a
+// JSON tag "conflicting" are assumed to be handled.
+// The returned map contains the JSON tags as the keys, and the values are an
+// array of struct names which contain those fields, without being handled.
+func findConflictingYAMLTags(inputStruct interface{}) (map[string][]string, error) {
+
+	// We need to check that no JSON tag is specified more than once at the
+	// top level of the struct.
+	// This means that the struct fields, and the JSON tags of all the
+	// fields of all the embedded structs need to be unique.
+	// We accomplish this over a 4 step process.
+
+	// Checking if input is pointer to struct
+	if err := isPointerToStruct(inputStruct); err != nil {
+		return nil, errors.Wrap(err, "Input parameter type mismatch")
+	}
+
+	// Step 1: Get all the target structs.
+	// Look at tags in the fields of the input struct as well as the embedded
+	// structs, so both of them become our target structs.
+
+	var targetStructs []interface{}
+	// The first target struct is the input struct to the function
+	targetStructs = append(targetStructs, inputStruct)
+
+	// Getting all embedded structs for the input struct and appending to the
+	// list of target structs.
+	embeddedStructs, err := getEmbeddedStructs(inputStruct)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Error getting embedded structs for struct: %v", inputStruct)
+	}
+	targetStructs = append(targetStructs, embeddedStructs...)
+
+	// Step 2: Get blacklisted tags.
+	// Get the fields which have already been handled and were previously
+	// conflicting. This needs to be done only for the structs in spec.go,
+	// and with fields marked as "conflicting" using a JSON tag
+
+	blacklistedTags, err := getMarkedAsConflictingJSONUnmarshalTags(targetStructs)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to get blacklisted tags for target structs")
+	}
+
+	// Step 3: Get JSON tags from target structs.
+	// Get the JSON tags from all of the target structs which we got in Step 1
+	// except for the blacklisted tags, along with the names of the structs
+	// which hold the field with that tag.
+
+	tagStructMap := make(map[string][]string)
+	for _, targetStruct := range targetStructs {
+		err := getUnmarshalJSONTagsMap(tagStructMap, targetStruct, blacklistedTags)
+		if err != nil {
+			return nil, errors.Wrapf(err, "Failed to get JSON tags from the struct: %v", inputStruct)
+		}
+	}
+
+	// Step 4: Check if more than one struct holds a tag.
+	// Delete all the tags in Step 3 which are only help by one struct, because
+	// it means that the JSON tag is not conficting, and finally return the
+	// remaining tags which are held by more than one struct, and are not
+	// handled, hence conflicting tags
+
+	for tag, containingStructs := range tagStructMap {
+		if len(containingStructs) == 1 {
+			delete(tagStructMap, tag)
+		}
+	}
+
+	return tagStructMap, nil
+}
