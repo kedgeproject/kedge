@@ -47,10 +47,10 @@ services:
     targetPort: 80
 ```
 
-We can now deploy this example to Kubernetes:
+We can now create this example on the Kubernetes cluster:
 
 ```sh
-kedge deploy -f httpd.yaml
+kedge create -f httpd.yaml
 deployment "httpd" created
 service "httpd" created
 ```
