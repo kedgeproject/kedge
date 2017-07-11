@@ -28,7 +28,19 @@ import (
 	"github.com/pkg/errors"
 )
 
+func Undeploy(files []string) error {
+	return executeKubectl(files, true)
+}
+
 func Deploy(files []string) error {
+	return executeKubectl(files, false)
+}
+
+func executeKubectl(files []string, delete bool) error {
+	command := "create"
+	if delete {
+		command = "delete"
+	}
 
 	appData, err := getApplicationsFromFiles(files)
 	if err != nil {
@@ -53,7 +65,7 @@ func Deploy(files []string) error {
 				return errors.Wrap(err, "failed to marshal object")
 			}
 
-			cmd := exec.Command("kubectl", "create", "-f", "-")
+			cmd := exec.Command("kubectl", command, "-f", "-")
 
 			stdin, err := cmd.StdinPipe()
 			if err != nil {
