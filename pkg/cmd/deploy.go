@@ -38,7 +38,7 @@ func Deploy(files []string) error {
 
 func executeKubectl(files []string, delete bool) error {
 	command := "create"
-	if delete {
+	if delete && true {
 		command = "delete"
 	}
 
