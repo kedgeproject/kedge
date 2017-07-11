@@ -1,10 +1,8 @@
 {
-  "maxReviewers": 3, // 3 is enough
-  "numFilesToCheck": 5,
-  "message": "@pullRequester, thanks! @reviewers, please review this.",
-  "findPotentialReviewers": true,
-  "fileBlacklist": ["*.md"], // ignore documentation
-  "assignToReviewer": false,
-  "createReviewRequest": true,
-  "createComment": true,
+  "numFilesToCheck": 10,
+  "message": "@pullRequester, thank you for the pull request! We'll ping some people to review your PR. @reviewers, please review this.",
+  "fileBlacklist": ["*.md"],
+  "actions": ["opened", "labeled"],
+  "skipAlreadyMentionedPR": true,
+  "createReviewRequest": true
 }
