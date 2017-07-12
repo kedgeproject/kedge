@@ -33,7 +33,7 @@ services:
   - port: 8080
     targetPort: 80
     endpoint: minikube.external/foo
-persistentVolumes:
+volumeClaims:
 - name: database
   size: 500Mi
 configMaps:
@@ -136,10 +136,10 @@ To read more about this field from the Kubernetes upstream docs see this:
 https://kubernetes.io/docs/api-reference/v1.6/#envfromsource-v1-core
 
 
-## persistentVolumes
+## volumeClaims
 
 ```yaml
-persistentVolumes:
+volumeClaims:
 - <volume>
 - <volume>
 ```
@@ -447,7 +447,7 @@ ingresses:
           serviceName: wordpress
           servicePort: 8080
         path: /
-persistentVolumes:
+volumeClaims:
 - name: database
   size: 500Mi
   accessModes:

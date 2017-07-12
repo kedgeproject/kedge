@@ -176,7 +176,7 @@ func createDeployment(app *spec.App) (*ext_v1beta1.Deployment, error) {
 
 // search through all the persistent volumes defined in the root level
 func isPVCDefined(app *spec.App, name string) bool {
-	for _, v := range app.PersistentVolumes {
+	for _, v := range app.VolumeClaims {
 		if v.Name == name {
 			return true
 		}
@@ -185,7 +185,7 @@ func isPVCDefined(app *spec.App, name string) bool {
 }
 
 // create PVC reading the root level persistent volume field
-func createPVC(v spec.PersistentVolume, labels map[string]string) (*api_v1.PersistentVolumeClaim, error) {
+func createPVC(v spec.VolumeClaim, labels map[string]string) (*api_v1.PersistentVolumeClaim, error) {
 	// check for conditions where user has given both conflicting fields
 	// or not given either fields
 	if v.Size != "" && v.Resources.Requests != nil {
@@ -363,7 +363,7 @@ func CreateK8sObjects(app *spec.App) ([]runtime.Object, error) {
 
 	// create pvc for each root level persistent volume
 	var pvcs []runtime.Object
-	for _, v := range app.PersistentVolumes {
+	for _, v := range app.VolumeClaims {
 		pvc, err := createPVC(v, app.Labels)
 		if err != nil {
 			return nil, errors.Wrapf(err, "app %q", app.Name)

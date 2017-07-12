@@ -17,6 +17,6 @@ services:
 - name: database
   ports:
   - port: 3306
-persistentVolumes:
+volumeClaims:
 - name: database
   size: 500Mi

@@ -23,6 +23,6 @@ containers:
 services:
   - ports:
     - port: 8080
-persistentVolumes:
+volumeClaims:
 - size: 500Mi
 `)
