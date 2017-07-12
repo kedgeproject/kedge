@@ -21,7 +21,6 @@ import (
 	"os"
 
 	pkgcmd "github.com/kedgeproject/kedge/pkg/cmd"
-
 	"github.com/spf13/cobra"
 )
 
@@ -35,6 +34,10 @@ var deleteCmd = &cobra.Command{
 	Use:   "delete",
 	Short: "Delete the resource from the Kubernetes cluster",
 	Run: func(cmd *cobra.Command, args []string) {
+		if err := ifFilesPassed(DeleteFiles); err != nil {
+			fmt.Println(err)
+			os.Exit(-1)
+		}
 		if err := pkgcmd.ExecuteKubectl(DeleteFiles, "delete"); err != nil {
 			fmt.Println(err)
 			os.Exit(-1)
@@ -44,5 +47,6 @@ var deleteCmd = &cobra.Command{
 
 func init() {
 	deleteCmd.Flags().StringArrayVarP(&DeleteFiles, "files", "f", []string{}, "Specify files")
+	deleteCmd.MarkFlagRequired("files")
 	RootCmd.AddCommand(deleteCmd)
 }
