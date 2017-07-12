@@ -20,10 +20,10 @@ services:
           targetPort: 80
 ```
 
-__2. Now run the deploy command to deploy to Kubernetes!__
+__2. Now run the create command to deploy to Kubernetes!__
 
 ```sh
-kedge deploy -f httpd.yaml
+kedge create -f httpd.yaml
 deployment "httpd" created
 service "httpd" created
 ```

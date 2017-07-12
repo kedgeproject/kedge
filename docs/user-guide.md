@@ -1,18 +1,18 @@
 # User Guide
 
 - CLI
-  - [`deploy`](#kedge-deploy)
+  - [`create`](#kedge-create)
   - [`generate`](#kedge-generate)
   - [`version`](#kedge-version)
 
-## `kedge deploy`
+## `kedge create`
 
-Deploy directly to Kubernetes without creating the artifacts. Internally, Kedge will generate the artifacts and then deploy it using the `kubectl` command.
+Deploy directly to Kubernetes without creating the artifacts. Internally, Kedge will generate the artifacts and then create it using the `kubectl` command.
 
 ### Deploy to Kubernetes
 
 ```sh
-kedge deploy -f httpd.yaml
+kedge create -f httpd.yaml
 deployment "httpd" created
 service "httpd" created
 ```

@@ -25,15 +25,15 @@ import (
 
 // Variables
 var (
-	UndeployFiles []string
+	CreateFiles []string
 )
 
-// Represents the "undeploy" command
-var undeployCmd = &cobra.Command{
-	Use:   "undeploy",
-	Short: "Undeploy an application to Kubernetes cluster",
+// Represents the "create" command
+var createCmd = &cobra.Command{
+	Use:   "create",
+	Short: "Create the resource on the Kubernetes cluster",
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := pkgcmd.Undeploy(UndeployFiles); err != nil {
+		if err := pkgcmd.Create(CreateFiles); err != nil {
 			fmt.Println(err)
 			os.Exit(-1)
 		}
@@ -41,6 +41,6 @@ var undeployCmd = &cobra.Command{
 }
 
 func init() {
-	undeployCmd.Flags().StringArrayVarP(&UndeployFiles, "files", "f", []string{}, "Specify files")
-	RootCmd.AddCommand(undeployCmd)
+	createCmd.Flags().StringArrayVarP(&CreateFiles, "files", "f", []string{}, "Specify files")
+	RootCmd.AddCommand(createCmd)
 }

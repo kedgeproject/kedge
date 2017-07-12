@@ -28,11 +28,11 @@ import (
 	"github.com/pkg/errors"
 )
 
-func Undeploy(files []string) error {
+func Delete(files []string) error {
 	return executeKubectl(files, true)
 }
 
-func Deploy(files []string) error {
+func Create(files []string) error {
 	return executeKubectl(files, false)
 }
 
