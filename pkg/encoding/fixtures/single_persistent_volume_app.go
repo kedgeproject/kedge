@@ -44,7 +44,7 @@ var SinglePersistentVolumeApp spec.App = spec.App{
 			},
 		},
 	},
-	PersistentVolumes: []spec.PersistentVolume{
+	VolumeClaims: []spec.VolumeClaim{
 		{
 			Name: "test",
 			Size: "500Mi",

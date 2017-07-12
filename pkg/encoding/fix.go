@@ -31,8 +31,8 @@ func fixApp(app *spec.App) error {
 		return errors.Wrap(err, "Unable to fix services")
 	}
 
-	// fix app.PersistentVolumes
-	if err := fixPersistentVolumes(app); err != nil {
+	// fix app.VolumeClaims
+	if err := fixVolumeClaims(app); err != nil {
 		return errors.Wrap(err, "Unable to fix persistentVolume")
 	}
 
@@ -67,16 +67,16 @@ func fixServices(app *spec.App) error {
 	return nil
 }
 
-func fixPersistentVolumes(app *spec.App) error {
-	for i, pVolume := range app.PersistentVolumes {
+func fixVolumeClaims(app *spec.App) error {
+	for i, pVolume := range app.VolumeClaims {
 		if pVolume.Name == "" {
-			if len(app.PersistentVolumes) == 1 {
+			if len(app.VolumeClaims) == 1 {
 				pVolume.Name = app.Name
 			} else {
 				return errors.New("More than one persistent volume mentioned, please specify name for each one")
 			}
 		}
-		app.PersistentVolumes[i] = pVolume
+		app.VolumeClaims[i] = pVolume
 	}
 	return nil
 }

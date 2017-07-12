@@ -21,7 +21,7 @@ import (
 	ext_v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
 )
 
-type PersistentVolume struct {
+type VolumeClaim struct {
 	api_v1.PersistentVolumeClaimSpec `json:",inline"`
 	Name                             string `json:"name"`
 	Size                             string `json:"size"`
@@ -76,13 +76,13 @@ type PodSpecMod struct {
 }
 
 type App struct {
-	Name                       string             `json:"name"`
-	Replicas                   *int32             `json:"replicas,omitempty"`
-	Labels                     map[string]string  `json:"labels,omitempty"`
-	PersistentVolumes          []PersistentVolume `json:"persistentVolumes,omitempty"`
-	ConfigMaps                 []ConfigMapMod     `json:"configMaps,omitempty"`
-	Services                   []ServiceSpecMod   `json:"services,omitempty"`
-	Ingresses                  []IngressSpecMod   `json:"ingresses,omitempty"`
+	Name                       string            `json:"name"`
+	Replicas                   *int32            `json:"replicas,omitempty"`
+	Labels                     map[string]string `json:"labels,omitempty"`
+	VolumeClaims               []VolumeClaim     `json:"volumeClaims,omitempty"`
+	ConfigMaps                 []ConfigMapMod    `json:"configMaps,omitempty"`
+	Services                   []ServiceSpecMod  `json:"services,omitempty"`
+	Ingresses                  []IngressSpecMod  `json:"ingresses,omitempty"`
 	PodSpecMod                 `json:",inline"`
 	ext_v1beta1.DeploymentSpec `json:",inline"`
 }
