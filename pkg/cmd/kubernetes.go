@@ -28,19 +28,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func Delete(files []string) error {
-	return executeKubectl(files, true)
-}
-
-func Create(files []string) error {
-	return executeKubectl(files, false)
-}
-
-func executeKubectl(files []string, delete bool) error {
-	command := "create"
-	if delete {
-		command = "delete"
-	}
+func ExecuteKubectl(files []string, command string) error {
 
 	appData, err := getApplicationsFromFiles(files)
 	if err != nil {

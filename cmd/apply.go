@@ -25,15 +25,15 @@ import (
 
 // Variables
 var (
-	DeleteFiles []string
+	ApplyFiles []string
 )
 
-// Represents the "delete" command
-var deleteCmd = &cobra.Command{
-	Use:   "delete",
-	Short: "Delete the resource from the Kubernetes cluster",
+// Represents the "apply" command
+var applyCmd = &cobra.Command{
+	Use:   "apply",
+	Short: "Apply a configuration to a resource on the Kubernetes cluster. This resource will be created if it doesn't exist yet.",
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := pkgcmd.ExecuteKubectl(DeleteFiles, "delete"); err != nil {
+		if err := pkgcmd.ExecuteKubectl(ApplyFiles, "apply"); err != nil {
 			fmt.Println(err)
 			os.Exit(-1)
 		}
@@ -41,6 +41,6 @@ var deleteCmd = &cobra.Command{
 }
 
 func init() {
-	deleteCmd.Flags().StringArrayVarP(&DeleteFiles, "files", "f", []string{}, "Specify files")
-	RootCmd.AddCommand(deleteCmd)
+	applyCmd.Flags().StringArrayVarP(&ApplyFiles, "files", "f", []string{}, "Specify files")
+	RootCmd.AddCommand(applyCmd)
 }
