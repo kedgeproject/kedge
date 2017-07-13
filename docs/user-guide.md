@@ -12,7 +12,7 @@ Deploy directly to Kubernetes without creating the artifacts. Internally, Kedge 
 ### Deploy to Kubernetes
 
 ```sh
-kedge create -f httpd.yaml
+$ kedge create -f httpd.yaml
 deployment "httpd" created
 service "httpd" created
 ```
@@ -26,7 +26,7 @@ In these examples, we use the [simplest of examples](/examples/simplest/httpd.ya
 ### Convert to Kubernetes artifacts
 
 ```sh
-kedge generate -f httpd.yaml
+$ kedge generate -f httpd.yaml
 ---
 apiVersion: extensions/v1beta1
 kind: Deployment
@@ -73,7 +73,7 @@ status:
 Generation commands can also be "piped" to Kubernetes
 
 ```sh
-kedge generate -f httpd.yaml | kubectl create -f -
+$ kedge generate -f httpd.yaml | kubectl create -f -
 deployment "httpd" created
 service "httpd" created
 ```
