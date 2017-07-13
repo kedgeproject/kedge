@@ -50,7 +50,7 @@ services:
 We can now create this example on the Kubernetes cluster:
 
 ```sh
-kedge create -f httpd.yaml
+$ kedge create -f httpd.yaml
 deployment "httpd" created
 service "httpd" created
 ```
@@ -58,7 +58,7 @@ service "httpd" created
 And access it:
 
 ```sh
-kubectl get po,deploy,svc
+$ kubectl get po,deploy,svc
 NAME                        READY     STATUS    RESTARTS   AGE
 po/httpd-3617778768-ddlrs   1/1       Running   0          1m
 
@@ -69,7 +69,7 @@ NAME             CLUSTER-IP   EXTERNAL-IP   PORT(S)          AGE
 svc/httpd        10.0.0.187   <nodes>       8080:31385/TCP   1m
 svc/kubernetes   10.0.0.1     <none>        443/TCP          18h
 
-minikube service httpd
+$ minikube service httpd
 Opening kubernetes service default/httpd in default browser...
 ```
 

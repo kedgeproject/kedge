@@ -15,15 +15,15 @@ containers:
 services:
 - name: httpd
   type: NodePort
-    ports:
-      - port: 8080
-          targetPort: 80
+  ports:
+  - port: 8080
+    targetPort: 80
 ```
 
 __2. Now run the create command to deploy to Kubernetes!__
 
 ```sh
-kedge create -f httpd.yaml
+$ kedge create -f httpd.yaml
 deployment "httpd" created
 service "httpd" created
 ```
@@ -35,14 +35,14 @@ Now that your service has been deployed, let's access it.
 If you're already using `minikube` for your development process:
 
 ```sh
-minikube service httpd
+$ minikube service httpd
 Opening kubernetes service default/httpd in default browser...
 ```
 
 Otherwise, let's look up what IP your service is using!
 
 ```sh
-kubectl describe svc httpd
+$ kubectl describe svc httpd
 Name:                   httpd
 Namespace:              default
 Labels:                 app=httpd
