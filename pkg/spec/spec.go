@@ -77,7 +77,6 @@ type PodSpecMod struct {
 
 type App struct {
 	Name                       string            `json:"name"`
-	Replicas                   *int32            `json:"replicas,omitempty"`
 	Labels                     map[string]string `json:"labels,omitempty"`
 	VolumeClaims               []VolumeClaim     `json:"volumeClaims,omitempty"`
 	ConfigMaps                 []ConfigMapMod    `json:"configMaps,omitempty"`

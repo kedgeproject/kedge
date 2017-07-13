@@ -18,9 +18,11 @@ package cmd
 
 import (
 	"fmt"
-	pkgcmd "github.com/kedgeproject/kedge/pkg/cmd"
-	"github.com/spf13/cobra"
 	"os"
+
+	pkgcmd "github.com/kedgeproject/kedge/pkg/cmd"
+
+	"github.com/spf13/cobra"
 )
 
 // Variables
