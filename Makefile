@@ -20,6 +20,7 @@ install:
 # kompile kedge for multiple platforms
 .PHONY: cross
 cross:
+	go get github.com/mitchellh/gox
 	gox -osarch="darwin/amd64 linux/amd64 linux/arm windows/amd64" -output="bin/kedge-{{.OS}}-{{.Arch}}" $(BUILD_FLAGS)
 
 .PHONY: clean

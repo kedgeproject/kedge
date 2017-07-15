@@ -1,6 +1,7 @@
 # Kedge - Concise Application Definition for Kubernetes
 
-[![Build Status Widget]][Build Status] [![GoDoc Widget]][GoDoc] [![Slack Widget]][Slack]
+[![Build Status Widget]][Build Status] [![GoDoc Widget]][GoDoc] [![Slack Widget]][Slack] 
+
 
 
 ## What is Kedge?
@@ -24,8 +25,12 @@ Check out our [roadmap](ROADMAP.md) as we push towards a __0.1.0__ release.
 ## Using Kedge
 
 ### Installation
+You can download latest master build for all major operating systems and architectures.
+- [Linux (amd64)][Bintray Latest Linux]
+- [macOS (darwin)][Bintray Latest macOS]
+- [Windows (amd64)][Bintray Latest Windows]
 
-The _best_ way to try Kedge is to download the most up-to-date binary from the master GitHub branch:
+Or you can build it yourself from the master GitHub branch:
 
 ```sh
 go get github.com/kedgeproject/kedge
@@ -91,3 +96,6 @@ Unless otherwise stated (ex. `/vendor` files), all code is licensed under the [A
 [GoDoc Widget]: https://godoc.org/github.com/kedgeproject/kedge?status.svg
 [Slack]: http://slack.kedgeproject.org
 [Slack Widget]: https://s3.eu-central-1.amazonaws.com/ngtuna/join-us-on-slack.png
+[Bintray Latest Linux]:https://dl.bintray.com/kedgeproject/kedge/latest/kedge-linux-amd64
+[Bintray Latest macOS]:https://dl.bintray.com/kedgeproject/kedge/latest/kedge-darwin-amd64
+[Bintray Latest Windows]:https://dl.bintray.com/kedgeproject/kedge/latest/kedge-windows-amd64.exe
