@@ -92,7 +92,7 @@ func createServices(app *spec.App) ([]runtime.Object, error) {
 					host = endpoint[0]
 					path = "/" + endpoint[1]
 				default:
-					return nil, errors.New(fmt.Sprintf("Invalid syntax for endpoint: %v", port.Endpoint))
+					return nil, fmt.Errorf("Invalid syntax for endpoint: %v", port.Endpoint)
 				}
 
 				ingressName := s.Name + "-" + strconv.FormatInt(int64(port.Port), 10)
@@ -189,10 +189,10 @@ func createPVC(v spec.VolumeClaim, labels map[string]string) (*api_v1.Persistent
 	// check for conditions where user has given both conflicting fields
 	// or not given either fields
 	if v.Size != "" && v.Resources.Requests != nil {
-		return nil, errors.New(fmt.Sprintf("persistent volume %q, cannot provide size and resources at the same time", v.Name))
+		return nil, fmt.Errorf("persistent volume %q, cannot provide size and resources at the same time", v.Name)
 	}
 	if v.Size == "" && v.Resources.Requests == nil {
-		return nil, errors.New(fmt.Sprintf("persistent volume %q, please provide size or resources, none given", v.Name))
+		return nil, fmt.Errorf("persistent volume %q, please provide size or resources, none given", v.Name)
 	}
 
 	// if user has given size then create a "api_v1.ResourceRequirements"
@@ -255,9 +255,9 @@ func populateVolumes(app *spec.App) error {
 				// pvc is not defined so we need to check if the entry is made in the pod volumes
 				// since a volumeMount entry without entry in pod level volumes might cause failure
 				// while deployment since that would not be a complete configuration
-				return errors.New(fmt.Sprintf("neither root level Persistent Volume"+
+				return fmt.Errorf("neither root level Persistent Volume"+
 					" nor Volume in pod spec defined for %q, "+
-					"in app.containers[%d].volumeMounts[%d]", vm.Name, cn, vn))
+					"in app.containers[%d].volumeMounts[%d]", vm.Name, cn, vn)
 			}
 		}
 	}
@@ -268,8 +268,8 @@ func populateContainerHealth(app *spec.App) error {
 	for cn, c := range app.Containers {
 		// check if health and liveness given together
 		if c.Health != nil && (c.ReadinessProbe != nil || c.LivenessProbe != nil) {
-			return errors.New(fmt.Sprintf("cannot define field health and livnessProbe"+
-				" or readinessProbe together in app.containers[%d]", cn))
+			return fmt.Errorf("cannot define field health and livnessProbe"+
+				" or readinessProbe together in app.containers[%d]", cn)
 		}
 		if c.Health != nil {
 			c.LivenessProbe = c.Health
@@ -444,7 +444,7 @@ func Transform(app *spec.App) ([]runtime.Object, error) {
 			return nil, errors.Wrap(err, "ConvertToVersion failed")
 		}
 		if isUnversioned {
-			return nil, errors.New(fmt.Sprintf("ConvertToVersion failed: can't output unversioned type: %T", runtimeObject))
+			return nil, fmt.Errorf("ConvertToVersion failed: can't output unversioned type: %T", runtimeObject)
 		}
 
 		runtimeObject.GetObjectKind().SetGroupVersionKind(gvk)
