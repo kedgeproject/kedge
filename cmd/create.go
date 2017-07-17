@@ -21,7 +21,6 @@ import (
 	"os"
 
 	pkgcmd "github.com/kedgeproject/kedge/pkg/cmd"
-
 	"github.com/spf13/cobra"
 )
 
@@ -35,6 +34,10 @@ var createCmd = &cobra.Command{
 	Use:   "create",
 	Short: "Create the resource on the Kubernetes cluster",
 	Run: func(cmd *cobra.Command, args []string) {
+		if err := ifFilesPassed(CreateFiles); err != nil {
+			fmt.Println(err)
+			os.Exit(-1)
+		}
 		if err := pkgcmd.ExecuteKubectl(CreateFiles, "create"); err != nil {
 			fmt.Println(err)
 			os.Exit(-1)
@@ -44,5 +47,6 @@ var createCmd = &cobra.Command{
 
 func init() {
 	createCmd.Flags().StringArrayVarP(&CreateFiles, "files", "f", []string{}, "Specify files")
+	createCmd.MarkFlagRequired("files")
 	RootCmd.AddCommand(createCmd)
 }
