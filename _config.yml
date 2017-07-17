@@ -1,0 +1,15 @@
+title: Kedge
+project_name: Kedge
+description: >
+  Concise Application Definition for Kubernetes
+repository_url: https://github.com/kedgeproject/kedge
+repository_shorthand: kedgeproject/kedge
+
+author_name: The Kedge Authors
+author_url: https://github.com/kedgeproject/kedge
+
+markdown: kramdown
+
+# Redirection plugin
+gems:
+  - jekyll-redirect-from

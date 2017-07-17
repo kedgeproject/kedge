@@ -1,0 +1,703 @@
+<!doctype html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="chrome=1">
+  <meta name="viewport" content="width=device-width">
+  <meta name="description" content="Concise Application Definition for Kubernetes
+">
+  <title>Kedge</title>
+
+  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/pygment_trac.css">
+  <link rel="stylesheet" href="/css/custom.css">
+  <script async defer src="https://buttons.github.io/buttons.js"></script>
+  <!--[if lt IE 9]>
+  <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+  <link rel="canonical" href="http://localhost:4000/file-reference/">
+  <link rel="alternate" type="application/rss+xml" title="Kedge" href="http://localhost:4000/feed.xml" />
+</head>
+
+
+
+  <body>
+    <div class="wrapper">
+
+      <header>
+<h1> Kedge</h1>
+<p>Concise Application Definition for Kubernetes
+</p>
+
+  <p class="view"><a href="https://github.com/kedgeproject/kedge">View the Project on GitHub <small>kedgeproject/kedge</small></a></p>
+<a class="github-button" href="https://github.com/kedgeproject/kedge/subscription" data-icon="octicon-eye" data-count-href="/kedgeproject/kedge/watchers" data-count-api="/repos/kedgeproject/kedge#subscribers_count" data-count-aria-label="# watchers on GitHub" aria-label="Watch kedgeproject/kedge on GitHub">Watch</a>
+<a class="github-button" href="https://github.com/kedgeproject/kedge" data-icon="octicon-star" data-count-href="/kedgeproject/kedge/stargazers" data-count-api="/repos/kedgeproject/kedge#stargazers_count" data-count-aria-label="# stargazers on GitHub" aria-label="Star kedgeproject/kedge on GitHub">Star</a>
+<a class="github-button" href="https://github.com/kedgeproject/kedge/fork" data-icon="octicon-repo-forked" data-count-href="/kedgeproject/kedge/network" data-count-api="/repos/kedgeproject/kedge#forks_count" data-count-aria-label="# forks on GitHub" aria-label="Fork kedgeproject/kedge on GitHub">Fork</a>
+
+<div class="menubar">
+  <hr/>
+  <ul>
+    
+    <li><a href="/">Introduction</a></li>
+    
+    <li><a href="/user-guide/">User Guide</a></li>
+    
+    <li><a href="/file-reference/">File Reference</a></li>
+    
+    <li><a href="/development/">Development</a></li>
+    
+  </ul>
+</div>
+
+
+</header>
+
+
+
+      <section>
+
+
+        <h1 id="kedge-file-reference">Kedge file reference</h1>
+
+<p>Each file defines one micro-service, which forms one <code class="highlighter-rouge">pod</code> controlled by it’s
+controller(right now the default controller is <code class="highlighter-rouge">deployment</code>).</p>
+
+<p>A example using all the keys added in Kedge(not all keys from Kubernetes
+API are included):</p>
+
+<div class="language-yaml highlighter-rouge"><pre class="highlight"><code><span class="s">name</span><span class="pi">:</span> <span class="s">database</span>
+<span class="s">containers</span><span class="pi">:</span>
+<span class="pi">-</span> <span class="s">image</span><span class="pi">:</span> <span class="s">mariadb:10</span>
+  <span class="s">env</span><span class="pi">:</span>
+  <span class="pi">-</span> <span class="s">name</span><span class="pi">:</span> <span class="s">MYSQL_ROOT_PASSWORD</span>
+    <span class="s">valueFrom</span><span class="pi">:</span>
+      <span class="s">secretKeyRef</span><span class="pi">:</span>
+        <span class="s">name</span><span class="pi">:</span> <span class="s">wordpress</span>
+        <span class="s">key</span><span class="pi">:</span> <span class="s">MYSQL_ROOT_PASSWORD</span>
+  <span class="s">envFrom</span><span class="pi">:</span>
+  <span class="pi">-</span> <span class="s">configMapRef</span><span class="pi">:</span>
+      <span class="s">name</span><span class="pi">:</span> <span class="s">database</span>
+  <span class="s">volumeMounts</span><span class="pi">:</span>
+  <span class="pi">-</span> <span class="s">name</span><span class="pi">:</span> <span class="s">database</span>
+    <span class="s">mountPath</span><span class="pi">:</span> <span class="s">/var/lib/mysql</span>
+  <span class="s">health</span><span class="pi">:</span>
+    <span class="s">httpGet</span><span class="pi">:</span>
+      <span class="s">path</span><span class="pi">:</span> <span class="s">/</span>
+      <span class="s">port</span><span class="pi">:</span> <span class="s">3306</span>
+<span class="s">services</span><span class="pi">:</span>
+<span class="pi">-</span> <span class="s">name</span><span class="pi">:</span> <span class="s">wordpress</span>
+  <span class="s">ports</span><span class="pi">:</span>
+  <span class="pi">-</span> <span class="s">port</span><span class="pi">:</span> <span class="s">8080</span>
+    <span class="s">targetPort</span><span class="pi">:</span> <span class="s">80</span>
+    <span class="s">endpoint</span><span class="pi">:</span> <span class="s">minikube.external/foo</span>
+<span class="s">volumeClaims</span><span class="pi">:</span>
+<span class="pi">-</span> <span class="s">name</span><span class="pi">:</span> <span class="s">database</span>
+  <span class="s">size</span><span class="pi">:</span> <span class="s">500Mi</span>
+<span class="s">configMaps</span><span class="pi">:</span>
+<span class="pi">-</span> <span class="s">data</span><span class="pi">:</span>
+    <span class="s">MYSQL_DATABASE</span><span class="pi">:</span> <span class="s">wordpress</span>
+</code></pre>
+</div>
+
+<h1 id="root-level-constructs">Root level constructs</h1>
+
+<p>App is made of Pod Spec and added fields.
+More info: https://kubernetes.io/docs/api-reference/v1.6/#podspec-v1-core</p>
+
+<h2 id="name">name</h2>
+
+<p><code class="highlighter-rouge">name: mariadb</code></p>
+
+<table>
+  <thead>
+    <tr>
+      <th><strong>Type</strong></th>
+      <th><strong>Required</strong></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>string</td>
+      <td>yes</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>The name of the app or micro-service this particular file defines.</p>
+
+<h2 id="replicas">replicas</h2>
+
+<p><code class="highlighter-rouge">replicas: 4</code></p>
+
+<table>
+  <thead>
+    <tr>
+      <th><strong>Type</strong></th>
+      <th><strong>Required</strong></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>integer</td>
+      <td>no</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Number of desired pods. This is a pointer to distinguish between explicit zero
+and not specified. Defaults to 1. The valid value can only be a positive number.
+This is an optional field.</p>
+
+<h2 id="labels">labels</h2>
+
+<div class="language-yaml highlighter-rouge"><pre class="highlight"><code><span class="s">labels</span><span class="pi">:</span>
+  <span class="s">env</span><span class="pi">:</span> <span class="s">dev</span>
+  <span class="s">department</span><span class="pi">:</span> <span class="s">middle-tier</span>
+</code></pre>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th><strong>Type</strong></th>
+      <th><strong>Required</strong></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>object</td>
+      <td>no</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Map of string keys and values that can be used to organize and categorize
+(scope and select) objects. May match selectors of replication controllers and
+services.</p>
+
+<p>All the configuration created will have this label applied.
+More info: http://kubernetes.io/docs/user-guide/labels</p>
+
+<h2 id="containers">containers</h2>
+
+<div class="language-yaml highlighter-rouge"><pre class="highlight"><code><span class="s">containers</span><span class="pi">:</span>
+<span class="pi">-</span> <span class="s">&lt;containerSpec&gt;</span>
+<span class="pi">-</span> <span class="s">&lt;containerSpec&gt;</span>
+</code></pre>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th><strong>Type</strong></th>
+      <th><strong>Required</strong></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>array of <a href="#containerSpec">containerSpec</a></td>
+      <td>yes</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="containerspec">containerSpec</h3>
+
+<h4 id="health">health</h4>
+
+<div class="language-yaml highlighter-rouge"><pre class="highlight"><code><span class="s">health</span><span class="pi">:</span> <span class="s">&lt;probe&gt;</span>
+</code></pre>
+</div>
+
+<p>This is <code class="highlighter-rouge">probe</code> spec. Rather than defining <code class="highlighter-rouge">livenessProbe</code> and <code class="highlighter-rouge">readinessProbe</code>,
+define only <code class="highlighter-rouge">health</code>. And then it gets copied in both in the resultant spec.
+But if <code class="highlighter-rouge">health</code> and <code class="highlighter-rouge">livenessProbe</code> or <code class="highlighter-rouge">readinessProbe</code> are defined
+simultaneously then the tool will error out.</p>
+
+<h4 id="envfrom">envFrom</h4>
+
+<div class="language-yaml highlighter-rouge"><pre class="highlight"><code><span class="s">envFrom</span><span class="pi">:</span>
+<span class="pi">-</span> <span class="s">configMapRef</span><span class="pi">:</span>
+    <span class="s">name</span><span class="pi">:</span> <span class="s">&lt;string&gt;</span>
+</code></pre>
+</div>
+
+<p>This is similar to the envFrom field in container which is added since Kubernetes
+1.6. <code class="highlighter-rouge">envFrom</code> is a list of references. Right now the only reference that is
+supported is of <code class="highlighter-rouge">configMap</code>. The <code class="highlighter-rouge">configMap</code> that you refer here, all the data
+from that <code class="highlighter-rouge">configMap</code> will be populated as <code class="highlighter-rouge">env</code> inside the container.</p>
+
+<p>The restriction being that the <code class="highlighter-rouge">configMap</code> also has to be defined in the file.
+If the <code class="highlighter-rouge">configMap</code> is not defined in the file under the root level field called
+<code class="highlighter-rouge">configMaps</code>, the tool will throw an error, since it has no way of knowing
+from where to populate the environment variables from.</p>
+
+<p>To read more about this field from the Kubernetes upstream docs see this:
+https://kubernetes.io/docs/api-reference/v1.6/#envfromsource-v1-core</p>
+
+<h2 id="volumeclaims">volumeClaims</h2>
+
+<div class="language-yaml highlighter-rouge"><pre class="highlight"><code><span class="s">volumeClaims</span><span class="pi">:</span>
+<span class="pi">-</span> <span class="s">&lt;volume&gt;</span>
+<span class="pi">-</span> <span class="s">&lt;volume&gt;</span>
+</code></pre>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th><strong>Type</strong></th>
+      <th><strong>Required</strong></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>array of <a href="#persistentVolume">persistentVolume</a></td>
+      <td>no</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>List of <code class="highlighter-rouge">volume</code> struct.</p>
+
+<h3 id="persistentvolume">persistentVolume</h3>
+
+<p>A <code class="highlighter-rouge">pvc</code> is created for each <code class="highlighter-rouge">persistentVolume</code>. This is PersistentVolumeClaimSpec and added 
+fields. More info: https://kubernetes.io/docs/api-reference/v1.6/#persistentvolumeclaimspec-v1-core</p>
+
+<div class="language-yaml highlighter-rouge"><pre class="highlight"><code><span class="s">name</span><span class="pi">:</span> <span class="s">database</span>
+<span class="s">size</span><span class="pi">:</span> <span class="s">500Mi</span>
+</code></pre>
+</div>
+
+<p><strong>OR</strong></p>
+
+<div class="language-yaml highlighter-rouge"><pre class="highlight"><code><span class="s">name</span><span class="pi">:</span> <span class="s">database</span>
+<span class="s">accessModes</span><span class="pi">:</span>
+<span class="pi">-</span> <span class="s">ReadWriteOnce</span>
+<span class="s">resources</span><span class="pi">:</span>
+  <span class="s">requests</span><span class="pi">:</span>
+    <span class="s">storage</span><span class="pi">:</span> <span class="s">500Mi</span>
+</code></pre>
+</div>
+
+<p>A user needs to define this list of volumes and then use it in the <code class="highlighter-rouge">volumeMounts</code> field in
+<code class="highlighter-rouge">containers</code>. In the resultant output the <code class="highlighter-rouge">volumes</code> in <code class="highlighter-rouge">podSpec</code> will be populated 
+automatically by the tool.</p>
+
+<h4 id="name-1">name</h4>
+
+<p><code class="highlighter-rouge">name: database</code></p>
+
+<table>
+  <thead>
+    <tr>
+      <th><strong>Type</strong></th>
+      <th><strong>Required</strong></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>string</td>
+      <td>yes</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>The name of the volume. This should match with the <code class="highlighter-rouge">volumeMount</code> defined in the
+<code class="highlighter-rouge">container</code>.</p>
+
+<h4 id="size">size</h4>
+
+<p><code class="highlighter-rouge">size: 700Mi</code></p>
+
+<table>
+  <thead>
+    <tr>
+      <th><strong>Type</strong></th>
+      <th><strong>Required</strong></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>string</td>
+      <td>yes</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Size of persistent volume claim to be created. Conflicts with <a href="#resources">resources</a> field
+so define either of those.</p>
+
+<h4 id="resources">resources</h4>
+
+<div class="language-yaml highlighter-rouge"><pre class="highlight"><code><span class="s">resources</span><span class="pi">:</span>
+  <span class="s">requests</span><span class="pi">:</span>
+    <span class="s">storage</span><span class="pi">:</span> <span class="s">500Mi</span>
+</code></pre>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th><strong>Type</strong></th>
+      <th><strong>Required</strong></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>ResourceRequirements</td>
+      <td>yes</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Resources represents the minimum resources the volume should have. Conflicts with
+<a href="#size">size</a> field so define either of those.
+More info: http://kubernetes.io/docs/user-guide/persistent-volumes#resources</p>
+
+<h4 id="accessmodes">accessModes</h4>
+
+<div class="language-yaml highlighter-rouge"><pre class="highlight"><code><span class="s">accessModes</span><span class="pi">:</span>
+<span class="pi">-</span> <span class="s">ReadWriteOnce</span>
+</code></pre>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th><strong>Type</strong></th>
+      <th><strong>Required</strong></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>array of string</td>
+      <td>no</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>AccessModes contains the desired access modes the volume should have. Defaults to 
+<code class="highlighter-rouge">ReadWriteOnce</code>.</p>
+
+<p>The access modes are:</p>
+<ul>
+  <li><strong><code class="highlighter-rouge">ReadWriteOnce</code></strong> – the volume can be mounted as read-write by a single node</li>
+  <li><strong><code class="highlighter-rouge">ReadOnlyMany</code></strong> – the volume can be mounted read-only by many nodes</li>
+  <li><strong><code class="highlighter-rouge">ReadWriteMany</code></strong> – the volume can be mounted as read-write by many nodes</li>
+</ul>
+
+<p>More info: http://kubernetes.io/docs/user-guide/persistent-volumes#access-modes-1</p>
+
+<h2 id="configmaps">configMaps</h2>
+
+<div class="language-yaml highlighter-rouge"><pre class="highlight"><code><span class="s">configMaps</span><span class="pi">:</span>
+<span class="pi">-</span> <span class="s">&lt;configMap&gt;</span>
+<span class="pi">-</span> <span class="s">&lt;configMap&gt;</span>
+</code></pre>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th><strong>Type</strong></th>
+      <th><strong>Required</strong></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>array of <a href="#configMap">configMap</a></td>
+      <td>no</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>###configMap</p>
+
+<div class="language-yaml highlighter-rouge"><pre class="highlight"><code><span class="s">name</span><span class="pi">:</span> <span class="s">string</span>
+<span class="s">data</span><span class="pi">:</span>
+  <span class="s">key1</span><span class="pi">:</span> <span class="s">value1</span>
+  <span class="s">key2</span><span class="pi">:</span> <span class="s">value2</span>
+</code></pre>
+</div>
+
+<p>example:</p>
+
+<div class="language-yaml highlighter-rouge"><pre class="highlight"><code><span class="s">name</span><span class="pi">:</span> <span class="s">database</span>
+<span class="s">data</span><span class="pi">:</span>
+  <span class="s">MYSQL_DATABASE</span><span class="pi">:</span> <span class="s">wordpress</span>
+  <span class="s">app_data</span><span class="pi">:</span> <span class="s">/etc/app/data</span>
+</code></pre>
+</div>
+
+<h4 id="name-2">Name</h4>
+
+<p><code class="highlighter-rouge">name: database</code></p>
+
+<table>
+  <thead>
+    <tr>
+      <th><strong>Type</strong></th>
+      <th><strong>Required</strong></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>string</td>
+      <td>yes</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>The name of the configMap. This is optional field if only one configMap is defined, the
+default name will be the app name.</p>
+
+<h4 id="data">Data</h4>
+
+<table>
+  <thead>
+    <tr>
+      <th><strong>Type</strong></th>
+      <th><strong>Required</strong></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>object</td>
+      <td>yes</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Data contains the configuration data. Each key must be a valid
+DNS_SUBDOMAIN with an optional leading dot.</p>
+
+<p>A <code class="highlighter-rouge">configMap</code> is created out of this configuration.</p>
+
+<h2 id="services">services</h2>
+
+<div class="language-yaml highlighter-rouge"><pre class="highlight"><code><span class="s">services</span><span class="pi">:</span>
+<span class="pi">-</span> <span class="s">&lt;service&gt;</span>
+<span class="pi">-</span> <span class="s">&lt;service&gt;</span>
+</code></pre>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th><strong>Type</strong></th>
+      <th><strong>Required</strong></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>array of <a href="#service">service</a></td>
+      <td>no</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="service">service</h3>
+
+<div class="language-yaml highlighter-rouge"><pre class="highlight"><code><span class="s">name</span><span class="pi">:</span> <span class="s">&lt;string&gt;</span>
+<span class="s">ports</span><span class="pi">:</span>
+<span class="pi">-</span> <span class="s">port</span><span class="pi">:</span> <span class="s">&lt;int&gt;</span>
+  <span class="s">endpoint</span><span class="pi">:</span> <span class="s">&lt;URL&gt;/&lt;Path&gt;</span>
+<span class="s">&lt;Kubernetes Service Spec&gt;</span>
+</code></pre>
+</div>
+
+<p>Each service is Kubernetes Service spec and added fields.
+More info: https://kubernetes.io/docs/api-reference/v1.6/#servicespec-v1-core</p>
+
+<p>Example:</p>
+<div class="language-yaml highlighter-rouge"><pre class="highlight"><code><span class="s">name</span><span class="pi">:</span> <span class="s">wordpress</span>
+<span class="s">ports</span><span class="pi">:</span>
+<span class="pi">-</span> <span class="s">port</span><span class="pi">:</span> <span class="s">8080</span>
+  <span class="s">targetPort</span><span class="pi">:</span> <span class="s">80</span>
+
+</code></pre>
+</div>
+
+<p>Each service gets converted into a Kubernetes <code class="highlighter-rouge">service</code> and <code class="highlighter-rouge">ingress</code>es
+respectively.</p>
+
+<h4 id="name-3">name</h4>
+
+<p><code class="highlighter-rouge">name: wordpress</code></p>
+
+<table>
+  <thead>
+    <tr>
+      <th><strong>Type</strong></th>
+      <th><strong>Required</strong></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>string</td>
+      <td>yes</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>The name of the service.</p>
+
+<h4 id="endpoint">endpoint</h4>
+
+<p><code class="highlighter-rouge">endpoint: www.mycoolapp.com/admin</code></p>
+
+<p>This is an added field in the Service port, which if specified an <code class="highlighter-rouge">ingress</code>
+resource is created. The <code class="highlighter-rouge">ingress</code> resource name will be the same as the name
+of <code class="highlighter-rouge">service</code>.</p>
+
+<p><code class="highlighter-rouge">endpoint</code> the way it is defined is can actually can be divided into
+two parts the <code class="highlighter-rouge">URL</code> and <code class="highlighter-rouge">Path</code>, it is delimited by a forward slash.</p>
+
+<h2 id="ingresses">ingresses</h2>
+
+<div class="language-yaml highlighter-rouge"><pre class="highlight"><code><span class="s">ingresses</span><span class="pi">:</span>
+<span class="pi">-</span> <span class="s">&lt;ingressObject&gt;</span>
+<span class="pi">-</span> <span class="s">&lt;ingressObject&gt;</span>
+</code></pre>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th><strong>Type</strong></th>
+      <th><strong>Required</strong></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>array of <a href="#ingressObject">ingress object</a></td>
+      <td>no</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="ingressobject">ingressObject</h3>
+
+<div class="language-yaml highlighter-rouge"><pre class="highlight"><code><span class="s">ingresses</span><span class="pi">:</span>
+<span class="pi">-</span> <span class="s">name</span><span class="pi">:</span> <span class="s">&lt;string&gt;</span>
+  <span class="s">&lt;Ingress Spec&gt;</span>
+</code></pre>
+</div>
+
+<p>Example:</p>
+<div class="language-yaml highlighter-rouge"><pre class="highlight"><code><span class="s">name</span><span class="pi">:</span> <span class="s">wordpress</span>
+<span class="s">rules</span><span class="pi">:</span>
+<span class="pi">-</span> <span class="s">host</span><span class="pi">:</span> <span class="s">minikube.local</span>
+  <span class="s">http</span><span class="pi">:</span>
+    <span class="s">paths</span><span class="pi">:</span>
+    <span class="pi">-</span> <span class="s">backend</span><span class="pi">:</span>
+        <span class="s">serviceName</span><span class="pi">:</span> <span class="s">wordpress</span>
+        <span class="s">servicePort</span><span class="pi">:</span> <span class="s">8080</span>
+      <span class="s">path</span><span class="pi">:</span> <span class="s">/</span>
+</code></pre>
+</div>
+
+<p>Each <code class="highlighter-rouge">ingress</code> object is Kubernetes Ingress spec and <code class="highlighter-rouge">name</code> field.
+More info: https://kubernetes.io/docs/api-reference/v1.6/#ingressspec-v1beta1-extensions</p>
+
+<p>If there is only one port and user wants to expose the service then user should
+define one <code class="highlighter-rouge">ingress</code> with <code class="highlighter-rouge">host</code> atleast then the rest of the <code class="highlighter-rouge">ingress</code>
+spec(things like <code class="highlighter-rouge">http</code>, etc.) will be populated for the user.</p>
+
+<p>More info about Probe: https://kubernetes.io/docs/api-reference/v1.6/#probe-v1-core</p>
+
+<h4 id="name-4">name</h4>
+
+<p><code class="highlighter-rouge">name: wordpress</code></p>
+
+<table>
+  <thead>
+    <tr>
+      <th><strong>Type</strong></th>
+      <th><strong>Required</strong></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>string</td>
+      <td>yes</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>The name of the Ingress.</p>
+
+<h2 id="complete-example">Complete example</h2>
+
+<div class="language-yaml highlighter-rouge"><pre class="highlight"><code><span class="s">name</span><span class="pi">:</span> <span class="s">database</span>
+<span class="s">containers</span><span class="pi">:</span>
+<span class="pi">-</span> <span class="s">image</span><span class="pi">:</span> <span class="s">mariadb:10</span>
+  <span class="s">env</span><span class="pi">:</span>
+  <span class="pi">-</span> <span class="s">name</span><span class="pi">:</span> <span class="s">MYSQL_ROOT_PASSWORD</span>
+    <span class="s">valueFrom</span><span class="pi">:</span>
+      <span class="s">secretKeyRef</span><span class="pi">:</span>
+        <span class="s">name</span><span class="pi">:</span> <span class="s">wordpress</span>
+        <span class="s">key</span><span class="pi">:</span> <span class="s">MYSQL_ROOT_PASSWORD</span>
+  <span class="s">envFrom</span><span class="pi">:</span>
+  <span class="pi">-</span> <span class="s">configMapRef</span><span class="pi">:</span>
+      <span class="s">name</span><span class="pi">:</span> <span class="s">database</span>
+  <span class="s">volumeMounts</span><span class="pi">:</span>
+  <span class="pi">-</span> <span class="s">name</span><span class="pi">:</span> <span class="s">database</span>
+    <span class="s">mountPath</span><span class="pi">:</span> <span class="s">/var/lib/mysql</span>
+  <span class="s">livenessProbe</span><span class="pi">:</span>
+    <span class="s">httpGet</span><span class="pi">:</span>
+      <span class="s">path</span><span class="pi">:</span> <span class="s">/</span>
+      <span class="s">port</span><span class="pi">:</span> <span class="s">3306</span>
+  <span class="s">readinessProbe</span><span class="pi">:</span>
+    <span class="s">exec</span><span class="pi">:</span>
+      <span class="s">command</span><span class="pi">:</span>
+      <span class="pi">-</span> <span class="s">mysqladmin</span>
+      <span class="pi">-</span> <span class="s">ping</span>
+    <span class="s">initialDelaySeconds</span><span class="pi">:</span> <span class="s">5</span>
+    <span class="s">timeoutSeconds</span><span class="pi">:</span> <span class="s">1</span>
+<span class="s">services</span><span class="pi">:</span>
+<span class="pi">-</span> <span class="s">name</span><span class="pi">:</span> <span class="s">wordpress</span>
+  <span class="s">expose</span><span class="pi">:</span> <span class="s">true</span>
+  <span class="s">ports</span><span class="pi">:</span>
+  <span class="pi">-</span> <span class="s">port</span><span class="pi">:</span> <span class="s">8080</span>
+    <span class="s">targetPort</span><span class="pi">:</span> <span class="s">80</span>
+    <span class="s">endpoint</span><span class="pi">:</span> <span class="s">minikube.external/foo</span>
+<span class="s">ingresses</span><span class="pi">:</span>
+<span class="pi">-</span> <span class="s">name</span><span class="pi">:</span> <span class="s">pseudo-wordpress</span>
+  <span class="s">rules</span><span class="pi">:</span>
+  <span class="pi">-</span> <span class="s">host</span><span class="pi">:</span> <span class="s">minikube.local</span>
+    <span class="s">http</span><span class="pi">:</span>
+      <span class="s">paths</span><span class="pi">:</span>
+      <span class="pi">-</span> <span class="s">backend</span><span class="pi">:</span>
+          <span class="s">serviceName</span><span class="pi">:</span> <span class="s">wordpress</span>
+          <span class="s">servicePort</span><span class="pi">:</span> <span class="s">8080</span>
+        <span class="s">path</span><span class="pi">:</span> <span class="s">/</span>
+<span class="s">volumeClaims</span><span class="pi">:</span>
+<span class="pi">-</span> <span class="s">name</span><span class="pi">:</span> <span class="s">database</span>
+  <span class="s">size</span><span class="pi">:</span> <span class="s">500Mi</span>
+  <span class="s">accessModes</span><span class="pi">:</span>
+  <span class="pi">-</span> <span class="s">ReadWriteOnce</span>
+<span class="s">configMaps</span><span class="pi">:</span>
+<span class="pi">-</span> <span class="s">data</span><span class="pi">:</span>
+    <span class="s">MYSQL_DATABASE</span><span class="pi">:</span> <span class="s">wordpress</span>
+</code></pre>
+</div>
+
+
+      </section>
+
+      <footer>
+  <p>This project is maintained by <a href="https://github.com/kedgeproject/kedge">The Kedge Authors</a></p>
+</footer>
+
+
+    </div>
+
+        <script src="/js/scale.fix.js"></script>
+
+
+  </body>
+</html>

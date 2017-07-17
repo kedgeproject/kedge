@@ -1,0 +1,170 @@
+<!doctype html>
+<html>
+
+  <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="chrome=1">
+  <meta name="viewport" content="width=device-width">
+  <meta name="description" content="Concise Application Definition for Kubernetes
+">
+  <title>Kedge</title>
+
+  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/pygment_trac.css">
+  <link rel="stylesheet" href="/css/custom.css">
+  <script async defer src="https://buttons.github.io/buttons.js"></script>
+  <!--[if lt IE 9]>
+  <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+  <![endif]-->
+  <link rel="canonical" href="http://localhost:4000/user-guide/">
+  <link rel="alternate" type="application/rss+xml" title="Kedge" href="http://localhost:4000/feed.xml" />
+</head>
+
+
+
+  <body>
+    <div class="wrapper">
+
+      <header>
+<h1> Kedge</h1>
+<p>Concise Application Definition for Kubernetes
+</p>
+
+  <p class="view"><a href="https://github.com/kedgeproject/kedge">View the Project on GitHub <small>kedgeproject/kedge</small></a></p>
+<a class="github-button" href="https://github.com/kedgeproject/kedge/subscription" data-icon="octicon-eye" data-count-href="/kedgeproject/kedge/watchers" data-count-api="/repos/kedgeproject/kedge#subscribers_count" data-count-aria-label="# watchers on GitHub" aria-label="Watch kedgeproject/kedge on GitHub">Watch</a>
+<a class="github-button" href="https://github.com/kedgeproject/kedge" data-icon="octicon-star" data-count-href="/kedgeproject/kedge/stargazers" data-count-api="/repos/kedgeproject/kedge#stargazers_count" data-count-aria-label="# stargazers on GitHub" aria-label="Star kedgeproject/kedge on GitHub">Star</a>
+<a class="github-button" href="https://github.com/kedgeproject/kedge/fork" data-icon="octicon-repo-forked" data-count-href="/kedgeproject/kedge/network" data-count-api="/repos/kedgeproject/kedge#forks_count" data-count-aria-label="# forks on GitHub" aria-label="Fork kedgeproject/kedge on GitHub">Fork</a>
+
+<div class="menubar">
+  <hr/>
+  <ul>
+    
+    <li><a href="/">Introduction</a></li>
+    
+    <li><a href="/user-guide/">User Guide</a></li>
+    
+    <li><a href="/file-reference/">File Reference</a></li>
+    
+    <li><a href="/development/">Development</a></li>
+    
+  </ul>
+</div>
+
+
+</header>
+
+
+
+      <section>
+
+
+        <h1 id="user-guide">User Guide</h1>
+
+<ul>
+  <li>CLI
+    <ul>
+      <li><a href="#kedge-create"><code class="highlighter-rouge">create</code></a></li>
+      <li><a href="#kedge-generate"><code class="highlighter-rouge">generate</code></a></li>
+      <li><a href="#kedge-version"><code class="highlighter-rouge">version</code></a></li>
+    </ul>
+  </li>
+</ul>
+
+<h2 id="kedge-create"><code class="highlighter-rouge">kedge create</code></h2>
+
+<p>Deploy directly to Kubernetes without creating the artifacts. Internally, Kedge will generate the artifacts and then create it using the <code class="highlighter-rouge">kubectl</code> command.</p>
+
+<h3 id="deploy-to-kubernetes">Deploy to Kubernetes</h3>
+
+<div class="language-sh highlighter-rouge"><pre class="highlight"><code><span class="gp">$ </span>kedge create -f httpd.yaml
+deployment <span class="s2">"httpd"</span> created
+service <span class="s2">"httpd"</span> created
+</code></pre>
+</div>
+
+<h2 id="kedge-generate"><code class="highlighter-rouge">kedge generate</code></h2>
+
+<p>Generate Kubernetes artifacts based upon your Kedge YAML file, see our <a href="/examples">examples</a> or the <a href="/docs/file-reference.md">file reference</a> on how to create said file.</p>
+
+<p>In these examples, we use the <a href="/examples/simplest/httpd.yaml">simplest of examples</a></p>
+
+<h3 id="convert-to-kubernetes-artifacts">Convert to Kubernetes artifacts</h3>
+
+<div class="language-sh highlighter-rouge"><pre class="highlight"><code><span class="gp">$ </span>kedge generate -f httpd.yaml
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  creationTimestamp: null
+  labels:
+    app: httpd
+  name: httpd
+spec:
+  strategy: <span class="o">{}</span>
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: httpd
+      name: httpd
+    spec:
+      containers:
+      - image: centos/httpd
+        name: httpd
+        resources: <span class="o">{}</span>
+status: <span class="o">{}</span>
+---
+apiVersion: v1
+kind: Service
+metadata:
+  creationTimestamp: null
+  labels:
+    app: httpd
+  name: httpd
+spec:
+  ports:
+  - port: 8080
+    targetPort: 80
+  selector:
+    app: httpd
+  <span class="nb">type</span>: NodePort
+status:
+  loadBalancer: <span class="o">{}</span>
+</code></pre>
+</div>
+
+<h3 id="generate-and-deploy-directly-to-kubernetes">Generate and deploy directly to Kubernetes</h3>
+
+<p>Generation commands can also be “piped” to Kubernetes</p>
+
+<div class="language-sh highlighter-rouge"><pre class="highlight"><code><span class="gp">$ </span>kedge generate -f httpd.yaml | kubectl create -f -
+deployment <span class="s2">"httpd"</span> created
+service <span class="s2">"httpd"</span> created
+</code></pre>
+</div>
+
+<h2 id="kedge-version"><code class="highlighter-rouge">kedge version</code></h2>
+
+<p>Outputs the current Kedge version</p>
+
+<h3 id="version">Version</h3>
+
+<div class="language-sh highlighter-rouge"><pre class="highlight"><code>kedge version
+</code></pre>
+</div>
+
+
+      </section>
+
+      <footer>
+  <p>This project is maintained by <a href="https://github.com/kedgeproject/kedge">The Kedge Authors</a></p>
+</footer>
+
+
+    </div>
+
+        <script src="/js/scale.fix.js"></script>
+
+
+  </body>
+</html>
