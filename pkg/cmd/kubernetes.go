@@ -28,7 +28,12 @@ import (
 	"github.com/pkg/errors"
 )
 
-func ExecuteKubectl(files []string, command string) error {
+func ExecuteKubectl(paths []string, command string) error {
+
+	files, err := GetAllYAMLFiles(paths)
+	if err != nil {
+		return errors.Wrap(err, "unable to get YAML files")
+	}
 
 	inputs, err := getApplicationsFromFiles(files)
 	if err != nil {
