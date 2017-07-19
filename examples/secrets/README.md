@@ -1,14 +1,25 @@
 # Using secrets
 
-Using secret is similar to any other pod. As of now this does not provide a way to create a secret but only to consume it.
-
 Creating secret:
 
-```bash
-oc create secret generic wordpress --from-literal='MYSQL_ROOT_PASSWORD=rootpasswd,DB_PASSWD=wordpress'
+Create a secret by defining it at the root level -
+```yaml
+secrets:
+- name: wordpress
+  data:
+    MYSQL_ROOT_PASSWORD: YWRtaW4=
+    MYSQL_PASSWORD: cGFzc3dvcmQ=
 ```
 
 Now consuming it, see the snippet from [db.yaml](db.yaml):
+
+```yaml
+  envFrom:
+  - secretRef:
+      name: wordpress
+```
+
+Alternatively, it can also be consumed by referencing it manually in `env:`
 
 ```yaml
   env:
