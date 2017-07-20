@@ -25,12 +25,26 @@ Check out our [roadmap](ROADMAP.md) as we push towards a __0.1.0__ release.
 ## Using Kedge
 
 ### Installation
-You can download latest master build for all major operating systems and architectures.
-- [Linux (amd64)][Bintray Latest Linux]
-- [macOS (darwin)][Bintray Latest macOS]
-- [Windows (amd64)][Bintray Latest Windows]
+You can download latest binary (built on each master PR merge) for [Linux (amd64)][Bintray Latest Linux], [macOS (darwin)][Bintray Latest macOS] or [Windows (amd64)][Bintray Latest Windows] from [Bintray](https://bintray.com):
 
-Or you can build it yourself from the master GitHub branch:
+__Linux and macOS:__
+
+```sh
+# Linux 
+curl -L https://dl.bintray.com/kedgeproject/kedge/latest/kedge-linux-amd64 -o kedge
+
+# macOS
+curl -L https://dl.bintray.com/kedgeproject/kedge/latest/kedge-darwin-amd64 -o kedge
+
+chmod +x kedge
+sudo mv ./kedge /usr/local/bin/kedge
+```
+
+__Windows:__
+
+Download from https://dl.bintray.com/kedgeproject/kedge/latest/kedge-windows-amd64.exe and add the binary to your PATH.
+
+__You can also download and build Kedge via Go:__
 
 ```sh
 go get github.com/kedgeproject/kedge
