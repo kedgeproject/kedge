@@ -28,11 +28,11 @@ func TestConflictingFields(t *testing.T) {
 		t.Run("Testing conflicting fields", func(t *testing.T) {
 
 			// Checking if input is pointer to struct
-			if err := isPointerToStruct(inputStruct); err != nil {
+			if err := checkTypePointerToStruct(inputStruct); err != nil {
 				t.Error(errors.Wrap(err, "Input parameter type mismatch"))
 			}
 
-			conflictingTags, err := findConflictingYAMLTags(inputStruct)
+			conflictingTags, err := findConflictingJSONTags(inputStruct)
 			if err != nil {
 				t.Error(errors.Wrap(err, "Unable to find conflicting tags for spec.App"))
 			}

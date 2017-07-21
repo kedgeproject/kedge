@@ -143,7 +143,7 @@ func TestFindConflictingYAMLTags(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
-			conflictingTags, err := findConflictingYAMLTags(test.InputStuct)
+			conflictingTags, err := findConflictingJSONTags(test.InputStuct)
 
 			// Testing errors
 			if test.IsError && err == nil {

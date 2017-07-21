@@ -8,18 +8,23 @@ import (
 	"github.com/pkg/errors"
 )
 
-// This function takes an map as an input which stores the JSON tag as key and
+const (
+	kedgeSpecPackagePath = "github.com/kedgeproject/kedge/pkg/spec"
+)
+
+// This function takes a map as an input which stores the JSON tag as key and
 // the names of the structs holding that tag as the value. The passed in
-// blaclisted tags are ignored and are not populated at all.
+// blacklisted tags are ignored and are not populated at all.
 func getUnmarshalJSONTagsMap(inputMap map[string][]string, inputStruct interface{}, blacklistedTags []string) error {
 
 	// Checking if input is pointer to struct
-	if err := isPointerToStruct(inputStruct); err != nil {
+	if err := checkTypePointerToStruct(inputStruct); err != nil {
 		return errors.Wrap(err, "Input parameter type mismatch")
 	}
 
 	val := reflect.ValueOf(inputStruct).Elem()
 
+StructFieldsLoop:
 	for i := 0; i < val.NumField(); i++ {
 		field := val.Type().Field(i)
 
@@ -29,38 +34,34 @@ func getUnmarshalJSONTagsMap(inputMap map[string][]string, inputStruct interface
 		// is specified first.
 		// Let's split the JSON tag on ",", and store the first element of the
 		// resulting array.
+		unmarshalJSONTag := strings.SplitN(field.Tag.Get("json"), ",", 2)[0]
 
-		unmarshalJsonTag := strings.SplitN(field.Tag.Get("json"), ",", 2)[0]
-
-		skipTag := false
-		// Populating only the non blacklisted tags
-		for _, blacklistedTag := range blacklistedTags {
-			if unmarshalJsonTag == blacklistedTag {
-				skipTag = true
-			}
-		}
-		if unmarshalJsonTag == "" {
+		if unmarshalJSONTag == "" {
 			// It does not make any sense to store anything for JSON tags with no
 			// first element, e.g. `json:",inline"`
-			skipTag = true
-		}
-
-		if skipTag {
 			continue
 		}
-		inputMap[unmarshalJsonTag] = append(inputMap[unmarshalJsonTag], val.Type().String())
+
+		// Populating only the non blacklisted tags
+		for _, blacklistedTag := range blacklistedTags {
+			if unmarshalJSONTag == blacklistedTag {
+				continue StructFieldsLoop
+			}
+		}
+
+		inputMap[unmarshalJSONTag] = append(inputMap[unmarshalJSONTag], val.Type().String())
 	}
 	return nil
 }
 
 // This function returns an array of pointers to all of the embedded structs
 // in the input struct.
-// The embedded structs in an embedded struct are also taken into considertation
+// The embedded structs in an embedded struct are also taken into consideration
 // in a recursive manner.
 func getEmbeddedStructs(inputStruct interface{}) ([]interface{}, error) {
 
 	// Checking if input is pointer to struct
-	if err := isPointerToStruct(inputStruct); err != nil {
+	if err := checkTypePointerToStruct(inputStruct); err != nil {
 		return nil, errors.Wrap(err, "Input parameter type mismatch")
 	}
 
@@ -93,7 +94,7 @@ func getEmbeddedStructs(inputStruct interface{}) ([]interface{}, error) {
 // This function returns an array of all the JSON tags used for unmarshalling
 // (which are the first ones specified) which have a JSON tag "conflicting", in
 // all of the input structs.
-// It's made sure that only the tags in "package spec" are checked and all other
+// It's made sure that only the tags in spec.go are checked and all other
 // packages are ignored. This is done because we are expecting the structs to
 // be handled, i.e. marked as "conflicting" only in spec.go, and we do not want
 // to populate the list with JSON tags from some other package which had the
@@ -103,14 +104,14 @@ func getMarkedAsConflictingJSONUnmarshalTags(inputStructs []interface{}) ([]stri
 	for _, inputStruct := range inputStructs {
 
 		// Checking if input is pointer to struct
-		if err := isPointerToStruct(inputStruct); err != nil {
+		if err := checkTypePointerToStruct(inputStruct); err != nil {
 			return nil, errors.Wrap(err, "Input parameter type mismatch")
 		}
 
 		val := reflect.ValueOf(inputStruct).Elem()
 
 		// Proceeding only if the struct belongs to the kedge's spec package
-		if val.Type().PkgPath() == "github.com/kedgeproject/kedge/pkg/spec" {
+		if val.Type().PkgPath() == kedgeSpecPackagePath {
 			for i := 0; i < val.NumField(); i++ {
 				field := val.Type().Field(i)
 
@@ -122,6 +123,7 @@ func getMarkedAsConflictingJSONUnmarshalTags(inputStructs []interface{}) ([]stri
 				for _, tag := range fieldJSONTags[1:] {
 					if tag == "conflicting" {
 						blacklistedTags = append(blacklistedTags, fieldJSONTags[0])
+						break
 					}
 				}
 			}
@@ -133,20 +135,20 @@ func getMarkedAsConflictingJSONUnmarshalTags(inputStructs []interface{}) ([]stri
 // This function checks if the input parameter has the pointer to a struct as
 // its underlying type.
 // Returns "nil" if true, or an error if false
-func isPointerToStruct(input interface{}) error {
+func checkTypePointerToStruct(input interface{}) error {
 	if reflect.Indirect(reflect.ValueOf(input)).Kind().String() != "struct" {
-		return errors.New(fmt.Sprintf("Expected pointer to struct, got %v", reflect.ValueOf(input).Kind().String()))
+		return fmt.Errorf("Expected pointer to struct, got %v", reflect.ValueOf(input).Kind().String())
 	}
 	return nil
 }
 
-// This function takes in pointer to a struct struct as input, and returns a map
-// of conflicting JSON tags used for unmarshaling.
+// This function takes in pointer to a struct as input, and returns a map of
+// conflicting JSON tags used for unmarshaling.
 // All of the embedded structs are taken into account, and the fields with a
 // JSON tag "conflicting" are assumed to be handled.
 // The returned map contains the JSON tags as the keys, and the values are an
 // array of struct names which contain those fields, without being handled.
-func findConflictingYAMLTags(inputStruct interface{}) (map[string][]string, error) {
+func findConflictingJSONTags(inputStruct interface{}) (map[string][]string, error) {
 
 	// We need to check that no JSON tag is specified more than once at the
 	// top level of the struct.
@@ -155,7 +157,7 @@ func findConflictingYAMLTags(inputStruct interface{}) (map[string][]string, erro
 	// We accomplish this over a 4 step process.
 
 	// Checking if input is pointer to struct
-	if err := isPointerToStruct(inputStruct); err != nil {
+	if err := checkTypePointerToStruct(inputStruct); err != nil {
 		return nil, errors.Wrap(err, "Input parameter type mismatch")
 	}
 
