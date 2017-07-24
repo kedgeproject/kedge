@@ -30,14 +30,13 @@ import (
 
 func Generate(files []string) error {
 
-	appData, err := getApplicationsFromFiles(files)
+	inputs, err := getApplicationsFromFiles(files)
 	if err != nil {
 		return errors.Wrap(err, "unable to get kedge definitions from input files")
 	}
 
-	for _, data := range appData {
-
-		app, err := encoding.Decode(data)
+	for _, input := range inputs {
+		app, err := encoding.Decode(input.data)
 		if err != nil {
 			return errors.Wrap(err, "unable to unmarshal data")
 		}

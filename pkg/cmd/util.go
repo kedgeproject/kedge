@@ -2,18 +2,28 @@ package cmd
 
 import (
 	"io/ioutil"
+	"path/filepath"
 	"regexp"
 	"strings"
 
 	"github.com/pkg/errors"
 )
 
-func getApplicationsFromFiles(files []string) ([][]byte, error) {
-	var appData [][]byte
+type inputData struct {
+	data []byte
+}
+
+func getApplicationsFromFiles(files []string) ([]inputData, error) {
+	var appData []inputData
+
 	for _, file := range files {
 		data, err := ioutil.ReadFile(file)
 		if err != nil {
 			return nil, errors.Wrap(err, "file reading failed")
+		}
+		file, err := filepath.Abs(file)
+		if err != nil {
+			return nil, errors.Wrapf(err, "cannot determine the absolute file path of %q", file)
 		}
 
 		// The regular expression takes care of when triple dashes are in the
@@ -38,7 +48,9 @@ func getApplicationsFromFiles(files []string) ([][]byte, error) {
 			//				# avoids empty input here
 			// ---			# avoids empty input here
 			if len(strings.TrimSpace(app)) > 0 {
-				appData = append(appData, []byte(app))
+				appData = append(appData, inputData{
+					data: []byte(app),
+				})
 			}
 		}
 	}
