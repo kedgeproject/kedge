@@ -33,7 +33,16 @@ var deleteCmd = &cobra.Command{
 			fmt.Println(err)
 			os.Exit(-1)
 		}
-		if err := pkgcmd.ExecuteKubectl(InputFiles, "delete"); err != nil {
+
+		kubectlCommand := []string{"delete"}
+
+		// Only setting the namespace flag to kubectl when --namespace is passed
+		// explicitly by the user
+		if cmd.Flags().Lookup("namespace").Changed {
+			kubectlCommand = append(kubectlCommand, "--namespace", Namespace)
+		}
+
+		if err := pkgcmd.ExecuteKubectl(InputFiles, kubectlCommand...); err != nil {
 			fmt.Println(err)
 			os.Exit(-1)
 		}
@@ -43,5 +52,6 @@ var deleteCmd = &cobra.Command{
 func init() {
 	deleteCmd.Flags().StringArrayVarP(&InputFiles, "files", "f", []string{}, "Specify files")
 	deleteCmd.MarkFlagRequired("files")
+	deleteCmd.Flags().StringVarP(&Namespace, "namespace", "n", "", "Kubernetes namespace to delete your application from")
 	RootCmd.AddCommand(deleteCmd)
 }

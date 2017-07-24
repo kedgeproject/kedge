@@ -4,6 +4,7 @@ import "github.com/pkg/errors"
 
 var (
 	InputFiles []string
+	Namespace  string
 )
 
 func ifFilesPassed(files []string) error {
