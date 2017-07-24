@@ -18,14 +18,15 @@ package cmd
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
+	"path/filepath"
 
 	"github.com/kedgeproject/kedge/pkg/encoding"
 	"github.com/kedgeproject/kedge/pkg/transform/kubernetes"
 
 	"github.com/ghodss/yaml"
 	"github.com/pkg/errors"
-	"k8s.io/apimachinery/pkg/runtime"
 )
 
 func Generate(paths []string) error {
@@ -46,11 +47,12 @@ func Generate(paths []string) error {
 			return errors.Wrap(err, "unable to unmarshal data")
 		}
 
-		ros, err := kubernetes.Transform(app)
+		ros, extraResources, err := kubernetes.Transform(app)
 		if err != nil {
 			return errors.Wrap(err, "unable to transform data")
 		}
 
+		// write all the kubernetes objects that were generated
 		for _, runtimeObject := range ros {
 
 			data, err := yaml.Marshal(runtimeObject)
@@ -58,21 +60,47 @@ func Generate(paths []string) error {
 				return errors.Wrap(err, "failed to marshal object")
 			}
 
-			writeObject := func(o runtime.Object, data []byte) error {
-				_, err := fmt.Fprintln(os.Stdout, "---")
-				if err != nil {
-					return errors.Wrap(err, "could not print to STDOUT")
-				}
-
-				_, err = os.Stdout.Write(data)
-				return errors.Wrap(err, "could not write to STDOUT")
+			err = writeObject(data)
+			if err != nil {
+				return errors.Wrap(err, "failed to write object")
 			}
+		}
 
-			err = writeObject(runtimeObject, data)
+		for _, file := range extraResources {
+			// change the file name to absolute file name
+			// then read the file and then pass it to writeObject
+			file = findAbsPath(input.fileName, file)
+			data, err := ioutil.ReadFile(file)
+			if err != nil {
+				return errors.Wrap(err, "file reading failed")
+			}
+			err = writeObject(data)
 			if err != nil {
 				return errors.Wrap(err, "failed to write object")
 			}
 		}
 	}
 	return nil
+}
+
+func writeObject(data []byte) error {
+	_, err := fmt.Fprintln(os.Stdout, "---")
+	if err != nil {
+		return errors.Wrap(err, "could not print to STDOUT")
+	}
+
+	_, err = os.Stdout.Write(data)
+	return errors.Wrap(err, "could not write to STDOUT")
+}
+
+func findAbsPath(baseFilePath, path string) string {
+	// TODO: if the baseFilePath is empty then just take the
+	// pwd as basefilePath, here we will force user to
+	// use the kedge binary from the directory that has files
+	// otherwise there is no way of knowing where the files will be
+	// this condition will happen when we add support for reading from the stdin
+	if filepath.IsAbs(path) {
+		return path
+	}
+	return filepath.Join(filepath.Dir(baseFilePath), path)
 }

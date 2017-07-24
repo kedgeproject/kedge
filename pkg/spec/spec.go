@@ -75,6 +75,7 @@ type App struct {
 	Services                   []ServiceSpecMod  `json:"services,omitempty"`
 	Ingresses                  []IngressSpecMod  `json:"ingresses,omitempty"`
 	Secrets                    []SecretMod       `json:"secrets,omitempty"`
+	ExtraResources             []string          `json:"extraResources,omitempty"`
 	PodSpecMod                 `json:",inline"`
 	ext_v1beta1.DeploymentSpec `json:",inline"`
 }
