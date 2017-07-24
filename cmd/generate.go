@@ -24,21 +24,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Variables
-var (
-	AppFiles []string
-)
-
 // Represents the "generate" command
 var generateCmd = &cobra.Command{
 	Use:   "generate",
 	Short: "Generate Kubernetes resources from App definition",
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := ifFilesPassed(AppFiles); err != nil {
+		if err := ifFilesPassed(InputFiles); err != nil {
 			fmt.Println(err)
 			os.Exit(-1)
 		}
-		if err := pkgcmd.Generate(AppFiles); err != nil {
+		if err := pkgcmd.Generate(InputFiles); err != nil {
 			fmt.Println(err)
 			os.Exit(-1)
 		}
@@ -46,7 +41,7 @@ var generateCmd = &cobra.Command{
 }
 
 func init() {
-	generateCmd.Flags().StringArrayVarP(&AppFiles, "files", "f", []string{}, "input files")
+	generateCmd.Flags().StringArrayVarP(&InputFiles, "files", "f", []string{}, "input files")
 	generateCmd.MarkFlagRequired("files")
 	RootCmd.AddCommand(generateCmd)
 }
