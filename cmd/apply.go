@@ -30,6 +30,10 @@ var applyCmd = &cobra.Command{
 	Use:   "apply",
 	Short: "Apply a configuration to a resource on the Kubernetes cluster. This resource will be created if it doesn't exist yet.",
 	Run: func(cmd *cobra.Command, args []string) {
+		if err := ifFilesPassed(InputFiles); err != nil {
+			fmt.Println(err)
+			os.Exit(-1)
+		}
 		if err := pkgcmd.ExecuteKubectl(InputFiles, "apply"); err != nil {
 			fmt.Println(err)
 			os.Exit(-1)
