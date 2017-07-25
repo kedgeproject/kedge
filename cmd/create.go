@@ -24,21 +24,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Variables
-var (
-	CreateFiles []string
-)
-
 // Represents the "create" command
 var createCmd = &cobra.Command{
 	Use:   "create",
 	Short: "Create the resource on the Kubernetes cluster",
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := ifFilesPassed(CreateFiles); err != nil {
+		if err := ifFilesPassed(InputFiles); err != nil {
 			fmt.Println(err)
 			os.Exit(-1)
 		}
-		if err := pkgcmd.ExecuteKubectl(CreateFiles, "create"); err != nil {
+		if err := pkgcmd.ExecuteKubectl(InputFiles, "create"); err != nil {
 			fmt.Println(err)
 			os.Exit(-1)
 		}
@@ -46,7 +41,7 @@ var createCmd = &cobra.Command{
 }
 
 func init() {
-	createCmd.Flags().StringArrayVarP(&CreateFiles, "files", "f", []string{}, "Specify files")
+	createCmd.Flags().StringArrayVarP(&InputFiles, "files", "f", []string{}, "Specify files")
 	createCmd.MarkFlagRequired("files")
 	RootCmd.AddCommand(createCmd)
 }

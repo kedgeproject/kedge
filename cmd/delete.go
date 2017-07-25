@@ -24,21 +24,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Variables
-var (
-	DeleteFiles []string
-)
-
 // Represents the "delete" command
 var deleteCmd = &cobra.Command{
 	Use:   "delete",
 	Short: "Delete the resource from the Kubernetes cluster",
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := ifFilesPassed(DeleteFiles); err != nil {
+		if err := ifFilesPassed(InputFiles); err != nil {
 			fmt.Println(err)
 			os.Exit(-1)
 		}
-		if err := pkgcmd.ExecuteKubectl(DeleteFiles, "delete"); err != nil {
+		if err := pkgcmd.ExecuteKubectl(InputFiles, "delete"); err != nil {
 			fmt.Println(err)
 			os.Exit(-1)
 		}
@@ -46,7 +41,7 @@ var deleteCmd = &cobra.Command{
 }
 
 func init() {
-	deleteCmd.Flags().StringArrayVarP(&DeleteFiles, "files", "f", []string{}, "Specify files")
+	deleteCmd.Flags().StringArrayVarP(&InputFiles, "files", "f", []string{}, "Specify files")
 	deleteCmd.MarkFlagRequired("files")
 	RootCmd.AddCommand(deleteCmd)
 }

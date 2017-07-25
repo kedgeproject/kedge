@@ -23,17 +23,12 @@ import (
 	"os"
 )
 
-// Variables
-var (
-	ApplyFiles []string
-)
-
 // Represents the "apply" command
 var applyCmd = &cobra.Command{
 	Use:   "apply",
 	Short: "Apply a configuration to a resource on the Kubernetes cluster. This resource will be created if it doesn't exist yet.",
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := pkgcmd.ExecuteKubectl(ApplyFiles, "apply"); err != nil {
+		if err := pkgcmd.ExecuteKubectl(InputFiles, "apply"); err != nil {
 			fmt.Println(err)
 			os.Exit(-1)
 		}
@@ -41,6 +36,6 @@ var applyCmd = &cobra.Command{
 }
 
 func init() {
-	applyCmd.Flags().StringArrayVarP(&ApplyFiles, "files", "f", []string{}, "Specify files")
+	applyCmd.Flags().StringArrayVarP(&InputFiles, "files", "f", []string{}, "Specify files")
 	RootCmd.AddCommand(applyCmd)
 }
