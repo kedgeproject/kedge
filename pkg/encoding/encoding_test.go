@@ -17,12 +17,12 @@ limitations under the License.
 package encoding
 
 import (
+	"encoding/json"
 	"reflect"
 	"testing"
 
 	"github.com/kedgeproject/kedge/pkg/spec"
 
-	"github.com/davecgh/go-spew/spew"
 	api_v1 "k8s.io/client-go/pkg/api/v1"
 )
 
@@ -44,7 +44,7 @@ services:
 			App: &spec.App{
 				Name: "test",
 				PodSpecMod: spec.PodSpecMod{
-					Containers: []spec.Container{{Container: api_v1.Container{Image: "nginx"}}},
+					Containers: []spec.Container{{Container: api_v1.Container{Name: "test", Image: "nginx"}}},
 				},
 				Services: []spec.ServiceSpecMod{
 					{Name: "test", Ports: []spec.ServicePortMod{{ServicePort: api_v1.ServicePort{Port: 8080}}}},
@@ -65,7 +65,7 @@ volumeClaims:
 			App: &spec.App{
 				Name: "test",
 				PodSpecMod: spec.PodSpecMod{
-					Containers: []spec.Container{{Container: api_v1.Container{Image: "nginx"}}},
+					Containers: []spec.Container{{Container: api_v1.Container{Name: "test", Image: "nginx"}}},
 				},
 				Services: []spec.ServiceSpecMod{
 					{Name: "test", Ports: []spec.ServicePortMod{{ServicePort: api_v1.ServicePort{Port: 8080}}}},
@@ -88,7 +88,7 @@ services:
 			App: &spec.App{
 				Name: "test",
 				PodSpecMod: spec.PodSpecMod{
-					Containers: []spec.Container{{Container: api_v1.Container{Image: "nginx"}}},
+					Containers: []spec.Container{{Container: api_v1.Container{Name: "test", Image: "nginx"}}},
 				},
 				Services: []spec.ServiceSpecMod{
 					{
@@ -119,7 +119,7 @@ services:
 			App: &spec.App{
 				Name: "test",
 				PodSpecMod: spec.PodSpecMod{
-					Containers: []spec.Container{{Container: api_v1.Container{Image: "nginx"}}},
+					Containers: []spec.Container{{Container: api_v1.Container{Name: "test", Image: "nginx"}}},
 				},
 				Services: []spec.ServiceSpecMod{
 					{
@@ -151,7 +151,7 @@ services:
 			App: &spec.App{
 				Name: "test",
 				PodSpecMod: spec.PodSpecMod{
-					Containers: []spec.Container{{Container: api_v1.Container{Image: "nginx"}}},
+					Containers: []spec.Container{{Container: api_v1.Container{Name: "test", Image: "nginx"}}},
 				},
 				Services: []spec.ServiceSpecMod{
 					{
@@ -177,7 +177,7 @@ services:
 			App: &spec.App{
 				Name: "test",
 				PodSpecMod: spec.PodSpecMod{
-					Containers: []spec.Container{{Container: api_v1.Container{Image: "nginx"}}},
+					Containers: []spec.Container{{Container: api_v1.Container{Name: "test", Image: "nginx"}}},
 				},
 				Services: []spec.ServiceSpecMod{
 					{Name: "test", Ports: []spec.ServicePortMod{{ServicePort: api_v1.ServicePort{Port: 8080}}}},
@@ -193,8 +193,13 @@ services:
 			}
 
 			if !reflect.DeepEqual(test.App, app) {
-				t.Fatalf("Expected:\n%v\nGot:\n%v", spew.Sprint(test.App), spew.Sprint(app))
+				t.Fatalf("==> Expected:\n%v\n==> Got:\n%v", prettyPrintObjects(test.App), prettyPrintObjects(app))
 			}
 		})
 	}
+}
+
+func prettyPrintObjects(v interface{}) string {
+	b, _ := json.MarshalIndent(v, "", "  ")
+	return string(b)
 }

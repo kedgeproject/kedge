@@ -41,6 +41,10 @@ func fixApp(app *spec.App) error {
 		return errors.Wrap(err, "unable to fix configMaps")
 	}
 
+	if err := fixContainers(app); err != nil {
+		return errors.Wrap(err, "unable to fix containers")
+	}
+
 	return nil
 }
 
@@ -90,6 +94,22 @@ func fixConfigMaps(app *spec.App) error {
 		for cdn, cd := range app.ConfigMaps {
 			if cd.Name == "" {
 				return fmt.Errorf("name not specified for app.configMaps[%d]", cdn)
+			}
+		}
+	}
+	return nil
+}
+
+func fixContainers(app *spec.App) error {
+	// if only one container set name of it as app name
+	if len(app.Containers) == 1 && app.Containers[0].Name == "" {
+		app.Containers[0].Name = app.Name
+	} else if len(app.Containers) > 1 {
+		// check if all the containers have a name
+		// if not fail giving error
+		for cn, c := range app.Containers {
+			if c.Name == "" {
+				return fmt.Errorf("app %q: container name not defined for app.containers[%d]", app.Name, cn)
 			}
 		}
 	}
