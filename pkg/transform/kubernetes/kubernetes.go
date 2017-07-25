@@ -22,15 +22,16 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/kedgeproject/kedge/pkg/spec"
-	"github.com/pkg/errors"
-	"k8s.io/client-go/pkg/api"
-	"k8s.io/client-go/pkg/api/resource"
-	"k8s.io/client-go/pkg/runtime"
-	"k8s.io/client-go/pkg/util/intstr"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/davecgh/go-spew/spew"
+	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/client-go/pkg/api"
 	api_v1 "k8s.io/client-go/pkg/api/v1"
 	ext_v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
 
@@ -49,7 +50,7 @@ func createIngresses(app *spec.App) ([]runtime.Object, error) {
 
 	for _, i := range app.Ingresses {
 		ing := &ext_v1beta1.Ingress{
-			ObjectMeta: api_v1.ObjectMeta{
+			ObjectMeta: metav1.ObjectMeta{
 				Name:   i.Name,
 				Labels: app.Labels,
 			},
@@ -64,7 +65,7 @@ func createServices(app *spec.App) ([]runtime.Object, error) {
 	var svcs []runtime.Object
 	for _, s := range app.Services {
 		svc := &api_v1.Service{
-			ObjectMeta: api_v1.ObjectMeta{
+			ObjectMeta: metav1.ObjectMeta{
 				Name:   s.Name,
 				Labels: app.Labels,
 			},
@@ -97,7 +98,7 @@ func createServices(app *spec.App) ([]runtime.Object, error) {
 
 				ingressName := s.Name + "-" + strconv.FormatInt(int64(port.Port), 10)
 				endpointIngress := &ext_v1beta1.Ingress{
-					ObjectMeta: api_v1.ObjectMeta{
+					ObjectMeta: metav1.ObjectMeta{
 						Name:   ingressName,
 						Labels: app.Labels,
 					},
@@ -164,7 +165,7 @@ func createDeployment(app *spec.App) (*ext_v1beta1.Deployment, error) {
 	deploymentSpec.Template.ObjectMeta.Labels = app.Labels
 
 	deployment := ext_v1beta1.Deployment{
-		ObjectMeta: api_v1.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:   app.Name,
 			Labels: app.Labels,
 		},
@@ -214,7 +215,7 @@ func createPVC(v spec.VolumeClaim, labels map[string]string) (*api_v1.Persistent
 		v.AccessModes = []api_v1.PersistentVolumeAccessMode{api_v1.ReadWriteOnce}
 	}
 	pvc := &api_v1.PersistentVolumeClaim{
-		ObjectMeta: api_v1.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:   v.Name,
 			Labels: labels,
 		},
@@ -390,7 +391,7 @@ func CreateK8sObjects(app *spec.App) ([]runtime.Object, error) {
 	var configMap []runtime.Object
 	for _, cd := range app.ConfigMaps {
 		cm := &api_v1.ConfigMap{
-			ObjectMeta: api_v1.ObjectMeta{
+			ObjectMeta: metav1.ObjectMeta{
 				Name:   cd.Name,
 				Labels: app.Labels,
 			},

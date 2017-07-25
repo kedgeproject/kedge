@@ -22,8 +22,9 @@ import (
 
 	"github.com/kedgeproject/kedge/pkg/spec"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	api_v1 "k8s.io/client-go/pkg/api/v1"
-	"k8s.io/client-go/pkg/runtime"
 )
 
 func TestCreateServices(t *testing.T) {
@@ -44,7 +45,7 @@ func TestCreateServices(t *testing.T) {
 				},
 			},
 			append(make([]runtime.Object, 0), &api_v1.Service{
-				ObjectMeta: api_v1.ObjectMeta{Name: "test"},
+				ObjectMeta: metav1.ObjectMeta{Name: "test"},
 				Spec:       api_v1.ServiceSpec{Ports: []api_v1.ServicePort{{Port: 8080}}},
 			}),
 		},
