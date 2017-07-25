@@ -59,6 +59,7 @@ type ConfigMapMod struct {
 
 type PodSpecMod struct {
 	Containers     []Container `json:"containers,conflicting,omitempty"`
+	InitContainers []Container `json:"initContainers,conflicting,omitempty"`
 	api_v1.PodSpec `json:",inline"`
 }
 
