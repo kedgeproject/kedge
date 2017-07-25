@@ -6,10 +6,12 @@ import:
 - package: github.com/spf13/viper
 - package: github.com/pkg/errors
 - package: k8s.io/client-go
-  version: ^2.0.0
+  version: 3.0.0
   subpackages:
   - pkg/api/v1
-  - pkg/runtime
   - pkg/apis
+# pinning it to k8s 1.6 release so that client-go does not complain
+- package: k8s.io/apimachinery
+  version: release-1.6
 - package: github.com/Sirupsen/logrus
   version: v1.0.0
