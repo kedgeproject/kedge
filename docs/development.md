@@ -81,24 +81,61 @@ glide-vc -h
 ### Using glide
 
 #### Adding new dependency
-1. Update `glide.yml` file.
 
-  Add new packages or subpackages to `glide.yml` depending if you added whole new package as dependency or
-  just new subpackage.
+1. Update `glide.yml` file
 
-2. Run `glide update --strip-vendor` to get new dependencies.
-   Than run `glide-vc --only-code --no-tests` to delete all unnecessary files from vendor.
+  Add new packages or subpackages to `glide.yml` depending if you added whole
+  new package as dependency or just new subpackage.
 
-3. Commit updated `glide.yml`, `glide.lock` and `vendor` to git.
+2. Get new dependencies
+
+```bash
+glide update --strip-vendor
+```
+
+3. Delete all unnecessary files from vendor
+
+```bash
+glide-vc --only-code --no-tests
+```
+
+3. Commit updated glide files and vendor
+
+```bash
+git add glide.yml glide.lock vendor
+git commit
+```
 
 
 #### Updating dependencies
 
 1. Set new package version in  `glide.yml` file.
 
-2. Run `glide update --strip-vendor` to update dependencies.
-   Than run `glide-vc --only-code --no-tests` to delete all unnecessary files from vendor.
+2. Clear cache
 
+```bash
+glide cc
+```
+This step is necessary if not done glide will pick up old data from it's cache.
+
+3. Get new and updated dependencies
+
+```bash
+glide update --strip-vendor
+```
+
+4. Delete all unnecessary files from vendor
+
+```bash
+glide-vc --only-code --no-tests
+```
+
+5. Commit updated glide files and vendor
+
+```bash
+git add glide.yml glide.lock vendor
+git commit
+```
 
 ### PR review guidelines
 
