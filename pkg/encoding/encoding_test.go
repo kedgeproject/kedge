@@ -17,14 +17,13 @@ limitations under the License.
 package encoding
 
 import (
+	"reflect"
 	"testing"
 
-	"github.com/kedgeproject/kedge/pkg/encoding/fixtures"
 	"github.com/kedgeproject/kedge/pkg/spec"
 
-	"reflect"
-
 	"github.com/davecgh/go-spew/spew"
+	api_v1 "k8s.io/client-go/pkg/api/v1"
 )
 
 func TestDecode(t *testing.T) {
@@ -35,36 +34,157 @@ func TestDecode(t *testing.T) {
 	}{
 		{
 			Name: "One container mentioned in the spec",
-			Data: fixtures.SingleContainer,
-			App:  &fixtures.SingleContainerApp,
+			Data: []byte(`
+name: test
+containers:
+ - image: nginx
+services:
+  - ports:
+    - port: 8080`),
+			App: &spec.App{
+				Name: "test",
+				PodSpecMod: spec.PodSpecMod{
+					Containers: []spec.Container{{Container: api_v1.Container{Image: "nginx"}}},
+				},
+				Services: []spec.ServiceSpecMod{
+					{Name: "test", Ports: []spec.ServicePortMod{{ServicePort: api_v1.ServicePort{Port: 8080}}}},
+				},
+			},
 		},
 		{
 			Name: "One persistent volume mentioned in the spec",
-			Data: fixtures.SinglePersistentVolume,
-			App:  &fixtures.SinglePersistentVolumeApp,
+			Data: []byte(`
+name: test
+containers:
+ - image: nginx
+services:
+  - ports:
+    - port: 8080
+volumeClaims:
+- size: 500Mi`),
+			App: &spec.App{
+				Name: "test",
+				PodSpecMod: spec.PodSpecMod{
+					Containers: []spec.Container{{Container: api_v1.Container{Image: "nginx"}}},
+				},
+				Services: []spec.ServiceSpecMod{
+					{Name: "test", Ports: []spec.ServicePortMod{{ServicePort: api_v1.ServicePort{Port: 8080}}}},
+				},
+				VolumeClaims: []spec.VolumeClaim{{Name: "test", Size: "500Mi"}},
+			},
 		},
 		{
 			Name: "Multiple ports specified with any names",
-			Data: fixtures.MultiplePortsNoNames,
-			App:  &fixtures.MultiplePortsNoNamesApp,
+			Data: []byte(`
+name: test
+containers:
+ - image: nginx
+services:
+- name: nginx
+  ports:
+  - port: 8080
+  - port: 8081
+  - port: 8082`),
+			App: &spec.App{
+				Name: "test",
+				PodSpecMod: spec.PodSpecMod{
+					Containers: []spec.Container{{Container: api_v1.Container{Image: "nginx"}}},
+				},
+				Services: []spec.ServiceSpecMod{
+					{
+						Name: "nginx",
+						Ports: []spec.ServicePortMod{
+							{ServicePort: api_v1.ServicePort{Port: 8080, Name: "nginx-8080"}},
+							{ServicePort: api_v1.ServicePort{Port: 8081, Name: "nginx-8081"}},
+							{ServicePort: api_v1.ServicePort{Port: 8082, Name: "nginx-8082"}},
+						},
+					},
+				},
+			},
 		},
 		{
 			Name: "Multiple ports, some with names specified, others with no names",
-			Data: fixtures.MultiplePortsWithAndWithoutNames,
-			App:  &fixtures.MultiplePortsWithAndWithoutNamesApp,
+			Data: []byte(`
+name: test
+containers:
+ - image: nginx
+services:
+- ports:
+  - port: 8080
+    name: port-1
+  - port: 8081
+    name: port-2
+  - port: 8082
+  - port: 8083`),
+			App: &spec.App{
+				Name: "test",
+				PodSpecMod: spec.PodSpecMod{
+					Containers: []spec.Container{{Container: api_v1.Container{Image: "nginx"}}},
+				},
+				Services: []spec.ServiceSpecMod{
+					{
+						Name: "test",
+						Ports: []spec.ServicePortMod{
+							{ServicePort: api_v1.ServicePort{Port: 8080, Name: "port-1"}},
+							{ServicePort: api_v1.ServicePort{Port: 8081, Name: "port-2"}},
+							{ServicePort: api_v1.ServicePort{Port: 8082, Name: "test-8082"}},
+							{ServicePort: api_v1.ServicePort{Port: 8083, Name: "test-8083"}},
+						},
+					},
+				},
+			},
 		},
 		{
 			Name: "Multiple ports, all with names",
-			Data: fixtures.MultiplePortsWithNames,
-			App:  &fixtures.MultiplePortsWithNamesApp,
+			Data: []byte(`
+name: test
+containers:
+ - image: nginx
+services:
+- ports:
+  - port: 8080
+    name: port-1
+  - port: 8081
+    name: port-2
+  - port: 8082
+    name: port-3`),
+			App: &spec.App{
+				Name: "test",
+				PodSpecMod: spec.PodSpecMod{
+					Containers: []spec.Container{{Container: api_v1.Container{Image: "nginx"}}},
+				},
+				Services: []spec.ServiceSpecMod{
+					{
+						Name: "test",
+						Ports: []spec.ServicePortMod{
+							{ServicePort: api_v1.ServicePort{Port: 8080, Name: "port-1"}},
+							{ServicePort: api_v1.ServicePort{Port: 8081, Name: "port-2"}},
+							{ServicePort: api_v1.ServicePort{Port: 8082, Name: "port-3"}},
+						},
+					},
+				},
+			},
 		},
 		{
 			Name: "Single port, without any name",
-			Data: fixtures.SinglePortWithoutName,
-			App:  &fixtures.SinglePortWithoutNameApp,
+			Data: []byte(`
+name: test
+containers:
+ - image: nginx
+services:
+- ports:
+  - port: 8080`),
+			App: &spec.App{
+				Name: "test",
+				PodSpecMod: spec.PodSpecMod{
+					Containers: []spec.Container{{Container: api_v1.Container{Image: "nginx"}}},
+				},
+				Services: []spec.ServiceSpecMod{
+					{Name: "test", Ports: []spec.ServicePortMod{{ServicePort: api_v1.ServicePort{Port: 8080}}}},
+				},
+			},
 		},
 	}
-
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
 			app, err := Decode(test.Data)

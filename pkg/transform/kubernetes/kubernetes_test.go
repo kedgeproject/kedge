@@ -17,13 +17,12 @@ limitations under the License.
 package kubernetes
 
 import (
+	"reflect"
 	"testing"
 
-	"reflect"
-
-	encodingFixtures "github.com/kedgeproject/kedge/pkg/encoding/fixtures"
 	"github.com/kedgeproject/kedge/pkg/spec"
-	transformFixtures "github.com/kedgeproject/kedge/pkg/transform/fixtures"
+
+	api_v1 "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/pkg/runtime"
 )
 
@@ -35,8 +34,19 @@ func TestCreateServices(t *testing.T) {
 	}{
 		{
 			"Single container specified",
-			&encodingFixtures.SingleContainerApp,
-			append(make([]runtime.Object, 0), transformFixtures.SingleContainerService),
+			&spec.App{
+				Name: "test",
+				PodSpecMod: spec.PodSpecMod{
+					Containers: []spec.Container{{Container: api_v1.Container{Image: "nginx"}}},
+				},
+				Services: []spec.ServiceSpecMod{
+					{Name: "test", Ports: []spec.ServicePortMod{{ServicePort: api_v1.ServicePort{Port: 8080}}}},
+				},
+			},
+			append(make([]runtime.Object, 0), &api_v1.Service{
+				ObjectMeta: api_v1.ObjectMeta{Name: "test"},
+				Spec:       api_v1.ServiceSpec{Ports: []api_v1.ServicePort{{Port: 8080}}},
+			}),
 		},
 	}
 
