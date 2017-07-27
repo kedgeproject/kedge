@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -55,4 +57,35 @@ func getApplicationsFromFiles(files []string) ([]inputData, error) {
 		}
 	}
 	return appData, nil
+}
+
+// GetAllYAMLFiles if path in argument is directory get all *.yml and *.yaml files
+// in that directory. If path is file just add it to output list as it is.
+func GetAllYAMLFiles(paths []string) ([]string, error) {
+	var files []string
+	for _, path := range paths {
+		fileInfo, err := os.Stat(path)
+		if err != nil {
+			return nil, errors.Wrapf(err, "can't get file info about %s", path)
+		}
+		if fileInfo.IsDir() {
+			ymlFiles, err := filepath.Glob(filepath.Join(path, "*.yml"))
+			if err != nil {
+				return nil, errors.Wrapf(err, "can't list *.yml files in %s", path)
+			}
+			files = append(files, ymlFiles...)
+			yamlFiles, err := filepath.Glob(filepath.Join(path, "*.yaml"))
+			if err != nil {
+				return nil, errors.Wrapf(err, "can't list *.yaml files in %s", path)
+			}
+			files = append(files, yamlFiles...)
+		} else {
+			// path is regular file, do nothing and just add it to list of files
+			files = append(files, path)
+		}
+	}
+	if len(files) == 0 {
+		return nil, fmt.Errorf("no *.yml or *.yaml files were found")
+	}
+	return files, nil
 }

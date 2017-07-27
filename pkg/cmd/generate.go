@@ -28,7 +28,12 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-func Generate(files []string) error {
+func Generate(paths []string) error {
+
+	files, err := GetAllYAMLFiles(paths)
+	if err != nil {
+		return errors.Wrap(err, "unable to get YAML files")
+	}
 
 	inputs, err := getApplicationsFromFiles(files)
 	if err != nil {
