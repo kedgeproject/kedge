@@ -15,14 +15,9 @@ const (
 // This function takes a map as an input which stores the JSON tag as key and
 // the names of the structs holding that tag as the value. The passed in
 // blacklisted tags are ignored and are not populated at all.
-func getUnmarshalJSONTagsMap(inputMap map[string][]string, inputStruct interface{}, blacklistedTags []string) error {
+func getUnmarshalJSONTagsMap(inputMap map[string][]string, inputStruct reflect.Value, blacklistedTags []string) error {
 
-	// Checking if input is pointer to struct
-	if err := checkTypePointerToStruct(inputStruct); err != nil {
-		return errors.Wrap(err, "Input parameter type mismatch")
-	}
-
-	val := reflect.ValueOf(inputStruct).Elem()
+	val := inputStruct.Elem()
 
 StructFieldsLoop:
 	for i := 0; i < val.NumField(); i++ {
@@ -58,16 +53,11 @@ StructFieldsLoop:
 // in the input struct.
 // The embedded structs in an embedded struct are also taken into consideration
 // in a recursive manner.
-func getEmbeddedStructs(inputStruct interface{}) ([]interface{}, error) {
+func getEmbeddedStructs(inputStruct reflect.Value) ([]reflect.Value, error) {
 
-	// Checking if input is pointer to struct
-	if err := checkTypePointerToStruct(inputStruct); err != nil {
-		return nil, errors.Wrap(err, "Input parameter type mismatch")
-	}
+	var embeddedStructs []reflect.Value
 
-	var embeddedStructs []interface{}
-
-	val := reflect.ValueOf(inputStruct).Elem()
+	val := inputStruct.Elem()
 
 	for i := 0; i < val.NumField(); i++ {
 		// Checking for embedded structs
@@ -75,11 +65,11 @@ func getEmbeddedStructs(inputStruct interface{}) ([]interface{}, error) {
 
 			// Appending pointer to the embedded/anonymous struct to
 			// embeddedStructs
-			embeddedStructs = append(embeddedStructs, val.Field(i).Addr().Interface())
+			embeddedStructs = append(embeddedStructs, val.Field(i).Addr())
 
 			// Since the current field is an anonymous struct, we call the
 			// function recursively to get embedded structs under it
-			recursiveEmbeddedStructs, err := getEmbeddedStructs(val.Field(i).Addr().Interface())
+			recursiveEmbeddedStructs, err := getEmbeddedStructs(val.Field(i).Addr())
 			if err != nil {
 				return nil, errors.Wrapf(err, "Unable to get embedded structs recursively from %v", val.Field(i).String())
 			}
@@ -99,16 +89,11 @@ func getEmbeddedStructs(inputStruct interface{}) ([]interface{}, error) {
 // be handled, i.e. marked as "conflicting" only in spec.go, and we do not want
 // to populate the list with JSON tags from some other package which had the
 // "conflicting" JSON tag for some other reason
-func getMarkedAsConflictingJSONUnmarshalTags(inputStructs []interface{}) ([]string, error) {
+func getMarkedAsConflictingJSONUnmarshalTags(inputStructs []reflect.Value) ([]string, error) {
 	var blacklistedTags []string
 	for _, inputStruct := range inputStructs {
 
-		// Checking if input is pointer to struct
-		if err := checkTypePointerToStruct(inputStruct); err != nil {
-			return nil, errors.Wrap(err, "Input parameter type mismatch")
-		}
-
-		val := reflect.ValueOf(inputStruct).Elem()
+		val := inputStruct.Elem()
 
 		// Proceeding only if the struct belongs to the kedge's spec package
 		if val.Type().PkgPath() == kedgeSpecPackagePath {
@@ -148,7 +133,7 @@ func checkTypePointerToStruct(input interface{}) error {
 // JSON tag "conflicting" are assumed to be handled.
 // The returned map contains the JSON tags as the keys, and the values are an
 // array of struct names which contain those fields, without being handled.
-func findConflictingJSONTags(inputStruct interface{}) (map[string][]string, error) {
+func findConflictingJSONTags(inputStruct reflect.Value) (map[string][]string, error) {
 
 	// We need to check that no JSON tag is specified more than once at the
 	// top level of the struct.
@@ -156,16 +141,11 @@ func findConflictingJSONTags(inputStruct interface{}) (map[string][]string, erro
 	// fields of all the embedded structs need to be unique.
 	// We accomplish this over a 4 step process.
 
-	// Checking if input is pointer to struct
-	if err := checkTypePointerToStruct(inputStruct); err != nil {
-		return nil, errors.Wrap(err, "Input parameter type mismatch")
-	}
-
 	// Step 1: Get all the target structs.
 	// Look at tags in the fields of the input struct as well as the embedded
 	// structs, so both of them become our target structs.
 
-	var targetStructs []interface{}
+	var targetStructs []reflect.Value
 	// The first target struct is the input struct to the function
 	targetStructs = append(targetStructs, inputStruct)
 

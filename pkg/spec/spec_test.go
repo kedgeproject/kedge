@@ -16,8 +16,6 @@ func TestConflictingFields(t *testing.T) {
 		&ServicePortMod{},
 		&ServiceSpecMod{},
 		&IngressSpecMod{},
-		&EnvFromSource{},
-		&ConfigMapEnvSource{},
 		&Container{},
 		&ConfigMapMod{},
 		&PodSpecMod{},
@@ -32,12 +30,16 @@ func TestConflictingFields(t *testing.T) {
 				t.Error(errors.Wrap(err, "Input parameter type mismatch"))
 			}
 
-			conflictingTags, err := findConflictingJSONTags(inputStruct)
+			conflictingTags, err := findConflictingJSONTags(reflect.ValueOf(inputStruct))
 			if err != nil {
 				t.Error(errors.Wrap(err, "Unable to find conflicting tags for spec.App"))
 			}
 			if len(conflictingTags) != 0 {
-				t.Fatalf("The struct %v has unhandled conflicting JSON tags which exist in other structs.\n%v", reflect.Indirect(reflect.ValueOf(inputStruct)).Type().String(), conflictingTags)
+				t.Logf("The struct %v has unhandled conflicting JSON tags which exist in other structs.", reflect.Indirect(reflect.ValueOf(inputStruct)).Type().String())
+				for tag, structs := range conflictingTags {
+					t.Logf("The JSON tag '%v' exists in %v", tag, structs)
+				}
+				t.Fatal("Once you handle the above conflicting JSON tag, mark it as handled by adding a 'conflicting' JSON tag to its definition. e.g.\nContainers     []Container `json:\"containers,conflicting,omitempty\"`")
 			}
 		})
 	}

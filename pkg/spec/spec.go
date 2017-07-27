@@ -48,8 +48,7 @@ type IngressSpecMod struct {
 type Container struct {
 	// one common definitions for livenessProbe and readinessProbe
 	// this allows to have only one place to define both probes (if they are the same)
-	Health *api_v1.Probe `json:"health,omitempty"`
-
+	Health           *api_v1.Probe `json:"health,omitempty"`
 	api_v1.Container `json:",inline"`
 }
 

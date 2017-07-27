@@ -92,25 +92,19 @@ type EmbeddedStruct6 struct {
 func TestFindConflictingYAMLTags(t *testing.T) {
 	tests := []struct {
 		Name            string
-		InputStuct      interface{}
+		InputStuct      reflect.Value
 		ConflictingTags map[string][]string
 		IsError         bool
 	}{
 		{
-			Name:            "Pointer to struct not passed",
-			InputStuct:      []int{42},
-			ConflictingTags: nil,
-			IsError:         true,
-		},
-		{
 			Name:            "No conflicting field",
-			InputStuct:      &MasterStruct1{},
+			InputStuct:      reflect.ValueOf(&MasterStruct1{}),
 			ConflictingTags: map[string][]string{},
 			IsError:         false,
 		},
 		{
 			Name:       "Conflicting field in top level struct and embedded struct",
-			InputStuct: &MasterStruct2{},
+			InputStuct: reflect.ValueOf(&MasterStruct2{}),
 			ConflictingTags: map[string][]string{
 				"es11": {"spec.MasterStruct2", "spec.EmbeddedStruct1"},
 			},
@@ -118,7 +112,7 @@ func TestFindConflictingYAMLTags(t *testing.T) {
 		},
 		{
 			Name:       "Conflicting field in embedded structs but not in top level struct",
-			InputStuct: &MasterStruct3{},
+			InputStuct: reflect.ValueOf(&MasterStruct3{}),
 			ConflictingTags: map[string][]string{
 				"es31": {"spec.EmbeddedStruct3", "spec.EmbeddedStruct4"},
 			},
@@ -126,7 +120,7 @@ func TestFindConflictingYAMLTags(t *testing.T) {
 		},
 		{
 			Name:       "Conflicting field in top level and all embedded structs",
-			InputStuct: &MasterStruct4{},
+			InputStuct: reflect.ValueOf(&MasterStruct4{}),
 			ConflictingTags: map[string][]string{
 				"ms1": {"spec.MasterStruct4", "spec.EmbeddedStruct5", "spec.EmbeddedStruct6"},
 			},
@@ -134,7 +128,7 @@ func TestFindConflictingYAMLTags(t *testing.T) {
 		},
 		{
 			Name:            "Conflicting tags should be empty when 'conflicting' JSON tag present",
-			InputStuct:      &MasterStruct5{},
+			InputStuct:      reflect.ValueOf(&MasterStruct5{}),
 			ConflictingTags: map[string][]string{},
 			IsError:         false,
 		},
