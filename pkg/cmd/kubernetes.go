@@ -28,7 +28,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func ExecuteKubectl(paths []string, command ...string) error {
+func ExecuteKubectl(paths []string, args ...string) error {
 
 	files, err := GetAllYAMLFiles(paths)
 	if err != nil {
@@ -62,7 +62,7 @@ func ExecuteKubectl(paths []string, command ...string) error {
 			// pass the files.
 			// e.g. If the command is "apply --namespace staging", then the
 			// final command becomes "kubectl apply --namespace staging -f -"
-			cmd := exec.Command("kubectl", append(command, "-f", "-")...)
+			cmd := exec.Command("kubectl", append(args, "-f", "-")...)
 
 			stdin, err := cmd.StdinPipe()
 			if err != nil {
