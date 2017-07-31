@@ -37,7 +37,7 @@ type ServicePortMod struct {
 type ServiceSpecMod struct {
 	api_v1.ServiceSpec `json:",inline"`
 	Name               string           `json:"name,omitempty"`
-	Ports              []ServicePortMod `json:"ports"`
+	Ports              []ServicePortMod `json:"ports,conflicting"`
 }
 
 type IngressSpecMod struct {
@@ -48,8 +48,7 @@ type IngressSpecMod struct {
 type Container struct {
 	// one common definitions for livenessProbe and readinessProbe
 	// this allows to have only one place to define both probes (if they are the same)
-	Health *api_v1.Probe `json:"health,omitempty"`
-
+	Health           *api_v1.Probe `json:"health,omitempty"`
 	api_v1.Container `json:",inline"`
 }
 
@@ -59,7 +58,7 @@ type ConfigMapMod struct {
 }
 
 type PodSpecMod struct {
-	Containers     []Container `json:"containers,omitempty"`
+	Containers     []Container `json:"containers,conflicting,omitempty"`
 	api_v1.PodSpec `json:",inline"`
 }
 
