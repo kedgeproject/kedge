@@ -11,9 +11,6 @@ API are included):
 name: database
 containers:
 - image: mariadb:10
-  env:
-  - name: APPVERSION
-    value: 0.3.0
   envFrom:
   - configMapRef:
       name: database
@@ -464,9 +461,6 @@ The name of the secret.
 name: database
 containers:
 - image: mariadb:10
-  env:
-  - name: VERSION
-    value: v0.3.0
   envFrom:
   - configMapRef:
       name: database
