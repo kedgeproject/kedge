@@ -10,6 +10,8 @@ secrets:
     MYSQL_ROOT_PASSWORD: YWRtaW4=
     MYSQL_PASSWORD: cGFzc3dvcmQ=
 ```
+Make sure everything put in the field `data:` is base64 encoded.
+For supplying plaintext secret data, use the field `stringData`.
 
 Now consuming it, see the snippet from [db.yaml](db.yaml):
 
