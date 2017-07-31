@@ -454,9 +454,9 @@ secrets:
 
 | **Type** | **Required** |
 |----------|--------------|
-| string   | yes          |
+| string   | no           |
 
-The name of the secret. This is a mandatory field.
+The name of the secret.
 
 ## Complete example
 

@@ -385,7 +385,7 @@ func createSecrets(app *spec.App) ([]runtime.Object, error) {
 
 	for _, s := range app.Secrets {
 		secret := &api_v1.Secret{
-			ObjectMeta: api_v1.ObjectMeta{
+			ObjectMeta: metav1.ObjectMeta{
 				Name:   s.Name,
 				Labels: app.Labels,
 			},
