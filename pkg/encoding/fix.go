@@ -45,6 +45,10 @@ func fixApp(app *spec.App) error {
 		return errors.Wrap(err, "unable to fix containers")
 	}
 
+	if err := fixSecrets(app); err != nil {
+		return errors.Wrap(err, "unable to fix secrets")
+	}
+
 	return nil
 }
 
@@ -94,6 +98,20 @@ func fixConfigMaps(app *spec.App) error {
 		for cdn, cd := range app.ConfigMaps {
 			if cd.Name == "" {
 				return fmt.Errorf("name not specified for app.configMaps[%d]", cdn)
+			}
+		}
+	}
+	return nil
+}
+
+func fixSecrets(app *spec.App) error {
+	// populate secret name only if one secret is specified
+	if len(app.Secrets) == 1 && app.Secrets[0].Name == "" {
+		app.Secrets[0].Name = app.Name
+	} else if len(app.Secrets) > 1 {
+		for i, sec := range app.Secrets {
+			if sec.Name == "" {
+				return fmt.Errorf("name not specified for app.secrets[%d]", i)
 			}
 		}
 	}

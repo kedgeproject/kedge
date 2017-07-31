@@ -11,15 +11,11 @@ API are included):
 name: database
 containers:
 - image: mariadb:10
-  env:
-  - name: MYSQL_ROOT_PASSWORD
-    valueFrom:
-      secretKeyRef:
-        name: wordpress
-        key: MYSQL_ROOT_PASSWORD
   envFrom:
   - configMapRef:
       name: database
+  - secretRef:
+      name: wordpress
   volumeMounts:
   - name: database
     mountPath: /var/lib/mysql
@@ -39,6 +35,10 @@ volumeClaims:
 configMaps:
 - data:
     MYSQL_DATABASE: wordpress
+secrets:
+- name: wordpress
+  data:
+    MYSQL_ROOT_PASSWORD: YWRtaW4=
 ```
 
 # Root level constructs
@@ -120,17 +120,16 @@ simultaneously then the tool will error out.
 envFrom:
 - configMapRef:
     name: <string>
+- secretRef:
+    name: <string>
 ```
 
 This is similar to the envFrom field in container which is added since Kubernetes
-1.6. `envFrom` is a list of references. Right now the only reference that is
-supported is of `configMap`. The `configMap` that you refer here, all the data
-from that `configMap` will be populated as `env` inside the container.
+1.6. All the data from the ConfigMaps and Secrets referred here will be populated
+as `env` inside the container.
 
-The restriction being that the `configMap` also has to be defined in the file.
-If the `configMap` is not defined in the file under the root level field called
-`configMaps`, the tool will throw an error, since it has no way of knowing
-from where to populate the environment variables from.
+The restriction is that the ConfigMaps and Secrets also have to be defined in the
+file since there is no way to get the data to be populated.
 
 To read more about this field from the Kubernetes upstream docs see this:
 https://kubernetes.io/docs/api-reference/v1.6/#envfromsource-v1-core
@@ -401,21 +400,72 @@ More info about Probe: https://kubernetes.io/docs/api-reference/v1.6/#probe-v1-c
 
 The name of the Ingress.
 
+## secrets
+
+```yaml
+secrets:
+- <secret>
+- <secret>
+```
+
+| **Type**                         | **Required** |
+|----------------------------------|--------------|
+| array of [secret](#secret) | no           |
+
+###secret
+
+```yaml
+name: string
+<Kubernetes Secret Definition>
+```
+
+The Kubernetes Secret resource is being reused here.
+More info: https://kubernetes.io/docs/api-reference/v1.6/#secret-v1-core
+
+So, the Kubernetes Secret resource allows specifying the secret data as base64
+encoded as well as in plaintext.
+This would look in kedge as:
+
+```yaml
+secrets:
+- name: <name of the secret>
+  data:
+    <secret data key>: <base64 encoded value of the secret data>
+  stringData:
+    <secret data key>: <plaintext value of the secret data>
+```
+
+example:
+
+```yaml
+secrets:
+- name: wordpress
+  data:
+    MYSQL_ROOT_PASSWORD: YWRtaW4=
+    MYSQL_PASSWORD: cGFzc3dvcmQ=
+```
+
+#### Name
+
+`name: wordpress`
+
+| **Type** | **Required** |
+|----------|--------------|
+| string   | no           |
+
+The name of the secret.
+
 ## Complete example
 
 ```yaml
 name: database
 containers:
 - image: mariadb:10
-  env:
-  - name: MYSQL_ROOT_PASSWORD
-    valueFrom:
-      secretKeyRef:
-        name: wordpress
-        key: MYSQL_ROOT_PASSWORD
   envFrom:
   - configMapRef:
       name: database
+  - secretRef:
+      name: wordpress
   volumeMounts:
   - name: database
     mountPath: /var/lib/mysql
@@ -455,4 +505,8 @@ volumeClaims:
 configMaps:
 - data:
     MYSQL_DATABASE: wordpress
+secrets:
+- name: wordpress
+  data:
+    MYSQL_ROOT_PASSWORD: YWRtaW4=
 ```

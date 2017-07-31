@@ -62,6 +62,11 @@ type PodSpecMod struct {
 	api_v1.PodSpec `json:",inline"`
 }
 
+type SecretMod struct {
+	Name          string `json:"name,omitempty"`
+	api_v1.Secret `json:",inline"`
+}
+
 type App struct {
 	Name                       string            `json:"name"`
 	Labels                     map[string]string `json:"labels,omitempty"`
@@ -69,6 +74,7 @@ type App struct {
 	ConfigMaps                 []ConfigMapMod    `json:"configMaps,omitempty"`
 	Services                   []ServiceSpecMod  `json:"services,omitempty"`
 	Ingresses                  []IngressSpecMod  `json:"ingresses,omitempty"`
+	Secrets                    []SecretMod       `json:"secrets,omitempty"`
 	PodSpecMod                 `json:",inline"`
 	ext_v1beta1.DeploymentSpec `json:",inline"`
 }

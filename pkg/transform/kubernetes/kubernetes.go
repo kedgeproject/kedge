@@ -281,62 +281,121 @@ func populateContainerHealth(app *spec.App) error {
 	return nil
 }
 
+func getConfigMapData(name string, configMaps []spec.ConfigMapMod) (map[string]string, error) {
+	for _, cm := range configMaps {
+		if cm.Name == name {
+			return cm.Data, nil
+		}
+	}
+	return nil, fmt.Errorf("configMap %v not defined", name)
+}
+
+func getSecretDataKeys(name string, secrets []spec.SecretMod) ([]string, error) {
+	var dataKeys []string
+	for _, secret := range secrets {
+		if secret.Name == name {
+			for dk := range secret.Data {
+				dataKeys = append(dataKeys, dk)
+			}
+			for sdk := range secret.StringData {
+				dataKeys = append(dataKeys, sdk)
+			}
+			return dataKeys, nil
+		}
+	}
+	return nil, fmt.Errorf("secret %v not defined", name)
+}
+
 func populateEnvFrom(app *spec.App) error {
 	// iterate on the containers so that we can extract envFrom
 	// that we have custom defined
 	for ci, c := range app.Containers {
-		for ei, e := range c.EnvFrom {
-			cmName := e.ConfigMapRef.Name
+		for _, e := range c.EnvFrom {
+			var envs []api_v1.EnvVar
 
-			// we also need to check if the configMap specified if it exists
-			var cmFound bool
-			// to populate the envs we also need to know the data
-			// from configmaps defined in the app
-			for _, cm := range app.ConfigMaps {
-				// we will only populate the configMap that is specified
-				// not every configMap out there
-				if cm.Name != cmName {
-					continue
+			// populating ConfigMaps
+			if e.ConfigMapRef != nil {
+				rootConfigMapData, err := getConfigMapData(e.ConfigMapRef.Name, app.ConfigMaps)
+				if err != nil {
+					return errors.Wrapf(err, "unable to get configMap: %v", e.ConfigMapRef.Name)
 				}
-				var envs []api_v1.EnvVar
+
 				// start populating
-				for k := range cm.Data {
+				for configMapDataKey := range rootConfigMapData {
 					// here we are directly referring to the containers
 					// from app.PodSpec.Containers because that is where data
 					// is parsed into so populating that is more valid thing to do
 					envs = append(envs, api_v1.EnvVar{
-						Name: k,
+						Name: configMapDataKey,
 						ValueFrom: &api_v1.EnvVarSource{
 							ConfigMapKeyRef: &api_v1.ConfigMapKeySelector{
 								LocalObjectReference: api_v1.LocalObjectReference{
-									Name: cmName,
+									Name: e.ConfigMapRef.Name,
 								},
-								Key: k,
+								Key: configMapDataKey,
 							},
 						},
 					})
 				}
-				// we collect all the envs from configMap before
-				// envs provided inside the container
-				envs = append(envs, app.PodSpec.Containers[ci].Env...)
-				app.PodSpec.Containers[ci].Env = envs
-
-				// this should be done when population is done
-				// TODO: when you add support for envFrom secret
-				// TODO: need to move this after secrets are also handled
-				app.PodSpec.Containers[ci].EnvFrom = nil
-
-				cmFound = true
-				// once the population is done we exit out of the loop
-				// we don't need to check other configMaps
-				break
 			}
-			if !cmFound {
-				return fmt.Errorf("undefined configMap in app.containers[%d].envFrom[%d].configMapRef.name", ci, ei)
+
+			// populating secrets
+			if e.SecretRef != nil {
+				rootSecretDataKeys, err := getSecretDataKeys(e.SecretRef.Name, app.Secrets)
+				if err != nil {
+					return errors.Wrap(err, "unable to get secret data")
+				}
+
+				for _, secretDataKey := range rootSecretDataKeys {
+					envs = append(envs, api_v1.EnvVar{
+						Name: secretDataKey,
+						ValueFrom: &api_v1.EnvVarSource{
+							SecretKeyRef: &api_v1.SecretKeySelector{
+								LocalObjectReference: api_v1.LocalObjectReference{
+									Name: e.SecretRef.Name,
+								},
+								Key: secretDataKey,
+							},
+						},
+					})
+				}
 			}
+
+			// we collect all the envs from configMap and secret before
+			// envs provided inside the container
+			envs = append(envs, app.PodSpec.Containers[ci].Env...)
+			app.PodSpec.Containers[ci].Env = envs
+		}
+
+		// Since we are not supporting envFrom in our generated Kubernetes
+		// artifacts right now, we need to set it as nil for every container.
+		// This makes sure that Kubernetes artifacts do not container an
+		// envFrom field.
+		// This is safe to set since all of the data from envFrom has been
+		// extracted till this point.
+		if app.PodSpec.Containers[ci].EnvFrom != nil {
+			app.PodSpec.Containers[ci].EnvFrom = nil
 		}
 	}
 	return nil
+}
+
+func createSecrets(app *spec.App) ([]runtime.Object, error) {
+	var secrets []runtime.Object
+
+	for _, s := range app.Secrets {
+		secret := &api_v1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:   s.Name,
+				Labels: app.Labels,
+			},
+			Data:       s.Data,
+			StringData: s.StringData,
+			Type:       s.Type,
+		}
+		secrets = append(secrets, secret)
+	}
+	return secrets, nil
 }
 
 func CreateK8sObjects(app *spec.App) ([]runtime.Object, error) {
@@ -354,6 +413,11 @@ func CreateK8sObjects(app *spec.App) ([]runtime.Object, error) {
 	ings, err := createIngresses(app)
 	if err != nil {
 		return nil, errors.Wrap(err, "Unable to create Kubernetes Ingresses")
+	}
+
+	secs, err := createSecrets(app)
+	if err != nil {
+		return nil, errors.Wrap(err, "Unable to create Kubernetes Secrets")
 	}
 
 	// withdraw the health and populate actual pod spec
@@ -415,6 +479,9 @@ func CreateK8sObjects(app *spec.App) ([]runtime.Object, error) {
 
 	objects = append(objects, pvcs...)
 	log.Debugf("app: %s, pvc: %s\n", app.Name, spew.Sprint(pvcs))
+
+	objects = append(objects, secs...)
+	log.Debugf("app: %s, secret: %s\n", app.Name, spew.Sprint(secs))
 
 	return objects, nil
 }
