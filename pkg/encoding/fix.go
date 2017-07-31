@@ -86,7 +86,7 @@ func fixVolumeClaims(app *spec.App) error {
 }
 
 func fixConfigMaps(app *spec.App) error {
-	// if only one configMap is defined and it's name is not specified
+	// if only one configMap is defined and its name is not specified
 	if len(app.ConfigMaps) == 1 && app.ConfigMaps[0].Name == "" {
 		app.ConfigMaps[0].Name = app.Name
 	} else if len(app.ConfigMaps) > 1 {
