@@ -321,6 +321,11 @@ func populateEnvFrom(app *spec.App) error {
 				envs = append(envs, app.PodSpec.Containers[ci].Env...)
 				app.PodSpec.Containers[ci].Env = envs
 
+				// this should be done when population is done
+				// TODO: when you add support for envFrom secret
+				// TODO: need to move this after secrets are also handled
+				app.PodSpec.Containers[ci].EnvFrom = nil
+
 				cmFound = true
 				// once the population is done we exit out of the loop
 				// we don't need to check other configMaps
