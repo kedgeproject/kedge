@@ -21,7 +21,7 @@ install:
   - true
 
 script:
-  - make test
+  - make travis-tests
 
 before_deploy:
   - make cross
@@ -38,4 +38,7 @@ deploy:
     branch: "**"
     go: 1.8
 
-
+after_success:
+  # gover collects all .coverprofile files and saves it to one file gover.coverprofile
+  - gover
+  - goveralls -coverprofile=gover.coverprofile -service=travis-ci
