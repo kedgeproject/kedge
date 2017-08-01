@@ -77,7 +77,10 @@ func CreateArtifacts(paths []string, generate bool, args ...string) error {
 			if err != nil {
 				return errors.Wrap(err, "failed to marshal object")
 			}
-
+			err = ValidateOutput(data)
+			if err != nil {
+				return errors.Wrap(err, "Failed to validate")
+			}
 			// Write to file if generate = true
 			if generate {
 				err = writeObject(data)
