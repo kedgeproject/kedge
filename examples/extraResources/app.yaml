@@ -1,0 +1,16 @@
+name: web
+containers:
+- image: centos/httpd
+  volumeMounts:
+  - name: web
+    mountPath: /var/www/html/
+services:
+- name: web
+  type: NodePort
+  ports:
+  - port: 80
+volumeClaims:
+- name: web
+  size: 100Mi
+extraResources:
+- cronjob.yaml

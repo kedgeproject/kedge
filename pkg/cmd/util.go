@@ -12,7 +12,8 @@ import (
 )
 
 type inputData struct {
-	data []byte
+	fileName string
+	data     []byte
 }
 
 func getApplicationsFromFiles(files []string) ([]inputData, error) {
@@ -51,7 +52,8 @@ func getApplicationsFromFiles(files []string) ([]inputData, error) {
 			// ---			# avoids empty input here
 			if len(strings.TrimSpace(app)) > 0 {
 				appData = append(appData, inputData{
-					data: []byte(app),
+					fileName: file,
+					data:     []byte(app),
 				})
 			}
 		}

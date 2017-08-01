@@ -398,7 +398,11 @@ func createSecrets(app *spec.App) ([]runtime.Object, error) {
 	return secrets, nil
 }
 
-func CreateK8sObjects(app *spec.App) ([]runtime.Object, error) {
+// CreateK8sObjects, if given object spec.App, this function reads
+// them and returns kubernetes objects as list of runtime.Object
+// If the app is using field 'extraResources' then it will
+// also return file names mentioned there as list of string
+func CreateK8sObjects(app *spec.App) ([]runtime.Object, []string, error) {
 	var objects []runtime.Object
 
 	if app.Labels == nil {
@@ -407,28 +411,28 @@ func CreateK8sObjects(app *spec.App) ([]runtime.Object, error) {
 
 	svcs, err := createServices(app)
 	if err != nil {
-		return nil, errors.Wrap(err, "Unable to create Kubernetes Service")
+		return nil, nil, errors.Wrap(err, "Unable to create Kubernetes Service")
 	}
 
 	ings, err := createIngresses(app)
 	if err != nil {
-		return nil, errors.Wrap(err, "Unable to create Kubernetes Ingresses")
+		return nil, nil, errors.Wrap(err, "Unable to create Kubernetes Ingresses")
 	}
 
 	secs, err := createSecrets(app)
 	if err != nil {
-		return nil, errors.Wrap(err, "Unable to create Kubernetes Secrets")
+		return nil, nil, errors.Wrap(err, "Unable to create Kubernetes Secrets")
 	}
 
 	// withdraw the health and populate actual pod spec
 	if err := populateContainerHealth(app); err != nil {
-		return nil, errors.Wrapf(err, "app %q", app.Name)
+		return nil, nil, errors.Wrapf(err, "app %q", app.Name)
 	}
 	log.Debugf("object after population: %#v\n", app)
 
 	// withdraw the envFrom and populate actual containers
 	if err := populateEnvFrom(app); err != nil {
-		return nil, errors.Wrapf(err, "app %q", app.Name)
+		return nil, nil, errors.Wrapf(err, "app %q", app.Name)
 	}
 
 	// create pvc for each root level persistent volume
@@ -436,12 +440,12 @@ func CreateK8sObjects(app *spec.App) ([]runtime.Object, error) {
 	for _, v := range app.VolumeClaims {
 		pvc, err := createPVC(v, app.Labels)
 		if err != nil {
-			return nil, errors.Wrapf(err, "app %q", app.Name)
+			return nil, nil, errors.Wrapf(err, "app %q", app.Name)
 		}
 		pvcs = append(pvcs, pvc)
 	}
 	if err := populateVolumes(app); err != nil {
-		return nil, errors.Wrapf(err, "app %q", app.Name)
+		return nil, nil, errors.Wrapf(err, "app %q", app.Name)
 	}
 
 	var configMap []runtime.Object
@@ -459,7 +463,7 @@ func CreateK8sObjects(app *spec.App) ([]runtime.Object, error) {
 
 	deployment, err := createDeployment(app)
 	if err != nil {
-		return nil, errors.Wrapf(err, "app %q", app.Name)
+		return nil, nil, errors.Wrapf(err, "app %q", app.Name)
 	}
 
 	// deployment will be nil if no deployment is generated and no error occurs,
@@ -483,32 +487,36 @@ func CreateK8sObjects(app *spec.App) ([]runtime.Object, error) {
 	objects = append(objects, secs...)
 	log.Debugf("app: %s, secret: %s\n", app.Name, spew.Sprint(secs))
 
-	return objects, nil
+	return objects, app.ExtraResources, nil
 }
 
-func Transform(app *spec.App) ([]runtime.Object, error) {
+// Transform function if given spec.App data creates the versioned
+// kubernetes objects and returns them in list of runtime.Object
+// And if the field in spec.App called 'extraResources' is used
+// then it returns the filenames mentioned there as list of string
+func Transform(app *spec.App) ([]runtime.Object, []string, error) {
 
-	runtimeObjects, err := CreateK8sObjects(app)
+	runtimeObjects, extraResources, err := CreateK8sObjects(app)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create Kubernetes objects")
+		return nil, nil, errors.Wrap(err, "failed to create Kubernetes objects")
 	}
 
 	if len(runtimeObjects) == 0 {
-		return nil, errors.New("No runtime objects created, possibly because not enough input data was passed")
+		return nil, nil, errors.New("No runtime objects created, possibly because not enough input data was passed")
 	}
 
 	for _, runtimeObject := range runtimeObjects {
 
 		gvk, isUnversioned, err := api.Scheme.ObjectKind(runtimeObject)
 		if err != nil {
-			return nil, errors.Wrap(err, "ConvertToVersion failed")
+			return nil, nil, errors.Wrap(err, "ConvertToVersion failed")
 		}
 		if isUnversioned {
-			return nil, fmt.Errorf("ConvertToVersion failed: can't output unversioned type: %T", runtimeObject)
+			return nil, nil, fmt.Errorf("ConvertToVersion failed: can't output unversioned type: %T", runtimeObject)
 		}
 
 		runtimeObject.GetObjectKind().SetGroupVersionKind(gvk)
 	}
 
-	return runtimeObjects, nil
+	return runtimeObjects, extraResources, nil
 }

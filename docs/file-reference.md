@@ -455,6 +455,31 @@ secrets:
 
 The name of the secret.
 
+## extraResources
+
+```yaml
+extraResources:
+- <string>
+- <string>
+```
+
+e.g.
+
+```yaml
+extraResources:
+- ./kubernetes/cron-job.yaml
+- secrets.yaml
+```
+
+This is list of files that are Kubernetes resources which can be passed to
+Kubernetes directly. On these list of files Kedge won't do any processing, but
+pass it to Kubernetes directly.
+
+The file path are relative to the kedge application file.
+
+This is one of the mechanisms to extend kedge beyond its capabilites to support
+anything in the Kubernetes land.
+
 ## Complete example
 
 ```yaml

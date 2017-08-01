@@ -41,13 +41,12 @@ func ExecuteKubectl(paths []string, args ...string) error {
 	}
 
 	for _, input := range inputs {
-
 		app, err := encoding.Decode(input.data)
 		if err != nil {
 			return errors.Wrap(err, "unable to unmarshal data")
 		}
 
-		ros, err := kubernetes.Transform(app)
+		ros, extraResources, err := kubernetes.Transform(app)
 		if err != nil {
 			return errors.Wrap(err, "unable to convert data")
 		}
@@ -57,34 +56,57 @@ func ExecuteKubectl(paths []string, args ...string) error {
 			if err != nil {
 				return errors.Wrap(err, "failed to marshal object")
 			}
-
 			// We need to add "-f -" at the end of the command passed to us to
-			// pass the files.
-			// e.g. If the command is "apply --namespace staging", then the
+			// pass the generated files.
+			// e.g. If the command and arguments are "apply --namespace staging", then the
 			// final command becomes "kubectl apply --namespace staging -f -"
-			cmd := exec.Command("kubectl", append(args, "-f", "-")...)
-
-			stdin, err := cmd.StdinPipe()
+			arguments := append(args, "-f", "-")
+			err = runKubectl(arguments, data)
 			if err != nil {
-				return errors.Wrap(err, "can't get stdinPipe for kubectl")
+				return errors.Wrap(err, "kubectl error")
 			}
+		}
 
-			go func() {
-				defer stdin.Close()
-				_, err := io.WriteString(stdin, string(data))
-				if err != nil {
-					fmt.Printf("can't write to stdin %v\n", err)
-				}
-			}()
+		for _, file := range extraResources {
+			// change the file name to absolute file name
+			file = findAbsPath(input.fileName, file)
 
-			out, err := cmd.CombinedOutput()
+			// We need to add "-f absolute-filename" at the end of the command passed to us to
+			// pass the generated files.
+			// e.g. If the command and arguments are "apply --namespace staging", then the
+			// final command becomes "kubectl apply --namespace staging -f absolute-filename"
+			arguments := append(args, "-f", file)
+			err = runKubectl(arguments, nil)
 			if err != nil {
-				fmt.Printf("%s", string(out))
-				return errors.Wrap(err, "failed to execute command")
+				return errors.Wrap(err, "kubectl error")
 			}
-			fmt.Printf("%s", string(out))
 		}
 	}
 
+	return nil
+}
+
+func runKubectl(args []string, data []byte) error {
+	cmd := exec.Command("kubectl", args...)
+
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return errors.Wrap(err, "can't get stdinPipe for kubectl")
+	}
+
+	go func() {
+		defer stdin.Close()
+		_, err := io.WriteString(stdin, string(data))
+		if err != nil {
+			fmt.Printf("can't write to stdin %v\n", err)
+		}
+	}()
+
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("%s", string(out))
+		return errors.Wrap(err, "failed to execute command")
+	}
+	fmt.Printf("%s", string(out))
 	return nil
 }
