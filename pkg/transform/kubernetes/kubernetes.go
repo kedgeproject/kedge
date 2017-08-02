@@ -315,6 +315,12 @@ func CreateK8sObjects(app *spec.App) ([]runtime.Object, []string, error) {
 	}
 	log.Debugf("object after population: %#v\n", app)
 
+	app.PodSpec.InitContainers, err = populateContainers(app.InitContainers, app.ConfigMaps, app.Secrets)
+	if err != nil {
+		return nil, nil, errors.Wrapf(err, "app %q", app.Name)
+	}
+	log.Debugf("object after population: %#v\n", app)
+
 	// create pvc for each root level persistent volume
 	var pvcs []runtime.Object
 	for _, v := range app.VolumeClaims {
