@@ -58,6 +58,10 @@ test-unit:
 .PHONY: test
 test: test-dep check-vendor validate test-unit
 
+# Tests that are run on travs-ci
+.PHONY: travis-tests
+travis-tests: test-dep check-vendor validate test-unit-cover
+
 # Install all the required test-dependencies before executing tests (only valid when running `make test`)
 .PHONY: test-dep
 test-dep:
@@ -66,3 +70,14 @@ test-dep:
 	go get github.com/Masterminds/glide
 	go get github.com/sgotti/glide-vc
 	go get github.com/golang/lint/golint
+
+# Run unit tests and collect coverage
+.PHONY: test-unit-cover
+test-unit-cover:
+	# First install packages that are dependencies of the test.
+	go test -i -race -cover $(PKGS)
+	# go test doesn't support colleting coverage across multiple packages,
+	# generate go test commands using go list and run go test for every package separately
+	go list -f '"go test -race -cover -v -coverprofile={{.Dir}}/.coverprofile {{.ImportPath}}"' github.com/kedgeproject/kedge/...  | grep -v "vendor" | xargs -L 1 -P4 sh -c
+
+

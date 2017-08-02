@@ -1,6 +1,6 @@
 # Kedge - Concise Application Definition for Kubernetes
 
-[![Build Status Widget]][Build Status] [![GoDoc Widget]][GoDoc] [![Slack Widget]][Slack] 
+[![Build Status Widget]][Build Status] [![Coverage Status](https://coveralls.io/repos/github/kedgeproject/kedge/badge.svg?branch=master)](https://coveralls.io/github/kedgeproject/kedge?branch=master) [![GoDoc Widget]][GoDoc] [![Slack Widget]][Slack] 
 
 
 
