@@ -265,121 +265,6 @@ func populateVolumes(app *spec.App) error {
 	return nil
 }
 
-func populateContainerHealth(app *spec.App) error {
-	for cn, c := range app.Containers {
-		// check if health and liveness given together
-		if c.Health != nil && (c.ReadinessProbe != nil || c.LivenessProbe != nil) {
-			return fmt.Errorf("cannot define field health and livnessProbe"+
-				" or readinessProbe together in app.containers[%d]", cn)
-		}
-		if c.Health != nil {
-			c.LivenessProbe = c.Health
-			c.ReadinessProbe = c.Health
-		}
-		app.PodSpec.Containers = append(app.PodSpec.Containers, c.Container)
-	}
-	return nil
-}
-
-func getConfigMapData(name string, configMaps []spec.ConfigMapMod) (map[string]string, error) {
-	for _, cm := range configMaps {
-		if cm.Name == name {
-			return cm.Data, nil
-		}
-	}
-	return nil, fmt.Errorf("configMap %v not defined", name)
-}
-
-func getSecretDataKeys(name string, secrets []spec.SecretMod) ([]string, error) {
-	var dataKeys []string
-	for _, secret := range secrets {
-		if secret.Name == name {
-			for dk := range secret.Data {
-				dataKeys = append(dataKeys, dk)
-			}
-			for sdk := range secret.StringData {
-				dataKeys = append(dataKeys, sdk)
-			}
-			return dataKeys, nil
-		}
-	}
-	return nil, fmt.Errorf("secret %v not defined", name)
-}
-
-func populateEnvFrom(app *spec.App) error {
-	// iterate on the containers so that we can extract envFrom
-	// that we have custom defined
-	for ci, c := range app.Containers {
-		for _, e := range c.EnvFrom {
-			var envs []api_v1.EnvVar
-
-			// populating ConfigMaps
-			if e.ConfigMapRef != nil {
-				rootConfigMapData, err := getConfigMapData(e.ConfigMapRef.Name, app.ConfigMaps)
-				if err != nil {
-					return errors.Wrapf(err, "unable to get configMap: %v", e.ConfigMapRef.Name)
-				}
-
-				// start populating
-				for configMapDataKey := range rootConfigMapData {
-					// here we are directly referring to the containers
-					// from app.PodSpec.Containers because that is where data
-					// is parsed into so populating that is more valid thing to do
-					envs = append(envs, api_v1.EnvVar{
-						Name: configMapDataKey,
-						ValueFrom: &api_v1.EnvVarSource{
-							ConfigMapKeyRef: &api_v1.ConfigMapKeySelector{
-								LocalObjectReference: api_v1.LocalObjectReference{
-									Name: e.ConfigMapRef.Name,
-								},
-								Key: configMapDataKey,
-							},
-						},
-					})
-				}
-			}
-
-			// populating secrets
-			if e.SecretRef != nil {
-				rootSecretDataKeys, err := getSecretDataKeys(e.SecretRef.Name, app.Secrets)
-				if err != nil {
-					return errors.Wrap(err, "unable to get secret data")
-				}
-
-				for _, secretDataKey := range rootSecretDataKeys {
-					envs = append(envs, api_v1.EnvVar{
-						Name: secretDataKey,
-						ValueFrom: &api_v1.EnvVarSource{
-							SecretKeyRef: &api_v1.SecretKeySelector{
-								LocalObjectReference: api_v1.LocalObjectReference{
-									Name: e.SecretRef.Name,
-								},
-								Key: secretDataKey,
-							},
-						},
-					})
-				}
-			}
-
-			// we collect all the envs from configMap and secret before
-			// envs provided inside the container
-			envs = append(envs, app.PodSpec.Containers[ci].Env...)
-			app.PodSpec.Containers[ci].Env = envs
-		}
-
-		// Since we are not supporting envFrom in our generated Kubernetes
-		// artifacts right now, we need to set it as nil for every container.
-		// This makes sure that Kubernetes artifacts do not container an
-		// envFrom field.
-		// This is safe to set since all of the data from envFrom has been
-		// extracted till this point.
-		if app.PodSpec.Containers[ci].EnvFrom != nil {
-			app.PodSpec.Containers[ci].EnvFrom = nil
-		}
-	}
-	return nil
-}
-
 func createSecrets(app *spec.App) ([]runtime.Object, error) {
 	var secrets []runtime.Object
 
@@ -424,16 +309,11 @@ func CreateK8sObjects(app *spec.App) ([]runtime.Object, []string, error) {
 		return nil, nil, errors.Wrap(err, "Unable to create Kubernetes Secrets")
 	}
 
-	// withdraw the health and populate actual pod spec
-	if err := populateContainerHealth(app); err != nil {
+	app.PodSpec.Containers, err = populateContainers(app.Containers, app.ConfigMaps, app.Secrets)
+	if err != nil {
 		return nil, nil, errors.Wrapf(err, "app %q", app.Name)
 	}
 	log.Debugf("object after population: %#v\n", app)
-
-	// withdraw the envFrom and populate actual containers
-	if err := populateEnvFrom(app); err != nil {
-		return nil, nil, errors.Wrapf(err, "app %q", app.Name)
-	}
 
 	// create pvc for each root level persistent volume
 	var pvcs []runtime.Object
