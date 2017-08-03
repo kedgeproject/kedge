@@ -9,6 +9,7 @@ API are included):
 
 ```yaml
 name: database
+controller: deployment
 containers:
 - image: mariadb:10
   envFrom:
@@ -56,6 +57,20 @@ More info: https://kubernetes.io/docs/api-reference/v1.6/#podspec-v1-core
 | string   | yes          |
 
 The name of the app or micro-service this particular file defines.
+
+## controller
+
+`controller: deployment`
+
+| **Type** | **Required** |
+|----------|--------------|
+| string   | no           |
+
+The Kubernetes controller of the app or micro-service this particular file
+defines.
+
+Supported controllers:
+- Deployment
 
 ## replicas
 

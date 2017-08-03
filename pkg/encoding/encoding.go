@@ -17,24 +17,35 @@ limitations under the License.
 package encoding
 
 import (
+	"fmt"
+
+	"github.com/kedgeproject/kedge/pkg/spec"
+
 	log "github.com/Sirupsen/logrus"
 	"github.com/ghodss/yaml"
 	"github.com/pkg/errors"
-
-	"github.com/kedgeproject/kedge/pkg/spec"
 )
 
 func Decode(data []byte) (*spec.App, error) {
 
-	var app spec.App
-	err := yaml.Unmarshal(data, &app)
-	if err != nil {
-		return nil, errors.Wrap(err, "could not unmarshal into internal struct")
-	}
-	log.Debugf("object unmarshalled: %#v\n", app)
-	if err := fixApp(&app); err != nil {
-		return nil, errors.Wrapf(err, "Unable to fix app %q", app.Name)
-	}
-	return &app, nil
+	var controller spec.Controller
+	yaml.Unmarshal(data, &controller)
 
+	// Checking the Kubernetes controller provided in the definition
+	switch controller.Controller {
+	// If no controller is defined, we default to deployment controller
+	case "", "deployment":
+		var app spec.App
+		err := yaml.Unmarshal(data, &app)
+		if err != nil {
+			return nil, errors.Wrap(err, "could not unmarshal into internal struct")
+		}
+		log.Debugf("object unmarshalled: %#v\n", app)
+		if err := fixApp(&app); err != nil {
+			return nil, errors.Wrapf(err, "Unable to fix app %q", app.Name)
+		}
+		return &app, nil
+	default:
+		return nil, fmt.Errorf("invalid controller: %v", controller.Controller)
+	}
 }
