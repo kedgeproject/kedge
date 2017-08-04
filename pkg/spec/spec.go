@@ -80,3 +80,7 @@ type App struct {
 	PodSpecMod                 `json:",inline"`
 	ext_v1beta1.DeploymentSpec `json:",inline"`
 }
+
+type Controller struct {
+	Controller string `json:"controller,omitempty"`
+}
