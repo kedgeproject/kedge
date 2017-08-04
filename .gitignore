@@ -4,6 +4,7 @@
 
 # Ignore compiled files
 kedge
+bin
 
 #
 # GO SPECIFIC
