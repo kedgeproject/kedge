@@ -8,7 +8,7 @@ import (
 
 var (
 	// VERSION  is version number that will be displayed when running ./kedge version
-	VERSION = "0.0.0"
+	VERSION = "0.1.0"
 
 	// GITCOMMIT is hash of the commit that wil be displayed when running ./kedge version
 	// this will be overwritten when running  build like this: go build -ldflags="-X github.com/kedgeproject/kedge/cmd.GITCOMMIT=$(GITCOMMIT)"

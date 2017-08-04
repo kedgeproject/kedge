@@ -1,0 +1,29 @@
+The first release of Kedge!
+
+If you haven't tried out Kedge yet, it's a concise way of creating application definitions for Kubernetes.
+
+Here's a simple example of using Kedge:
+
+```sh
+$ vim httpd.yaml
+```
+
+```yaml
+name: httpd
+containers:
+- image: centos/httpd
+services:
+- name: httpd
+  type: NodePort
+  ports:
+  - port: 8080
+    targetPort: 80
+```
+
+```sh
+$ kedge create -f httpd.yaml
+deployment "httpd" created
+service "httpd" created
+```
+
+Now go try out Kedge! Go through our quick-start at [kedgeproject.org](http://kedgeproject.org) as well as our [documentation](https://github.com/kedgeproject/kedge/tree/master/docs).
