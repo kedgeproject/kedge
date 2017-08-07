@@ -72,6 +72,8 @@ defines.
 Supported controllers:
 - Deployment
 
+Default controller is **Deployment**
+
 ## replicas
 
 `replicas: 4`
@@ -262,7 +264,7 @@ configMaps:
 |----------------------------------|--------------|
 | array of [configMap](#configMap) | no           |
 
-###configMap
+### configMap
 
 ```yaml
 name: string
