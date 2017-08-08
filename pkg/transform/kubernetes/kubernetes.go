@@ -216,34 +216,6 @@ func createPVC(v spec.VolumeClaim, labels map[string]string) (*api_v1.Persistent
 	return pvc, nil
 }
 
-// Since we are automatically creating pvc from
-// root level persistent volume and entry in the container
-// volume mount, we also need to update the pod's volume field
-func populateVolumes(app *spec.App) error {
-	for cn, c := range app.PodSpec.Containers {
-		for vn, vm := range c.VolumeMounts {
-			if isPVCDefined(app.VolumeClaims, vm.Name) && !isVolumeDefined(app.Volumes, vm.Name) {
-				app.Volumes = append(app.Volumes, api_v1.Volume{
-					Name: vm.Name,
-					VolumeSource: api_v1.VolumeSource{
-						PersistentVolumeClaim: &api_v1.PersistentVolumeClaimVolumeSource{
-							ClaimName: vm.Name,
-						},
-					},
-				})
-			} else if !isVolumeDefined(app.Volumes, vm.Name) {
-				// pvc is not defined so we need to check if the entry is made in the pod volumes
-				// since a volumeMount entry without entry in pod level volumes might cause failure
-				// while deployment since that would not be a complete configuration
-				return fmt.Errorf("neither root level Persistent Volume"+
-					" nor Volume in pod spec defined for %q, "+
-					"in app.containers[%d].volumeMounts[%d]", vm.Name, cn, vn)
-			}
-		}
-	}
-	return nil
-}
-
 func createSecrets(app *spec.App) ([]runtime.Object, error) {
 	var secrets []runtime.Object
 
@@ -309,9 +281,11 @@ func CreateK8sObjects(app *spec.App) ([]runtime.Object, []string, error) {
 		}
 		pvcs = append(pvcs, pvc)
 	}
-	if err := populateVolumes(app); err != nil {
+	vols, err := populateVolumes(app.PodSpec.Containers, app.VolumeClaims, app.PodSpec.Volumes)
+	if err != nil {
 		return nil, nil, errors.Wrapf(err, "app %q", app.Name)
 	}
+	app.PodSpec.Volumes = append(app.PodSpec.Volumes, vols...)
 
 	var configMap []runtime.Object
 	for _, cd := range app.ConfigMaps {
