@@ -175,16 +175,6 @@ func createDeployment(app *spec.App) (*ext_v1beta1.Deployment, error) {
 	return &deployment, nil
 }
 
-// search through all the persistent volumes defined in the root level
-func isPVCDefined(app *spec.App, name string) bool {
-	for _, v := range app.VolumeClaims {
-		if v.Name == name {
-			return true
-		}
-	}
-	return false
-}
-
 // create PVC reading the root level persistent volume field
 func createPVC(v spec.VolumeClaim, labels map[string]string) (*api_v1.PersistentVolumeClaim, error) {
 	// check for conditions where user has given both conflicting fields
@@ -226,24 +216,13 @@ func createPVC(v spec.VolumeClaim, labels map[string]string) (*api_v1.Persistent
 	return pvc, nil
 }
 
-// This function will search in the pod level volumes
-// and see if the volume with given name is defined
-func isVolumeDefined(app *spec.App, name string) bool {
-	for _, v := range app.Volumes {
-		if v.Name == name {
-			return true
-		}
-	}
-	return false
-}
-
 // Since we are automatically creating pvc from
 // root level persistent volume and entry in the container
 // volume mount, we also need to update the pod's volume field
 func populateVolumes(app *spec.App) error {
 	for cn, c := range app.PodSpec.Containers {
 		for vn, vm := range c.VolumeMounts {
-			if isPVCDefined(app, vm.Name) && !isVolumeDefined(app, vm.Name) {
+			if isPVCDefined(app.VolumeClaims, vm.Name) && !isVolumeDefined(app.Volumes, vm.Name) {
 				app.Volumes = append(app.Volumes, api_v1.Volume{
 					Name: vm.Name,
 					VolumeSource: api_v1.VolumeSource{
@@ -252,7 +231,7 @@ func populateVolumes(app *spec.App) error {
 						},
 					},
 				})
-			} else if !isVolumeDefined(app, vm.Name) {
+			} else if !isVolumeDefined(app.Volumes, vm.Name) {
 				// pvc is not defined so we need to check if the entry is made in the pod volumes
 				// since a volumeMount entry without entry in pod level volumes might cause failure
 				// while deployment since that would not be a complete configuration
