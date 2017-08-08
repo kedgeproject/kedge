@@ -52,4 +52,5 @@ ingresses:
           servicePort: 8080
         path: /
 configMaps:
-  WORDPRESS_DB_HOST: "database:3306"
+- data:
+   WORDPRESS_DB_HOST: "database:3306"

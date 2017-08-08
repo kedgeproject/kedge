@@ -51,5 +51,6 @@ volumeClaims:
   accessModes:
   - ReadWriteOnce
 configMaps:
-  MYSQL_DATABASE: wordpress
-  MYSQL_USER: wordpress
+- data:
+   MYSQL_DATABASE: wordpress
+   MYSQL_USER: wordpress
