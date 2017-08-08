@@ -41,9 +41,17 @@ func Decode(data []byte) (*spec.App, error) {
 			return nil, errors.Wrap(err, "could not unmarshal into internal struct")
 		}
 		log.Debugf("object unmarshalled: %#v\n", app)
+
+		// validate if the user provided input is valid kedge app
+		if err := validateApp(&app); err != nil {
+			return nil, errors.Wrapf(err, "error validating app %q", app.Name)
+		}
+
+		// this will add the default values where ever possible
 		if err := fixApp(&app); err != nil {
 			return nil, errors.Wrapf(err, "Unable to fix app %q", app.Name)
 		}
+
 		return &app, nil
 	default:
 		return nil, fmt.Errorf("invalid controller: %v", controller.Controller)
