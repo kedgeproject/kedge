@@ -21,6 +21,7 @@ import (
 	"strconv"
 
 	"github.com/kedgeproject/kedge/pkg/spec"
+
 	"github.com/pkg/errors"
 )
 

@@ -1,0 +1,9 @@
+name: foo
+containers:
+- image: foo
+volumeClaims:
+- name: foo
+  size: 5Mi
+- name: foo
+  size: 5Mi
+

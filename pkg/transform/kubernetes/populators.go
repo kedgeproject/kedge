@@ -3,10 +3,9 @@ package kubernetes
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 
 	"github.com/kedgeproject/kedge/pkg/spec"
-
-	"sort"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/pkg/errors"
