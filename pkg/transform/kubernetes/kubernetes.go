@@ -331,14 +331,11 @@ func CreateK8sObjects(app *spec.App) ([]runtime.Object, []string, error) {
 		return nil, nil, errors.Wrapf(err, "app %q", app.Name)
 	}
 
-	// deployment will be nil if no deployment is generated and no error occurs,
-	// so we only need to append this when a legit deployment resource is returned
-	if deployment != nil {
-		objects = append(objects, deployment)
-		log.Debugf("app: %s, deployment: %s\n", app.Name, spew.Sprint(deployment))
-	}
-	objects = append(objects, configMap...)
-	log.Debugf("app: %s, configMap: %s\n", app.Name, spew.Sprint(configMap))
+	// please keep the order of the artifacts addition as it is
+
+	// adding non-controller objects
+	objects = append(objects, pvcs...)
+	log.Debugf("app: %s, pvc: %s\n", app.Name, spew.Sprint(pvcs))
 
 	objects = append(objects, svcs...)
 	log.Debugf("app: %s, service: %s\n", app.Name, spew.Sprint(svcs))
@@ -346,11 +343,22 @@ func CreateK8sObjects(app *spec.App) ([]runtime.Object, []string, error) {
 	objects = append(objects, ings...)
 	log.Debugf("app: %s, ingress: %s\n", app.Name, spew.Sprint(ings))
 
-	objects = append(objects, pvcs...)
-	log.Debugf("app: %s, pvc: %s\n", app.Name, spew.Sprint(pvcs))
-
 	objects = append(objects, secs...)
 	log.Debugf("app: %s, secret: %s\n", app.Name, spew.Sprint(secs))
+
+	objects = append(objects, configMap...)
+	log.Debugf("app: %s, configMap: %s\n", app.Name, spew.Sprint(configMap))
+
+	// add new non-controller objects after this
+
+	// adding controller objects
+	// deployment will be nil if no deployment is generated and no error occurs,
+	// so we only need to append this when a legit deployment resource is returned
+	if deployment != nil {
+		objects = append(objects, deployment)
+		log.Debugf("app: %s, deployment: %s\n", app.Name, spew.Sprint(deployment))
+	}
+	// add new controllers after this
 
 	return objects, app.ExtraResources, nil
 }
