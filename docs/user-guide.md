@@ -3,7 +3,8 @@
 - CLI
   - [`create`](#kedge-create)
   - [`generate`](#kedge-generate)
-  - [`version`](#kedge-version)
+  - [`delete`](#kedge-delete)
+  - [`version`](#kedge-version)  
 
 ## `kedge create`
 
@@ -78,6 +79,15 @@ deployment "httpd" created
 service "httpd" created
 ```
 
+## `kedge delete`
+
+Deletes Kubernetes artifacts
+
+```sh
+$ kedge delete -f httpd.yaml
+deployment "httpd" deleted
+service "httpd" deleted
+```
 ## `kedge version`
 
 Outputs the current Kedge version
