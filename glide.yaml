@@ -10,6 +10,7 @@ import:
   subpackages:
   - pkg/api/v1
   - pkg/apis
+  - pkg/apis/batch/v1
 # pinning it to k8s 1.6 release so that client-go does not complain
 - package: k8s.io/apimachinery
   version: release-1.6
