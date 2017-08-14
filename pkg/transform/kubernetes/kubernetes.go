@@ -33,6 +33,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/pkg/api"
 	api_v1 "k8s.io/client-go/pkg/api/v1"
+	batchv1 "k8s.io/client-go/pkg/apis/batch/v1"
 	ext_v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
 
 	// install api (register and add types to api.Schema)
@@ -40,12 +41,12 @@ import (
 	_ "k8s.io/client-go/pkg/apis/extensions/install"
 )
 
-func getLabels(app *spec.App) map[string]string {
+func getLabels(app *DeploymentSpecMod) map[string]string {
 	labels := map[string]string{"app": app.Name}
 	return labels
 }
 
-func createIngresses(app *spec.App) ([]runtime.Object, error) {
+func createIngresses(app *DeploymentSpecMod) ([]runtime.Object, error) {
 	var ings []runtime.Object
 
 	for _, i := range app.Ingresses {
@@ -61,7 +62,7 @@ func createIngresses(app *spec.App) ([]runtime.Object, error) {
 	return ings, nil
 }
 
-func createServices(app *spec.App) ([]runtime.Object, error) {
+func createServices(app *DeploymentSpecMod) ([]runtime.Object, error) {
 	var svcs []runtime.Object
 	for _, s := range app.Services {
 		svc := &api_v1.Service{
@@ -134,7 +135,7 @@ func createServices(app *spec.App) ([]runtime.Object, error) {
 
 // Creates a Deployment Kubernetes resource. The returned Deployment resource
 // will be nil if it could not be generated due to insufficient input data.
-func createDeployment(app *spec.App) (*ext_v1beta1.Deployment, error) {
+func createDeployment(app *DeploymentSpecMod) (*ext_v1beta1.Deployment, error) {
 
 	// We need to error out if both, app.PodSpec and app.DeploymentSpec are empty
 	if reflect.DeepEqual(app.PodSpec, api_v1.PodSpec{}) && reflect.DeepEqual(app.DeploymentSpec, ext_v1beta1.DeploymentSpec{}) {
@@ -216,10 +217,23 @@ func createPVC(v spec.VolumeClaim, labels map[string]string) (*api_v1.Persistent
 	return pvc, nil
 }
 
+func createJob(app *JobSpecMod) (runtime.Object, error) {
+	// Substituting the PodSpec that we accepted in the job
+	// in JobSpec.Template.Spec
+	app.JobSpec.Template.Spec = app.PodSpec
+
+	return &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: app.Name,
+		},
+		Spec: app.JobSpec,
+	}, nil
+}
+
 // Since we are automatically creating pvc from
 // root level persistent volume and entry in the container
 // volume mount, we also need to update the pod's volume field
-func populateVolumes(app *spec.App) error {
+func populateVolumes(app *DeploymentSpecMod) error {
 	for cn, c := range app.PodSpec.Containers {
 		for vn, vm := range c.VolumeMounts {
 			if isPVCDefined(app.VolumeClaims, vm.Name) && !isVolumeDefined(app.Volumes, vm.Name) {
@@ -244,7 +258,7 @@ func populateVolumes(app *spec.App) error {
 	return nil
 }
 
-func createSecrets(app *spec.App) ([]runtime.Object, error) {
+func createSecrets(app *DeploymentSpecMod) ([]runtime.Object, error) {
 	var secrets []runtime.Object
 
 	for _, s := range app.Secrets {
@@ -262,63 +276,64 @@ func createSecrets(app *spec.App) ([]runtime.Object, error) {
 	return secrets, nil
 }
 
-// CreateK8sObjects, if given object spec.App, this function reads
+// CreateK8sObjects, if given object DeploymentSpecMod, this function reads
 // them and returns kubernetes objects as list of runtime.Object
 // If the app is using field 'extraResources' then it will
 // also return file names mentioned there as list of string
-func CreateK8sObjects(app *spec.App) ([]runtime.Object, []string, error) {
+func (d *DeploymentSpecMod) CreateK8sObjects() ([]runtime.Object, []string, error) {
 	var objects []runtime.Object
 
-	if app.Labels == nil {
-		app.Labels = getLabels(app)
+	if d.Labels == nil {
+		d.Labels = getLabels(d)
 	}
 
-	svcs, err := createServices(app)
+	svcs, err := createServices(d)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "Unable to create Kubernetes Service")
 	}
 
-	ings, err := createIngresses(app)
+	ings, err := createIngresses(d)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "Unable to create Kubernetes Ingresses")
 	}
 
-	secs, err := createSecrets(app)
+	secs, err := createSecrets(d)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "Unable to create Kubernetes Secrets")
 	}
 
-	app.PodSpec.Containers, err = populateContainers(app.Containers, app.ConfigMaps, app.Secrets)
+	d.PodSpec.Containers, err = populateContainers(d.Containers, d.ConfigMaps, d.Secrets)
 	if err != nil {
-		return nil, nil, errors.Wrapf(err, "app %q", app.Name)
+		return nil, nil, errors.Wrapf(err, "app %q", d.Name)
 	}
-	log.Debugf("object after population: %#v\n", app)
 
-	app.PodSpec.InitContainers, err = populateContainers(app.InitContainers, app.ConfigMaps, app.Secrets)
+	log.Debugf("object after population: %#v\n", d)
+
+	d.PodSpec.InitContainers, err = populateContainers(d.InitContainers, d.ConfigMaps, d.Secrets)
 	if err != nil {
-		return nil, nil, errors.Wrapf(err, "app %q", app.Name)
+		return nil, nil, errors.Wrapf(err, "app %q", d.Name)
 	}
-	log.Debugf("object after population: %#v\n", app)
+	log.Debugf("object after population: %#v\n", d)
 
 	// create pvc for each root level persistent volume
 	var pvcs []runtime.Object
-	for _, v := range app.VolumeClaims {
-		pvc, err := createPVC(v, app.Labels)
+	for _, v := range d.VolumeClaims {
+		pvc, err := createPVC(v, d.Labels)
 		if err != nil {
-			return nil, nil, errors.Wrapf(err, "app %q", app.Name)
+			return nil, nil, errors.Wrapf(err, "app %q", d.Name)
 		}
 		pvcs = append(pvcs, pvc)
 	}
-	if err := populateVolumes(app); err != nil {
-		return nil, nil, errors.Wrapf(err, "app %q", app.Name)
+	if err := populateVolumes(d); err != nil {
+		return nil, nil, errors.Wrapf(err, "app %q", d.Name)
 	}
 
 	var configMap []runtime.Object
-	for _, cd := range app.ConfigMaps {
+	for _, cd := range d.ConfigMaps {
 		cm := &api_v1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:   cd.Name,
-				Labels: app.Labels,
+				Labels: d.Labels,
 			},
 			Data: cd.Data,
 		}
@@ -326,28 +341,28 @@ func CreateK8sObjects(app *spec.App) ([]runtime.Object, []string, error) {
 		configMap = append(configMap, cm)
 	}
 
-	deployment, err := createDeployment(app)
+	deployment, err := createDeployment(d)
 	if err != nil {
-		return nil, nil, errors.Wrapf(err, "app %q", app.Name)
+		return nil, nil, errors.Wrapf(err, "app %q", d.Name)
 	}
 
 	// please keep the order of the artifacts addition as it is
 
 	// adding non-controller objects
 	objects = append(objects, pvcs...)
-	log.Debugf("app: %s, pvc: %s\n", app.Name, spew.Sprint(pvcs))
+	log.Debugf("app: %s, pvc: %s\n", d.Name, spew.Sprint(pvcs))
 
 	objects = append(objects, svcs...)
-	log.Debugf("app: %s, service: %s\n", app.Name, spew.Sprint(svcs))
+	log.Debugf("app: %s, service: %s\n", d.Name, spew.Sprint(svcs))
 
 	objects = append(objects, ings...)
-	log.Debugf("app: %s, ingress: %s\n", app.Name, spew.Sprint(ings))
+	log.Debugf("app: %s, ingress: %s\n", d.Name, spew.Sprint(ings))
 
 	objects = append(objects, secs...)
-	log.Debugf("app: %s, secret: %s\n", app.Name, spew.Sprint(secs))
+	log.Debugf("app: %s, secret: %s\n", d.Name, spew.Sprint(secs))
 
 	objects = append(objects, configMap...)
-	log.Debugf("app: %s, configMap: %s\n", app.Name, spew.Sprint(configMap))
+	log.Debugf("app: %s, configMap: %s\n", d.Name, spew.Sprint(configMap))
 
 	// add new non-controller objects after this
 
@@ -356,20 +371,22 @@ func CreateK8sObjects(app *spec.App) ([]runtime.Object, []string, error) {
 	// so we only need to append this when a legit deployment resource is returned
 	if deployment != nil {
 		objects = append(objects, deployment)
-		log.Debugf("app: %s, deployment: %s\n", app.Name, spew.Sprint(deployment))
+		log.Debugf("app: %s, deployment: %s\n", d.Name, spew.Sprint(deployment))
 	}
 	// add new controllers after this
 
-	return objects, app.ExtraResources, nil
+	return objects, d.ExtraResources, nil
 }
 
-// Transform function if given spec.App data creates the versioned
+// Transform function if given DeploymentSpecMod data creates the versioned
 // kubernetes objects and returns them in list of runtime.Object
-// And if the field in spec.App called 'extraResources' is used
+// And if the field in DeploymentSpecMod called 'extraResources' is used
 // then it returns the filenames mentioned there as list of string
-func Transform(app *spec.App) ([]runtime.Object, []string, error) {
+type DeploymentSpecMod spec.DeploymentSpecMod
 
-	runtimeObjects, extraResources, err := CreateK8sObjects(app)
+func (deployment *DeploymentSpecMod) Transform() ([]runtime.Object, []string, error) {
+
+	runtimeObjects, extraResources, err := deployment.CreateK8sObjects()
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "failed to create Kubernetes objects")
 	}
@@ -378,17 +395,78 @@ func Transform(app *spec.App) ([]runtime.Object, []string, error) {
 		return nil, nil, errors.New("No runtime objects created, possibly because not enough input data was passed")
 	}
 
+	scheme, err := GetScheme()
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "unable to get scheme")
+	}
+
 	for _, runtimeObject := range runtimeObjects {
-
-		gvk, isUnversioned, err := api.Scheme.ObjectKind(runtimeObject)
-		if err != nil {
-			return nil, nil, errors.Wrap(err, "ConvertToVersion failed")
+		if err := SetGVK(runtimeObject, scheme); err != nil {
+			return nil, nil, errors.Wrap(err, "unable to set Group Version Kind for generated Kubernetes artifacts")
 		}
-		if isUnversioned {
-			return nil, nil, fmt.Errorf("ConvertToVersion failed: can't output unversioned type: %T", runtimeObject)
-		}
+	}
 
-		runtimeObject.GetObjectKind().SetGroupVersionKind(gvk)
+	return runtimeObjects, extraResources, nil
+}
+
+func SetGVK(runtimeObject runtime.Object, scheme *runtime.Scheme) error {
+	gvk, isUnversioned, err := scheme.ObjectKind(runtimeObject)
+	if err != nil {
+		return errors.Wrap(err, "ConvertToVersion failed")
+	}
+	if isUnversioned {
+		return fmt.Errorf("ConvertToVersion failed: can't output unversioned type: %T", runtimeObject)
+	}
+	runtimeObject.GetObjectKind().SetGroupVersionKind(gvk)
+	return nil
+}
+
+func GetScheme() (*runtime.Scheme, error) {
+	// Initializing the scheme with the core v1 api
+	scheme := api.Scheme
+	// Adding the batch scheme to support Jobs
+	if err := batchv1.AddToScheme(scheme); err != nil {
+		return nil, errors.Wrap(err, "unable to add 'batch' to scheme")
+	}
+	return scheme, nil
+}
+
+func (j *JobSpecMod) CreateK8sObjects() ([]runtime.Object, []string, error) {
+	var objects []runtime.Object
+
+	job, err := createJob(j)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "unable to create Kubernetes Jobs")
+	}
+
+	objects = append(objects, job)
+	log.Debugf("app: %s, job: %s\n", j.Name, spew.Sprint(job))
+
+	return objects, j.ExtraResources, nil
+
+}
+
+type JobSpecMod spec.JobSpecMod
+
+func (job *JobSpecMod) Transform() ([]runtime.Object, []string, error) {
+	runtimeObjects, extraResources, err := job.CreateK8sObjects()
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "failed to create Kubernetes objects")
+	}
+
+	if len(runtimeObjects) == 0 {
+		return nil, nil, errors.New("No runtime objects created, possibly because not enough input data was passed")
+	}
+
+	scheme, err := GetScheme()
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "unable to get scheme")
+	}
+
+	for _, runtimeObject := range runtimeObjects {
+		if err := SetGVK(runtimeObject, scheme); err != nil {
+			return nil, nil, errors.Wrap(err, "unable to set Group Version Kind for generated Kubernetes artifacts")
+		}
 	}
 
 	return runtimeObjects, extraResources, nil

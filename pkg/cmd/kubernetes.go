@@ -21,8 +21,7 @@ import (
 	"io"
 	"os/exec"
 
-	"github.com/kedgeproject/kedge/pkg/encoding"
-	"github.com/kedgeproject/kedge/pkg/transform/kubernetes"
+	"github.com/kedgeproject/kedge/pkg/controller"
 
 	"github.com/ghodss/yaml"
 	"github.com/pkg/errors"
@@ -41,12 +40,17 @@ func ExecuteKubectl(paths []string, args ...string) error {
 	}
 
 	for _, input := range inputs {
-		app, err := encoding.Decode(input.data)
-		if err != nil {
+		kController, err := controller.GetController(input.data)
+
+		if err := kController.Unmarshal(input.data); err != nil {
 			return errors.Wrap(err, "unable to unmarshal data")
 		}
 
-		ros, extraResources, err := kubernetes.Transform(app)
+		if err := kController.Fix(); err != nil {
+			return errors.Wrap(err, "unable to fix data")
+		}
+
+		ros, extraResources, err := kController.Transform()
 		if err != nil {
 			return errors.Wrap(err, "unable to convert data")
 		}

@@ -42,7 +42,8 @@ func TestConflictingFields(t *testing.T) {
 		&Container{},
 		&ConfigMapMod{},
 		&PodSpecMod{},
-		&App{},
+		&DeploymentSpecMod{},
+		&JobSpecMod{},
 	}
 
 	for _, inputStruct := range structsToTest {
@@ -55,7 +56,7 @@ func TestConflictingFields(t *testing.T) {
 
 			conflictingTags, err := findConflictingJSONTags(reflect.ValueOf(inputStruct))
 			if err != nil {
-				t.Error(errors.Wrap(err, "Unable to find conflicting tags for spec.App"))
+				t.Error(errors.Wrap(err, "Unable to find conflicting tags for spec.DeploymentSpecMod"))
 			}
 			if len(conflictingTags) != 0 {
 				t.Logf("The struct %v has unhandled conflicting JSON tags which exist in other structs.", reflect.Indirect(reflect.ValueOf(inputStruct)).Type().String())

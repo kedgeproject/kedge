@@ -30,12 +30,12 @@ import (
 func TestCreateServices(t *testing.T) {
 	tests := []struct {
 		Name    string
-		App     *spec.App
+		App     *spec.DeploymentSpecMod
 		Objects []runtime.Object
 	}{
 		{
 			"Single container specified",
-			&spec.App{
+			&spec.DeploymentSpecMod{
 				Name: "test",
 				PodSpecMod: spec.PodSpecMod{
 					Containers: []spec.Container{{Container: api_v1.Container{Image: "nginx"}}},
