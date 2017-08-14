@@ -1,0 +1,41 @@
+name: database
+
+containers:
+  - image: mariadb:10
+    envFrom:
+      - configMapRef:
+         name: database
+      - secretRef:
+          name: database-root-password
+      - secretRef:
+          name: database-user-password
+    volumeMounts:
+      - name: database
+        mountPath: /var/lib/mysql
+    health:
+      exec:
+        command:
+          - mysqladmin
+          - ping
+
+services:
+  - name: database
+    ports:
+      - port: 3306
+
+volumeClaims:
+  - name: database
+    size: 500Mi
+
+configMaps:
+  - data:
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wordpress
+
+secrets:
+  - name: database-root-password
+    data:
+      MYSQL_ROOT_PASSWORD: rootpass
+  - name: database-user-password
+    data:
+      MYSQL_PASSWORD: userpass
