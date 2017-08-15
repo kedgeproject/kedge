@@ -1,0 +1,35 @@
+# this should be idealy replaced by reference to Helm Chart
+
+name: mongodb
+containers:
+  #- image: bitnami/mongodb:3.4.7-r0
+  - image: bitnami/mongodb@sha256:0665d6f4be13b965a8ff60a11b770e6434b627ffc12df640e3c0527af53d449b
+    envFrom:
+      - secretRef:
+          name: mongodb-admin
+      - secretRef:
+          name: mongodb-user
+      - configMapRef:
+          name: mongodb-user
+    volumeMounts:
+     - name: mongodb-data
+       mountPath: /bitnami
+services:
+  - ports:
+    - port: 27017
+volumeClaims:
+  - name: mongodb-data
+    size: 100Mi
+secrets:
+  - name: mongodb-admin
+    stringData:
+      MONGODB_ADMIN_PASSWORD: rootpassword
+  - name: mongodb-user
+    stringData:
+      MONGODB_PASSWORD: pass
+configMaps:
+  - name: mongodb-user
+    data:
+      MONGODB_USERNAME: user
+      MONGODB_DATABASE: db
+      MONGODB_SERVER: mongodb:27017

@@ -1,0 +1,8 @@
+name: frontend
+containers:
+  #- image: quay.io/tomkral/guestbook-demo-frontend:v1
+  - image: quay.io/tomkral/guestbook-demo-frontend@sha256:61154774892875ee2e6f4de87f08f5fcc7d736c1f9da02b9b33a583015206d1d
+services:
+  - type: LoadBalancer
+    ports:
+    - port: 8080
