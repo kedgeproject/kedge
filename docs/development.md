@@ -82,9 +82,9 @@ glide-vc -h
 
 #### Adding new dependency
 
-1. Update `glide.yml` file
+1. Update `glide.yaml` file
 
-  Add new packages or subpackages to `glide.yml` depending if you added whole
+  Add new packages or subpackages to `glide.yaml` depending if you added whole
   new package as dependency or just new subpackage.
 
 2. Get new dependencies
@@ -102,14 +102,14 @@ glide-vc --only-code --no-tests
 3. Commit updated glide files and vendor
 
 ```bash
-git add glide.yml glide.lock vendor
+git add glide.yaml glide.lock vendor
 git commit
 ```
 
 
 #### Updating dependencies
 
-1. Set new package version in  `glide.yml` file.
+1. Set new package version in  `glide.yaml` file.
 
 2. Clear cache
 
@@ -133,7 +133,7 @@ glide-vc --only-code --no-tests
 5. Commit updated glide files and vendor
 
 ```bash
-git add glide.yml glide.lock vendor
+git add glide.yaml glide.lock vendor
 git commit
 ```
 
