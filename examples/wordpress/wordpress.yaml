@@ -25,6 +25,8 @@ containers:
       httpGet:
         path: /
         port: 80
+      initialDelaySeconds: 20
+      timeoutSeconds: 5
 
 services:
   - name: wordpress
