@@ -14,17 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package encoding
+package spec
 
-import (
-	"testing"
-
-	"github.com/kedgeproject/kedge/pkg/spec"
-)
+import "testing"
 
 func TestValidateVolumeClaims(t *testing.T) {
 
-	failingTest := []spec.VolumeClaim{{Name: "foo"}, {Name: "bar"}, {Name: "foo"}}
+	failingTest := []VolumeClaim{{Name: "foo"}, {Name: "bar"}, {Name: "foo"}}
 
 	err := validateVolumeClaims(failingTest)
 	if err == nil {

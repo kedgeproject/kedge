@@ -43,12 +43,12 @@ func Decode(data []byte) (*spec.App, error) {
 		log.Debugf("object unmarshalled: %#v\n", app)
 
 		// validate if the user provided input is valid kedge app
-		if err := validateApp(&app); err != nil {
+		if err := spec.ValidateApp(&app); err != nil {
 			return nil, errors.Wrapf(err, "error validating app %q", app.Name)
 		}
 
 		// this will add the default values where ever possible
-		if err := fixApp(&app); err != nil {
+		if err := spec.FixApp(&app); err != nil {
 			return nil, errors.Wrapf(err, "Unable to fix app %q", app.Name)
 		}
 

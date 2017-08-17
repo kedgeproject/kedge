@@ -14,17 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package encoding
+package spec
 
 import (
 	"fmt"
 
-	"github.com/kedgeproject/kedge/pkg/spec"
-
 	"github.com/pkg/errors"
 )
 
-func validateVolumeClaims(vcs []spec.VolumeClaim) error {
+func validateVolumeClaims(vcs []VolumeClaim) error {
 	// find the duplicate volume claim names, if found any then error out
 	vcmap := make(map[string]interface{})
 	for _, vc := range vcs {
@@ -38,7 +36,7 @@ func validateVolumeClaims(vcs []spec.VolumeClaim) error {
 	return nil
 }
 
-func validateApp(app *spec.App) error {
+func ValidateApp(app *App) error {
 
 	// validate volumeclaims
 	if err := validateVolumeClaims(app.VolumeClaims); err != nil {
