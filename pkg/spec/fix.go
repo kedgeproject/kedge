@@ -14,18 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package encoding
+package spec
 
 import (
 	"fmt"
 	"strconv"
 
-	"github.com/kedgeproject/kedge/pkg/spec"
-
 	"github.com/pkg/errors"
 )
 
-func fixApp(app *spec.App) error {
+func FixApp(app *App) error {
 
 	// fix app.Services
 	if err := fixServices(app); err != nil {
@@ -53,7 +51,7 @@ func fixApp(app *spec.App) error {
 	return nil
 }
 
-func fixServices(app *spec.App) error {
+func fixServices(app *App) error {
 	for i, service := range app.Services {
 		// auto populate service name if only one service is specified
 		if service.Name == "" {
@@ -76,7 +74,7 @@ func fixServices(app *spec.App) error {
 	return nil
 }
 
-func fixVolumeClaims(app *spec.App) error {
+func fixVolumeClaims(app *App) error {
 	for i, pVolume := range app.VolumeClaims {
 		if pVolume.Name == "" {
 			if len(app.VolumeClaims) == 1 {
@@ -90,7 +88,7 @@ func fixVolumeClaims(app *spec.App) error {
 	return nil
 }
 
-func fixConfigMaps(app *spec.App) error {
+func fixConfigMaps(app *App) error {
 	// if only one configMap is defined and its name is not specified
 	if len(app.ConfigMaps) == 1 && app.ConfigMaps[0].Name == "" {
 		app.ConfigMaps[0].Name = app.Name
@@ -105,7 +103,7 @@ func fixConfigMaps(app *spec.App) error {
 	return nil
 }
 
-func fixSecrets(app *spec.App) error {
+func fixSecrets(app *App) error {
 	// populate secret name only if one secret is specified
 	if len(app.Secrets) == 1 && app.Secrets[0].Name == "" {
 		app.Secrets[0].Name = app.Name
@@ -119,7 +117,7 @@ func fixSecrets(app *spec.App) error {
 	return nil
 }
 
-func fixContainers(app *spec.App) error {
+func fixContainers(app *App) error {
 	// if only one container set name of it as app name
 	if len(app.Containers) == 1 && app.Containers[0].Name == "" {
 		app.Containers[0].Name = app.Name
