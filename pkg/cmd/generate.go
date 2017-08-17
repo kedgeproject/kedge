@@ -23,7 +23,7 @@ import (
 	"path/filepath"
 
 	"github.com/kedgeproject/kedge/pkg/encoding"
-	"github.com/kedgeproject/kedge/pkg/transform/kubernetes"
+	"github.com/kedgeproject/kedge/pkg/spec"
 
 	"github.com/ghodss/yaml"
 	"github.com/pkg/errors"
@@ -47,7 +47,7 @@ func Generate(paths []string) error {
 			return errors.Wrap(err, "unable to unmarshal data")
 		}
 
-		ros, extraResources, err := kubernetes.Transform(app)
+		ros, extraResources, err := spec.Transform(app)
 		if err != nil {
 			return errors.Wrap(err, "unable to transform data")
 		}

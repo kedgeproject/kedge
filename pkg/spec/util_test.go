@@ -14,12 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package kubernetes
+package spec
 
 import (
 	"testing"
-
-	"github.com/kedgeproject/kedge/pkg/spec"
 
 	api_v1 "k8s.io/client-go/pkg/api/v1"
 )
@@ -49,7 +47,7 @@ func TestIsVolumeDefined(t *testing.T) {
 }
 
 func TestIsPVCDefined(t *testing.T) {
-	volumes := []spec.VolumeClaim{{Name: "foo"}, {Name: "bar"}, {Name: "baz"}}
+	volumes := []VolumeClaim{{Name: "foo"}, {Name: "bar"}, {Name: "baz"}}
 
 	tests := []struct {
 		Search string
