@@ -5,6 +5,7 @@
   - [`generate`](#kedge-generate)
   - [`delete`](#kedge-delete)
   - [`version`](#kedge-version)  
+  - [`init`](#kedge-init)
 
 ## `kedge create`
 
@@ -96,4 +97,12 @@ Outputs the current Kedge version
 
 ```sh
 kedge version
+```
+
+## `kedge init`
+
+Initialize kedge file
+
+```sh
+kedge init --file kedge.yml --name web --image centos/httpd --port 80
 ```
