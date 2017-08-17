@@ -3,7 +3,7 @@
 Go in the following order:
 
 0. [Simplest of examples](simplest)
-1. [Simple Example](wordpress)
+1. [Basic Example](basic)
 2. [Add HealthChecks](healthchecks)
 3. [Shortcut to defining health checks](health)
 4. [Custom Volumes](customVol)

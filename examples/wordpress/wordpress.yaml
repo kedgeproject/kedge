@@ -1,0 +1,33 @@
+name: wordpress
+
+containers:
+  - image: wordpress:4
+    env:
+      - name: WORDPRESS_DB_NAME
+        valueFrom:
+          configMapKeyRef:
+            name: database
+            key: MYSQL_DATABASE
+      - name: WORDPRESS_DB_USER
+        valueFrom:
+          configMapKeyRef:
+            name: database
+            key: MYSQL_USER
+      - name: WORDPRESS_DB_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: database-user-password
+            key: MYSQL_PASSWORD
+      - name: WORDPRESS_DB_HOST
+        value: database:3306
+
+    health:
+      httpGet:
+        path: /
+        port: 80
+
+services:
+  - name: wordpress
+    type: LoadBalancer
+    ports:
+      - port: 80
