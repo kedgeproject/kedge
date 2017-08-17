@@ -1,0 +1,8 @@
+name: httpd
+containers:
+- image: centos/httpd
+services:
+- name: httpd
+  type: NodePort
+  ports:
+  - port: 8080

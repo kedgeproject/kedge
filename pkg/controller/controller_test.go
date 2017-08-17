@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package encoding
+package controller
 
 import (
 	"encoding/json"
@@ -30,7 +30,7 @@ func TestDecode(t *testing.T) {
 	tests := []struct {
 		Name string
 		Data []byte
-		App  *spec.App
+		App  *spec.DeploymentSpecMod
 	}{
 		{
 			Name: "One container mentioned in the spec",
@@ -41,7 +41,7 @@ containers:
 services:
   - ports:
     - port: 8080`),
-			App: &spec.App{
+			App: &spec.DeploymentSpecMod{
 				Name: "test",
 				PodSpecMod: spec.PodSpecMod{
 					Containers: []spec.Container{{Container: api_v1.Container{Name: "test", Image: "nginx"}}},
@@ -62,7 +62,7 @@ services:
     - port: 8080
 volumeClaims:
 - size: 500Mi`),
-			App: &spec.App{
+			App: &spec.DeploymentSpecMod{
 				Name: "test",
 				PodSpecMod: spec.PodSpecMod{
 					Containers: []spec.Container{{Container: api_v1.Container{Name: "test", Image: "nginx"}}},
@@ -85,7 +85,7 @@ services:
   - port: 8080
   - port: 8081
   - port: 8082`),
-			App: &spec.App{
+			App: &spec.DeploymentSpecMod{
 				Name: "test",
 				PodSpecMod: spec.PodSpecMod{
 					Containers: []spec.Container{{Container: api_v1.Container{Name: "test", Image: "nginx"}}},
@@ -116,7 +116,7 @@ services:
     name: port-2
   - port: 8082
   - port: 8083`),
-			App: &spec.App{
+			App: &spec.DeploymentSpecMod{
 				Name: "test",
 				PodSpecMod: spec.PodSpecMod{
 					Containers: []spec.Container{{Container: api_v1.Container{Name: "test", Image: "nginx"}}},
@@ -148,7 +148,7 @@ services:
     name: port-2
   - port: 8082
     name: port-3`),
-			App: &spec.App{
+			App: &spec.DeploymentSpecMod{
 				Name: "test",
 				PodSpecMod: spec.PodSpecMod{
 					Containers: []spec.Container{{Container: api_v1.Container{Name: "test", Image: "nginx"}}},
@@ -174,7 +174,7 @@ containers:
 services:
 - ports:
   - port: 8080`),
-			App: &spec.App{
+			App: &spec.DeploymentSpecMod{
 				Name: "test",
 				PodSpecMod: spec.PodSpecMod{
 					Containers: []spec.Container{{Container: api_v1.Container{Name: "test", Image: "nginx"}}},

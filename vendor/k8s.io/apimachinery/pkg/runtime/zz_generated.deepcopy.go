@@ -21,9 +21,8 @@ limitations under the License.
 package runtime
 
 import (
-	reflect "reflect"
-
 	conversion "k8s.io/apimachinery/pkg/conversion"
+	reflect "reflect"
 )
 
 // GetGeneratedDeepCopyFuncs returns the generated funcs, since we aren't registering them.

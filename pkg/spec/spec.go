@@ -18,6 +18,7 @@ package spec
 
 import (
 	api_v1 "k8s.io/client-go/pkg/api/v1"
+	batch_v1 "k8s.io/client-go/pkg/apis/batch/v1"
 	ext_v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
 )
 
@@ -68,7 +69,18 @@ type SecretMod struct {
 	api_v1.Secret `json:",inline"`
 }
 
-type App struct {
+type Controller struct {
+	Controller string `json:"controller,omitempty"`
+}
+
+type JobSpecMod struct {
+	Name             string `json:"name,omitempty"`
+	api_v1.PodSpec   `json:",inline"`
+	batch_v1.JobSpec `json:",inline"`
+	ExtraResources   []string `json:"extraResources,omitempty"`
+}
+
+type DeploymentSpecMod struct {
 	Name                       string            `json:"name"`
 	Labels                     map[string]string `json:"labels,omitempty"`
 	VolumeClaims               []VolumeClaim     `json:"volumeClaims,omitempty"`
@@ -79,8 +91,4 @@ type App struct {
 	ExtraResources             []string          `json:"extraResources,omitempty"`
 	PodSpecMod                 `json:",inline"`
 	ext_v1beta1.DeploymentSpec `json:",inline"`
-}
-
-type Controller struct {
-	Controller string `json:"controller,omitempty"`
 }
