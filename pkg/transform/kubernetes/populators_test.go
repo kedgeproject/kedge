@@ -604,6 +604,53 @@ func TestPopulateEnvFrom(t *testing.T) {
 	}
 }
 
+func TestPopulateVolumes(t *testing.T) {
+	volumeClaims := []spec.VolumeClaim{{Name: "foo"}, {Name: "bar"}, {Name: "barfoo"}}
+	volumes := []api_v1.Volume{{Name: "foo"}}
+
+	// a volumeMount is defined but that is not there in volumeClaims
+	// neither it is in pod level volumes, so this should fail
+	failingContainers := []api_v1.Container{
+		{VolumeMounts: []api_v1.VolumeMount{{Name: "baz"}}},
+	}
+
+	if _, err := populateVolumes(failingContainers, volumeClaims, volumes); err == nil {
+		t.Errorf("should have failed but passed for volumeMount that" +
+			" does not exist.")
+	}
+
+	passingContainers := []api_v1.Container{
+		{VolumeMounts: []api_v1.VolumeMount{{Name: "bar"}}},
+		{VolumeMounts: []api_v1.VolumeMount{{Name: "barfoo"}}},
+	}
+	expected := []api_v1.Volume{
+		{
+			Name: "bar",
+			VolumeSource: api_v1.VolumeSource{
+				PersistentVolumeClaim: &api_v1.PersistentVolumeClaimVolumeSource{
+					ClaimName: "bar",
+				},
+			},
+		},
+		{
+			Name: "barfoo",
+			VolumeSource: api_v1.VolumeSource{
+				PersistentVolumeClaim: &api_v1.PersistentVolumeClaimVolumeSource{
+					ClaimName: "barfoo",
+				},
+			},
+		},
+	}
+
+	newVols, err := populateVolumes(passingContainers, volumeClaims, volumes)
+	if err != nil {
+		t.Fatalf("test failed: %v", err)
+	}
+	if !reflect.DeepEqual(newVols, expected) {
+		t.Fatalf("expected: %s, got: %s", prettyPrintObjects(expected), prettyPrintObjects(newVols))
+	}
+}
+
 func prettyPrintObjects(v interface{}) string {
 	b, _ := json.MarshalIndent(v, "", "  ")
 	return string(b)

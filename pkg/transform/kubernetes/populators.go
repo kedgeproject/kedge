@@ -177,3 +177,34 @@ func populateContainers(containers []spec.Container, cms []spec.ConfigMapMod, se
 	log.Debugf("containers after populating health: %s", string(b))
 	return cnts, nil
 }
+
+// Since we are automatically creating pvc from
+// root level persistent volume and entry in the container
+// volume mount, we also need to update the pod's volume field
+func populateVolumes(containers []api_v1.Container, volumeClaims []spec.VolumeClaim,
+	volumes []api_v1.Volume) ([]api_v1.Volume, error) {
+	var newPodVols []api_v1.Volume
+
+	for cn, c := range containers {
+		for vn, vm := range c.VolumeMounts {
+			if isPVCDefined(volumeClaims, vm.Name) && !isVolumeDefined(volumes, vm.Name) {
+				newPodVols = append(newPodVols, api_v1.Volume{
+					Name: vm.Name,
+					VolumeSource: api_v1.VolumeSource{
+						PersistentVolumeClaim: &api_v1.PersistentVolumeClaimVolumeSource{
+							ClaimName: vm.Name,
+						},
+					},
+				})
+			} else if !isVolumeDefined(volumes, vm.Name) {
+				// pvc is not defined so we need to check if the entry is made in the pod volumes
+				// since a volumeMount entry without entry in pod level volumes might cause failure
+				// while deployment since that would not be a complete configuration
+				return nil, fmt.Errorf("neither root level Persistent Volume"+
+					" nor Volume in pod spec defined for %q, "+
+					"in app.containers[%d].volumeMounts[%d]", vm.Name, cn, vn)
+			}
+		}
+	}
+	return newPodVols, nil
+}
