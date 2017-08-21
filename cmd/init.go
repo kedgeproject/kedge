@@ -28,12 +28,12 @@ import (
 type templateData struct {
 	Name  string
 	Image string
-	Ports []string
+	Ports []int
 }
 
 var (
 	fileName, image, name string
-	port                  []string
+	port                  []int
 )
 
 const (
@@ -83,6 +83,6 @@ func init() {
 	initCmd.Flags().StringVarP(&fileName, "out", "o", "kedge.yml", "Output filename")
 	initCmd.Flags().StringVarP(&name, "name", "n", "", "The name of service")
 	initCmd.Flags().StringVarP(&image, "image", "i", "", "The image for the container to run")
-	initCmd.Flags().StringArrayVarP(&port, "port", "p", []string{}, "The ports that this container exposes")
+	initCmd.Flags().IntSliceVarP(&port, "port", "p", []int{}, "The ports that this container exposes")
 	RootCmd.AddCommand(initCmd)
 }
