@@ -24,44 +24,54 @@ import (
 )
 
 func FixApp(app *App) error {
+	var err error
 
 	// fix app.Services
-	if err := fixServices(app); err != nil {
+	app.Services, err = fixServices(app.Services, app.Name)
+	if err != nil {
 		return errors.Wrap(err, "Unable to fix services")
 	}
 
 	// fix app.VolumeClaims
-	if err := fixVolumeClaims(app); err != nil {
+	app.VolumeClaims, err = fixVolumeClaims(app.VolumeClaims, app.Name)
+	if err != nil {
 		return errors.Wrap(err, "Unable to fix persistentVolume")
 	}
 
 	// fix app.configMaps
-	if err := fixConfigMaps(app); err != nil {
+	app.ConfigMaps, err = fixConfigMaps(app.ConfigMaps, app.Name)
+	if err != nil {
 		return errors.Wrap(err, "unable to fix configMaps")
 	}
 
-	if err := fixContainers(app); err != nil {
+	app.Containers, err = fixContainers(app.Containers, app.Name)
+	if err != nil {
 		return errors.Wrap(err, "unable to fix containers")
 	}
 
-	if err := fixSecrets(app); err != nil {
+	app.InitContainers, err = fixContainers(app.InitContainers, app.Name)
+	if err != nil {
+		return errors.Wrap(err, "unable to fix init-containers")
+	}
+
+	app.Secrets, err = fixSecrets(app.Secrets, app.Name)
+	if err != nil {
 		return errors.Wrap(err, "unable to fix secrets")
 	}
 
 	return nil
 }
 
-func fixServices(app *App) error {
-	for i, service := range app.Services {
+func fixServices(services []ServiceSpecMod, appName string) ([]ServiceSpecMod, error) {
+	for i, service := range services {
 		// auto populate service name if only one service is specified
 		if service.Name == "" {
-			if len(app.Services) == 1 {
-				service.Name = app.Name
+			if len(services) == 1 {
+				service.Name = appName
 			} else {
-				return errors.New("More than one service mentioned, please specify name for each one")
+				return nil, errors.New("More than one service mentioned, please specify name for each one")
 			}
 		}
-		app.Services[i] = service
 
 		for i, servicePort := range service.Ports {
 			// auto populate port names if not specified
@@ -70,65 +80,69 @@ func fixServices(app *App) error {
 			}
 			service.Ports[i] = servicePort
 		}
+
+		// this should be the last statement in this for loop
+		services[i] = service
 	}
-	return nil
+	return services, nil
 }
 
-func fixVolumeClaims(app *App) error {
-	for i, pVolume := range app.VolumeClaims {
+func fixVolumeClaims(volumeClaims []VolumeClaim, appName string) ([]VolumeClaim, error) {
+	for i, pVolume := range volumeClaims {
 		if pVolume.Name == "" {
-			if len(app.VolumeClaims) == 1 {
-				pVolume.Name = app.Name
+			if len(volumeClaims) == 1 {
+				pVolume.Name = appName
 			} else {
-				return errors.New("More than one persistent volume mentioned, please specify name for each one")
+				return nil, errors.New("More than one persistent volume mentioned," +
+					" please specify name for each one")
 			}
 		}
-		app.VolumeClaims[i] = pVolume
+		volumeClaims[i] = pVolume
 	}
-	return nil
+	return volumeClaims, nil
 }
 
-func fixConfigMaps(app *App) error {
+func fixConfigMaps(configMaps []ConfigMapMod, appName string) ([]ConfigMapMod, error) {
 	// if only one configMap is defined and its name is not specified
-	if len(app.ConfigMaps) == 1 && app.ConfigMaps[0].Name == "" {
-		app.ConfigMaps[0].Name = app.Name
-	} else if len(app.ConfigMaps) > 1 {
+	if len(configMaps) == 1 && configMaps[0].Name == "" {
+		configMaps[0].Name = appName
+	} else if len(configMaps) > 1 {
 		// if multiple configMaps is defined then each should have a name
-		for cdn, cd := range app.ConfigMaps {
+		for cdn, cd := range configMaps {
 			if cd.Name == "" {
-				return fmt.Errorf("name not specified for app.configMaps[%d]", cdn)
+				return nil, fmt.Errorf("name not specified for app.configMaps[%d]", cdn)
 			}
 		}
 	}
-	return nil
+	return configMaps, nil
 }
 
-func fixSecrets(app *App) error {
+func fixSecrets(secrets []SecretMod, appName string) ([]SecretMod, error) {
 	// populate secret name only if one secret is specified
-	if len(app.Secrets) == 1 && app.Secrets[0].Name == "" {
-		app.Secrets[0].Name = app.Name
-	} else if len(app.Secrets) > 1 {
-		for i, sec := range app.Secrets {
+	if len(secrets) == 1 && secrets[0].Name == "" {
+		secrets[0].Name = appName
+	} else if len(secrets) > 1 {
+		for i, sec := range secrets {
 			if sec.Name == "" {
-				return fmt.Errorf("name not specified for app.secrets[%d]", i)
+				return nil, fmt.Errorf("name not specified for app.secrets[%d]", i)
 			}
 		}
 	}
-	return nil
+	return secrets, nil
 }
 
-func fixContainers(app *App) error {
+func fixContainers(containers []Container, appName string) ([]Container, error) {
 	// if only one container set name of it as app name
-	if len(app.Containers) == 1 && app.Containers[0].Name == "" {
-		app.Containers[0].Name = app.Name
-	} else if len(app.Containers) > 1 {
+	if len(containers) == 1 && containers[0].Name == "" {
+		containers[0].Name = appName
+	} else if len(containers) > 1 {
 		// check if all the containers have a name
 		// if not fail giving error
-		for cn, c := range app.Containers {
+		for cn, c := range containers {
 			if c.Name == "" {
-				return fmt.Errorf("app %q: container name not defined for app.containers[%d]", app.Name, cn)
+				return nil, fmt.Errorf("app %q: container name not defined for app.containers[%d]", appName, cn)
 			}
 		}
 	}
-	return nil
+	return containers, nil
 }
