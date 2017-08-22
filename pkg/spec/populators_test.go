@@ -14,15 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package kubernetes
+package spec
 
 import (
-	"encoding/json"
 	"reflect"
 	"sort"
 	"testing"
-
-	"github.com/kedgeproject/kedge/pkg/spec"
 
 	api_v1 "k8s.io/client-go/pkg/api/v1"
 )
@@ -31,11 +28,11 @@ func TestPopulateProbes(t *testing.T) {
 	t.Logf("Running failing tests")
 	failingTests := []struct {
 		name  string
-		input spec.Container
+		input Container
 	}{
 		{
 			name: "health and livenessProbe given together",
-			input: spec.Container{
+			input: Container{
 				Health: &api_v1.Probe{
 					Handler: api_v1.Handler{
 						Exec: &api_v1.ExecAction{Command: []string{"mysqladmin", "ping"}},
@@ -52,7 +49,7 @@ func TestPopulateProbes(t *testing.T) {
 		},
 		{
 			name: "health and readinessProbe given together",
-			input: spec.Container{
+			input: Container{
 				Health: &api_v1.Probe{
 					Handler: api_v1.Handler{
 						Exec: &api_v1.ExecAction{Command: []string{"mysqladmin", "ping"}},
@@ -69,7 +66,7 @@ func TestPopulateProbes(t *testing.T) {
 		},
 		{
 			name: "health and livenessProbe and readinessProbe given together",
-			input: spec.Container{
+			input: Container{
 				Health: &api_v1.Probe{
 					Handler: api_v1.Handler{
 						Exec: &api_v1.ExecAction{Command: []string{"mysqladmin", "ping"}},
@@ -107,19 +104,19 @@ func TestPopulateProbes(t *testing.T) {
 	t.Logf("Running passing tests")
 	passingTests := []struct {
 		name   string
-		input  spec.Container
-		output spec.Container
+		input  Container
+		output Container
 	}{
 		{
 			name: "valid health given",
-			input: spec.Container{
+			input: Container{
 				Health: &api_v1.Probe{
 					Handler: api_v1.Handler{
 						Exec: &api_v1.ExecAction{Command: []string{"mysqladmin", "ping"}},
 					}, InitialDelaySeconds: 30, TimeoutSeconds: 5,
 				},
 			},
-			output: spec.Container{
+			output: Container{
 				Container: api_v1.Container{
 					LivenessProbe: &api_v1.Probe{
 						Handler: api_v1.Handler{
@@ -136,7 +133,7 @@ func TestPopulateProbes(t *testing.T) {
 		},
 		{
 			name: "only livenessProbe given",
-			input: spec.Container{
+			input: Container{
 				Container: api_v1.Container{
 					LivenessProbe: &api_v1.Probe{
 						Handler: api_v1.Handler{
@@ -145,7 +142,7 @@ func TestPopulateProbes(t *testing.T) {
 					},
 				},
 			},
-			output: spec.Container{
+			output: Container{
 				Container: api_v1.Container{
 					LivenessProbe: &api_v1.Probe{
 						Handler: api_v1.Handler{
@@ -157,7 +154,7 @@ func TestPopulateProbes(t *testing.T) {
 		},
 		{
 			name: "only readinessProbe given",
-			input: spec.Container{
+			input: Container{
 				Container: api_v1.Container{
 					ReadinessProbe: &api_v1.Probe{
 						Handler: api_v1.Handler{
@@ -166,7 +163,7 @@ func TestPopulateProbes(t *testing.T) {
 					},
 				},
 			},
-			output: spec.Container{
+			output: Container{
 				Container: api_v1.Container{
 					ReadinessProbe: &api_v1.Probe{
 						Handler: api_v1.Handler{
@@ -178,8 +175,8 @@ func TestPopulateProbes(t *testing.T) {
 		},
 		{
 			name:   "nothing given",
-			input:  spec.Container{},
-			output: spec.Container{},
+			input:  Container{},
+			output: Container{},
 		},
 	}
 
@@ -226,7 +223,7 @@ func TestConvertMapToList(t *testing.T) {
 	}
 }
 
-var cms = []spec.ConfigMapMod{
+var cms = []ConfigMapMod{
 	{
 		Name: "test1", Data: map[string]string{"ten": "TEN"},
 	},
@@ -235,7 +232,7 @@ var cms = []spec.ConfigMapMod{
 		Data: map[string]string{"two": "TWO", "four": "FOUR", "eight": "EIGHT"},
 	},
 }
-var secrets = []spec.SecretMod{
+var secrets = []SecretMod{
 	{
 		Name: "test1",
 		Secret: api_v1.Secret{
@@ -519,12 +516,12 @@ func TestConvertEnvFromToEnvs(t *testing.T) {
 func TestPopulateEnvFrom(t *testing.T) {
 	tests := []struct {
 		name   string
-		input  spec.Container
-		output spec.Container
+		input  Container
+		output Container
 	}{
 		{
 			name: "normal envFrom",
-			input: spec.Container{
+			input: Container{
 				Container: api_v1.Container{
 					EnvFrom: []api_v1.EnvFromSource{
 						{
@@ -535,7 +532,7 @@ func TestPopulateEnvFrom(t *testing.T) {
 					},
 				},
 			},
-			output: spec.Container{
+			output: Container{
 				Container: api_v1.Container{
 					Env: []api_v1.EnvVar{
 						{
@@ -553,7 +550,7 @@ func TestPopulateEnvFrom(t *testing.T) {
 		},
 		{
 			name: "container that has envs already",
-			input: spec.Container{
+			input: Container{
 				Container: api_v1.Container{
 					EnvFrom: []api_v1.EnvFromSource{
 						{
@@ -568,7 +565,7 @@ func TestPopulateEnvFrom(t *testing.T) {
 					},
 				},
 			},
-			output: spec.Container{
+			output: Container{
 				Container: api_v1.Container{
 					Env: []api_v1.EnvVar{
 						{
@@ -605,7 +602,7 @@ func TestPopulateEnvFrom(t *testing.T) {
 }
 
 func TestPopulateVolumes(t *testing.T) {
-	volumeClaims := []spec.VolumeClaim{{Name: "foo"}, {Name: "bar"}, {Name: "barfoo"}}
+	volumeClaims := []VolumeClaim{{Name: "foo"}, {Name: "bar"}, {Name: "barfoo"}}
 	volumes := []api_v1.Volume{{Name: "foo"}}
 
 	// a volumeMount is defined but that is not there in volumeClaims
@@ -649,9 +646,4 @@ func TestPopulateVolumes(t *testing.T) {
 	if !reflect.DeepEqual(newVols, expected) {
 		t.Fatalf("expected: %s, got: %s", prettyPrintObjects(expected), prettyPrintObjects(newVols))
 	}
-}
-
-func prettyPrintObjects(v interface{}) string {
-	b, _ := json.MarshalIndent(v, "", "  ")
-	return string(b)
 }
