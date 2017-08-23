@@ -1,4 +1,4 @@
-# Kedge - Concise Application Definition for Kubernetes
+# Kedge : Simple, Concise & Declarative Kubernetes Applications
 
 [![Build Status Widget]][Build Status] [![Coverage Status Widget]][Coverage Status] [![GoDoc Widget]][GoDoc] [![GoReportCard Widget]][GoReportCardResult] [![Slack Widget]][Slack] 
 
@@ -6,21 +6,23 @@
 
 ## What is Kedge?
 
-Kedge is a simple and easy way to define and deploy applications to Kubernetes by writing very concise application definitions.
+Kedge is a simple, easy and declarative way to define and deploy applications to Kubernetes by writing very concise application definitions.
 
 Key features and goals include:
 
+  - __Declarative:__ Declarative definitions specifying developer's intent.
   - __Simplicity:__ Using a simple and concise specification that is easy to understand and define.
-  - __Multi-container environments:__ Define your containers, services and applications in one simple file, or abstract them into multiple files.
+  - __Concise:__ Define just the necessary bits and Kedge will do the rest. Kedge will interprolate and pick the best defaults for your application to run on Kubernetes.
+  - __Multi-container environments:__ Define your containers, services and applications in one simple file, or split them into multiple files.
   - __Familiar structure:__ Using a familiar YAML structure as Kubernetes, it's easy to pick-up and understand Kedge.
   - __Built on top of Kubernetes Pod definition:__ Leverages Kuberenetes Pod definition (PodSpec) and avoids leaky abstractions.
-  - __No need to define everything:__ Define just the necessary bits and Kedge will do the rest. Kedge will interprolate and pick the best defaults for your application to run on Kubernetes.
+
 
 ## Project status
 
 We are a very evolving project with high velocity, we have listed a [file reference specification](docs/file-reference.md) as well as document our RFC's and changes as [GitHub issues](https://github.com/kedgeproject/kedge/issues).
 
-Check out our [roadmap](ROADMAP.md) as we push towards a __0.1.0__ release.
+Check out our [roadmap](ROADMAP.md) as we push towards a __0.2.0__ release.
 
 ## Using Kedge
 
