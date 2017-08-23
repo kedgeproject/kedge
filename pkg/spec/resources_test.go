@@ -17,10 +17,12 @@ limitations under the License.
 package spec
 
 import (
-	"encoding/json"
 	"reflect"
 	"testing"
 
+	"k8s.io/apimachinery/pkg/runtime"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	api_v1 "k8s.io/client-go/pkg/api/v1"
 )
 
@@ -182,7 +184,57 @@ func TestFixContainers(t *testing.T) {
 	}
 }
 
-func prettyPrintObjects(v interface{}) string {
-	b, _ := json.MarshalIndent(v, "", "  ")
-	return string(b)
+func TestValidateVolumeClaims(t *testing.T) {
+
+	failingTest := []VolumeClaim{{Name: "foo"}, {Name: "bar"}, {Name: "foo"}}
+
+	err := validateVolumeClaims(failingTest)
+	if err == nil {
+		t.Errorf("should have failed but passed for input: %+v", failingTest)
+	} else {
+		t.Logf("failed with error: %v", err)
+	}
+
 }
+
+func TestCreateServices(t *testing.T) {
+	tests := []struct {
+		Name    string
+		App     *DeploymentSpecMod
+		Objects []runtime.Object
+	}{
+		{
+			"Single container specified",
+			&DeploymentSpecMod{
+				ControllerFields: ControllerFields{
+
+					Name: "test",
+					PodSpecMod: PodSpecMod{
+						Containers: []Container{{Container: api_v1.Container{Image: "nginx"}}},
+					},
+					Services: []ServiceSpecMod{
+						{Name: "test", Ports: []ServicePortMod{{ServicePort: api_v1.ServicePort{Port: 8080}}}},
+					},
+				},
+			},
+			append(make([]runtime.Object, 0), &api_v1.Service{
+				ObjectMeta: metav1.ObjectMeta{Name: "test"},
+				Spec:       api_v1.ServiceSpec{Ports: []api_v1.ServicePort{{Port: 8080}}},
+			}),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Name, func(t *testing.T) {
+			object, err := test.App.createServices()
+			if err != nil {
+				t.Fatalf("Creating services failed: %v", err)
+			}
+			if !reflect.DeepEqual(test.Objects, object) {
+				t.Fatalf("Expected:\n%v\nGot:\n%v", test.Objects, object)
+			}
+		})
+	}
+}
+
+// TODO: add test for auto naming of single persistent volume
