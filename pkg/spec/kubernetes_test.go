@@ -14,13 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package kubernetes
+package spec
 
 import (
 	"reflect"
 	"testing"
-
-	"github.com/kedgeproject/kedge/pkg/spec"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -30,18 +28,18 @@ import (
 func TestCreateServices(t *testing.T) {
 	tests := []struct {
 		Name    string
-		App     *spec.App
+		App     *App
 		Objects []runtime.Object
 	}{
 		{
 			"Single container specified",
-			&spec.App{
+			&App{
 				Name: "test",
-				PodSpecMod: spec.PodSpecMod{
-					Containers: []spec.Container{{Container: api_v1.Container{Image: "nginx"}}},
+				PodSpecMod: PodSpecMod{
+					Containers: []Container{{Container: api_v1.Container{Image: "nginx"}}},
 				},
-				Services: []spec.ServiceSpecMod{
-					{Name: "test", Ports: []spec.ServicePortMod{{ServicePort: api_v1.ServicePort{Port: 8080}}}},
+				Services: []ServiceSpecMod{
+					{Name: "test", Ports: []ServicePortMod{{ServicePort: api_v1.ServicePort{Port: 8080}}}},
 				},
 			},
 			append(make([]runtime.Object, 0), &api_v1.Service{

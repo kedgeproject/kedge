@@ -14,15 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package kubernetes
+package spec
 
 import (
 	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
-
-	"github.com/kedgeproject/kedge/pkg/spec"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/davecgh/go-spew/spew"
@@ -40,12 +38,12 @@ import (
 	_ "k8s.io/client-go/pkg/apis/extensions/install"
 )
 
-func getLabels(app *spec.App) map[string]string {
+func getLabels(app *App) map[string]string {
 	labels := map[string]string{"app": app.Name}
 	return labels
 }
 
-func createIngresses(app *spec.App) ([]runtime.Object, error) {
+func createIngresses(app *App) ([]runtime.Object, error) {
 	var ings []runtime.Object
 
 	for _, i := range app.Ingresses {
@@ -61,7 +59,7 @@ func createIngresses(app *spec.App) ([]runtime.Object, error) {
 	return ings, nil
 }
 
-func createServices(app *spec.App) ([]runtime.Object, error) {
+func createServices(app *App) ([]runtime.Object, error) {
 	var svcs []runtime.Object
 	for _, s := range app.Services {
 		svc := &api_v1.Service{
@@ -134,7 +132,7 @@ func createServices(app *spec.App) ([]runtime.Object, error) {
 
 // Creates a Deployment Kubernetes resource. The returned Deployment resource
 // will be nil if it could not be generated due to insufficient input data.
-func createDeployment(app *spec.App) (*ext_v1beta1.Deployment, error) {
+func createDeployment(app *App) (*ext_v1beta1.Deployment, error) {
 
 	// We need to error out if both, app.PodSpec and app.DeploymentSpec are empty
 	if reflect.DeepEqual(app.PodSpec, api_v1.PodSpec{}) && reflect.DeepEqual(app.DeploymentSpec, ext_v1beta1.DeploymentSpec{}) {
@@ -176,7 +174,7 @@ func createDeployment(app *spec.App) (*ext_v1beta1.Deployment, error) {
 }
 
 // create PVC reading the root level persistent volume field
-func createPVC(v spec.VolumeClaim, labels map[string]string) (*api_v1.PersistentVolumeClaim, error) {
+func createPVC(v VolumeClaim, labels map[string]string) (*api_v1.PersistentVolumeClaim, error) {
 	// check for conditions where user has given both conflicting fields
 	// or not given either fields
 	if v.Size != "" && v.Resources.Requests != nil {
@@ -216,35 +214,7 @@ func createPVC(v spec.VolumeClaim, labels map[string]string) (*api_v1.Persistent
 	return pvc, nil
 }
 
-// Since we are automatically creating pvc from
-// root level persistent volume and entry in the container
-// volume mount, we also need to update the pod's volume field
-func populateVolumes(app *spec.App) error {
-	for cn, c := range app.PodSpec.Containers {
-		for vn, vm := range c.VolumeMounts {
-			if isPVCDefined(app.VolumeClaims, vm.Name) && !isVolumeDefined(app.Volumes, vm.Name) {
-				app.Volumes = append(app.Volumes, api_v1.Volume{
-					Name: vm.Name,
-					VolumeSource: api_v1.VolumeSource{
-						PersistentVolumeClaim: &api_v1.PersistentVolumeClaimVolumeSource{
-							ClaimName: vm.Name,
-						},
-					},
-				})
-			} else if !isVolumeDefined(app.Volumes, vm.Name) {
-				// pvc is not defined so we need to check if the entry is made in the pod volumes
-				// since a volumeMount entry without entry in pod level volumes might cause failure
-				// while deployment since that would not be a complete configuration
-				return fmt.Errorf("neither root level Persistent Volume"+
-					" nor Volume in pod spec defined for %q, "+
-					"in app.containers[%d].volumeMounts[%d]", vm.Name, cn, vn)
-			}
-		}
-	}
-	return nil
-}
-
-func createSecrets(app *spec.App) ([]runtime.Object, error) {
+func createSecrets(app *App) ([]runtime.Object, error) {
 	var secrets []runtime.Object
 
 	for _, s := range app.Secrets {
@@ -262,11 +232,11 @@ func createSecrets(app *spec.App) ([]runtime.Object, error) {
 	return secrets, nil
 }
 
-// CreateK8sObjects, if given object spec.App, this function reads
+// CreateK8sObjects, if given object App, this function reads
 // them and returns kubernetes objects as list of runtime.Object
 // If the app is using field 'extraResources' then it will
 // also return file names mentioned there as list of string
-func CreateK8sObjects(app *spec.App) ([]runtime.Object, []string, error) {
+func CreateK8sObjects(app *App) ([]runtime.Object, []string, error) {
 	var objects []runtime.Object
 
 	if app.Labels == nil {
@@ -309,9 +279,11 @@ func CreateK8sObjects(app *spec.App) ([]runtime.Object, []string, error) {
 		}
 		pvcs = append(pvcs, pvc)
 	}
-	if err := populateVolumes(app); err != nil {
+	vols, err := populateVolumes(app.PodSpec.Containers, app.VolumeClaims, app.PodSpec.Volumes)
+	if err != nil {
 		return nil, nil, errors.Wrapf(err, "app %q", app.Name)
 	}
+	app.PodSpec.Volumes = append(app.PodSpec.Volumes, vols...)
 
 	var configMap []runtime.Object
 	for _, cd := range app.ConfigMaps {
@@ -363,11 +335,11 @@ func CreateK8sObjects(app *spec.App) ([]runtime.Object, []string, error) {
 	return objects, app.ExtraResources, nil
 }
 
-// Transform function if given spec.App data creates the versioned
+// Transform function if given App data creates the versioned
 // kubernetes objects and returns them in list of runtime.Object
-// And if the field in spec.App called 'extraResources' is used
+// And if the field in App called 'extraResources' is used
 // then it returns the filenames mentioned there as list of string
-func Transform(app *spec.App) ([]runtime.Object, []string, error) {
+func Transform(app *App) ([]runtime.Object, []string, error) {
 
 	runtimeObjects, extraResources, err := CreateK8sObjects(app)
 	if err != nil {

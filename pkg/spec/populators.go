@@ -14,21 +14,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package kubernetes
+package spec
 
 import (
 	"encoding/json"
 	"fmt"
 	"sort"
 
-	"github.com/kedgeproject/kedge/pkg/spec"
-
 	log "github.com/Sirupsen/logrus"
 	"github.com/pkg/errors"
 	api_v1 "k8s.io/client-go/pkg/api/v1"
 )
 
-func populateProbes(c spec.Container) (spec.Container, error) {
+func populateProbes(c Container) (Container, error) {
 	// check if health and liveness given together
 	if c.Health != nil && (c.ReadinessProbe != nil || c.LivenessProbe != nil) {
 		return c, fmt.Errorf("cannot define field 'health' and " +
@@ -42,16 +40,16 @@ func populateProbes(c spec.Container) (spec.Container, error) {
 	return c, nil
 }
 
-func searchConfigMap(cms []spec.ConfigMapMod, name string) (spec.ConfigMapMod, error) {
+func searchConfigMap(cms []ConfigMapMod, name string) (ConfigMapMod, error) {
 	for _, cm := range cms {
 		if cm.Name == name {
 			return cm, nil
 		}
 	}
-	return spec.ConfigMapMod{}, fmt.Errorf("configMap %q not found", name)
+	return ConfigMapMod{}, fmt.Errorf("configMap %q not found", name)
 }
 
-func getSecretDataKeys(secrets []spec.SecretMod, name string) ([]string, error) {
+func getSecretDataKeys(secrets []SecretMod, name string) ([]string, error) {
 	var dataKeys []string
 	for _, secret := range secrets {
 		if secret.Name == name {
@@ -75,7 +73,7 @@ func getMapKeys(m map[string]string) []string {
 	return d
 }
 
-func convertEnvFromToEnvs(envFrom []api_v1.EnvFromSource, cms []spec.ConfigMapMod, secrets []spec.SecretMod) ([]api_v1.EnvVar, error) {
+func convertEnvFromToEnvs(envFrom []api_v1.EnvFromSource, cms []ConfigMapMod, secrets []SecretMod) ([]api_v1.EnvVar, error) {
 	var envs []api_v1.EnvVar
 
 	// we will iterate on all envFroms
@@ -132,7 +130,7 @@ func convertEnvFromToEnvs(envFrom []api_v1.EnvFromSource, cms []spec.ConfigMapMo
 	return envs, nil
 }
 
-func populateEnvFrom(c spec.Container, cms []spec.ConfigMapMod, secrets []spec.SecretMod) (spec.Container, error) {
+func populateEnvFrom(c Container, cms []ConfigMapMod, secrets []SecretMod) (Container, error) {
 	// now do the env from
 	envs, err := convertEnvFromToEnvs(c.EnvFrom, cms, secrets)
 	if err != nil {
@@ -152,7 +150,7 @@ func populateEnvFrom(c spec.Container, cms []spec.ConfigMapMod, secrets []spec.S
 	return c, nil
 }
 
-func populateContainers(containers []spec.Container, cms []spec.ConfigMapMod, secrets []spec.SecretMod) ([]api_v1.Container, error) {
+func populateContainers(containers []Container, cms []ConfigMapMod, secrets []SecretMod) ([]api_v1.Container, error) {
 	var cnts []api_v1.Container
 
 	for cn, c := range containers {
@@ -176,4 +174,35 @@ func populateContainers(containers []spec.Container, cms []spec.ConfigMapMod, se
 	b, _ := json.MarshalIndent(cnts, "", "  ")
 	log.Debugf("containers after populating health: %s", string(b))
 	return cnts, nil
+}
+
+// Since we are automatically creating pvc from
+// root level persistent volume and entry in the container
+// volume mount, we also need to update the pod's volume field
+func populateVolumes(containers []api_v1.Container, volumeClaims []VolumeClaim,
+	volumes []api_v1.Volume) ([]api_v1.Volume, error) {
+	var newPodVols []api_v1.Volume
+
+	for cn, c := range containers {
+		for vn, vm := range c.VolumeMounts {
+			if isPVCDefined(volumeClaims, vm.Name) && !isVolumeDefined(volumes, vm.Name) {
+				newPodVols = append(newPodVols, api_v1.Volume{
+					Name: vm.Name,
+					VolumeSource: api_v1.VolumeSource{
+						PersistentVolumeClaim: &api_v1.PersistentVolumeClaimVolumeSource{
+							ClaimName: vm.Name,
+						},
+					},
+				})
+			} else if !isVolumeDefined(volumes, vm.Name) {
+				// pvc is not defined so we need to check if the entry is made in the pod volumes
+				// since a volumeMount entry without entry in pod level volumes might cause failure
+				// while deployment since that would not be a complete configuration
+				return nil, fmt.Errorf("neither root level Persistent Volume"+
+					" nor Volume in pod spec defined for %q, "+
+					"in app.containers[%d].volumeMounts[%d]", vm.Name, cn, vn)
+			}
+		}
+	}
+	return newPodVols, nil
 }

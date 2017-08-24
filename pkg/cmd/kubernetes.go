@@ -22,7 +22,7 @@ import (
 	"os/exec"
 
 	"github.com/kedgeproject/kedge/pkg/encoding"
-	"github.com/kedgeproject/kedge/pkg/transform/kubernetes"
+	"github.com/kedgeproject/kedge/pkg/spec"
 
 	"github.com/ghodss/yaml"
 	"github.com/pkg/errors"
@@ -46,7 +46,7 @@ func ExecuteKubectl(paths []string, args ...string) error {
 			return errors.Wrap(err, "unable to unmarshal data")
 		}
 
-		ros, extraResources, err := kubernetes.Transform(app)
+		ros, extraResources, err := spec.Transform(app)
 		if err != nil {
 			return errors.Wrap(err, "unable to convert data")
 		}
