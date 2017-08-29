@@ -50,14 +50,6 @@ func fixServices(services []ServiceSpecMod, appName string) ([]ServiceSpecMod, e
 			}
 		}
 
-		for i, servicePort := range service.Ports {
-			// auto populate port names if not specified
-			if len(service.Ports) > 1 && servicePort.Name == "" {
-				servicePort.Name = service.Name + "-" + strconv.FormatInt(int64(servicePort.Port), 10)
-			}
-			service.Ports[i] = servicePort
-		}
-
 		// this should be the last statement in this for loop
 		services[i] = service
 	}
@@ -160,6 +152,17 @@ func (app *ControllerFields) createServices() ([]runtime.Object, error) {
 		for _, servicePortMod := range s.Ports {
 			svc.Spec.Ports = append(svc.Spec.Ports, servicePortMod.ServicePort)
 		}
+
+		for _, portMapping := range s.PortMappings {
+			servicePort, err := parsePortMapping(portMapping)
+			if err != nil {
+				return nil, errors.Wrap(err, "unable to parse port mapping")
+			}
+			svc.Spec.Ports = append(svc.Spec.Ports, *servicePort)
+		}
+
+		populateServicePortNames(svc.Name, svc.Spec.Ports)
+
 		if len(svc.Spec.Selector) == 0 {
 			svc.Spec.Selector = app.Labels
 		}

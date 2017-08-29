@@ -57,6 +57,9 @@ type ServiceSpecMod struct {
 	// https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies
 	// ref: io.kedge.ServicePort
 	Ports []ServicePortMod `json:"ports,conflicting"`
+	// The list of portMappings, where each portMapping allows specifying port,
+	// targetPort and protocol in the format '<port>:<targetPort>/<protocol>'
+	PortMappings []string `json:"portMappings,omitempty"`
 }
 
 // IngressSpecMod defines Kubernetes Ingress object

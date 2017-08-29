@@ -50,34 +50,6 @@ func TestFixServices(t *testing.T) {
 			Input:  []ServiceSpecMod{{}},
 			Output: []ServiceSpecMod{{Name: appName}},
 		},
-		{
-			Name: "multiple ports and no port name given",
-			Input: []ServiceSpecMod{
-				{
-					Ports: []ServicePortMod{
-						{ServicePort: api_v1.ServicePort{Port: 8080}},
-						{ServicePort: api_v1.ServicePort{Port: 8081}},
-					},
-				},
-			},
-			Output: []ServiceSpecMod{
-				{
-					Name: appName,
-					Ports: []ServicePortMod{
-						{
-							ServicePort: api_v1.ServicePort{
-								Name: appName + "-8080", Port: 8080,
-							},
-						},
-						{
-							ServicePort: api_v1.ServicePort{
-								Name: appName + "-8081", Port: 8081,
-							},
-						},
-					},
-				},
-			},
-		},
 	}
 
 	for _, test := range passingTests {
