@@ -69,14 +69,17 @@ type SecretMod struct {
 }
 
 type App struct {
-	Name                       string            `json:"name"`
-	Labels                     map[string]string `json:"labels,omitempty"`
-	VolumeClaims               []VolumeClaim     `json:"volumeClaims,omitempty"`
-	ConfigMaps                 []ConfigMapMod    `json:"configMaps,omitempty"`
-	Services                   []ServiceSpecMod  `json:"services,omitempty"`
-	Ingresses                  []IngressSpecMod  `json:"ingresses,omitempty"`
-	Secrets                    []SecretMod       `json:"secrets,omitempty"`
-	ExtraResources             []string          `json:"extraResources,omitempty"`
+	Name   string            `json:"name"`
+	Labels map[string]string `json:"labels,omitempty"`
+	// this is a no-op field and is only being used for OpenAPI generation,
+	// and should not be used in the code elsewhere.
+	Controller                 string           `json:"controller,omitempty"`
+	VolumeClaims               []VolumeClaim    `json:"volumeClaims,omitempty"`
+	ConfigMaps                 []ConfigMapMod   `json:"configMaps,omitempty"`
+	Services                   []ServiceSpecMod `json:"services,omitempty"`
+	Ingresses                  []IngressSpecMod `json:"ingresses,omitempty"`
+	Secrets                    []SecretMod      `json:"secrets,omitempty"`
+	ExtraResources             []string         `json:"extraResources,omitempty"`
 	PodSpecMod                 `json:",inline"`
 	ext_v1beta1.DeploymentSpec `json:",inline"`
 }
