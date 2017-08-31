@@ -180,3 +180,29 @@ make test-e2e PARALLEL=4
 
 This will run only 4 tests in parallel. By default, it is set to the value of
 `GOMAXPROCS`.
+
+### spec.go conventions
+
+- Add explanation on top of each struct and struct field in `spec.go` to explain what it does,
+so that when OpenAPI spec is auto-generated it will show up there.
+
+- Structs that are referred in any other struct in the form of an array should have a comment
+of the format `// kedgeSpec: io.kedge.*`, where `*` is name of that struct. This becomes the
+identity or reference of that struct in OpenAPI specification.
+
+- If you are embedding a struct, there is no need to add an explanatory comment.
+
+- For any struct that is embedded please add a k8s tag comment:
+`// k8s: io.k8s.kubernetes.pkg.api.v1.ServicePort`.
+
+- For all the fields that are optional please include a comment:
+`// +optional`.
+
+- Any struct that is defined in same file and is used in another struct, while embedding
+please add a ref tag comment:
+`// ref: io.kedge.ContainerSpec`.
+
+- To find out what is the key or k8s reference tag for a particular struct in Kubernetes,
+please refer to the swagger specification of Kubernetes for any particular release. For e.g
+In Kubernetes 1.7, the reference tag for deployment is
+`io.k8s.kubernetes.pkg.apis.apps.v1beta1.DeploymentSpec`.
