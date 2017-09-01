@@ -96,7 +96,7 @@ glide update --strip-vendor
 3. Delete all unnecessary files from vendor
 
 ```bash
-glide-vc --only-code --no-tests
+glide-vc --only-code --no-tests --use-lock-file
 ```
 
 3. Commit updated glide files and vendor
@@ -127,7 +127,7 @@ glide update --strip-vendor
 4. Delete all unnecessary files from vendor
 
 ```bash
-glide-vc --only-code --no-tests
+glide-vc --only-code --no-tests --use-lock-file
 ```
 
 5. Commit updated glide files and vendor
