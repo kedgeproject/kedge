@@ -1,17 +1,32 @@
 package: github.com/kedgeproject/kedge
 import:
 - package: github.com/ghodss/yaml
+  version: v1.0.0
 - package: github.com/spf13/cobra
 - package: github.com/spf13/pflag
 - package: github.com/spf13/viper
 - package: github.com/pkg/errors
-- package: k8s.io/client-go
-  version: 3.0.0
+  version: v0.8.0
+- package: github.com/davecgh/go-spew
+  version: v1.1.0
   subpackages:
+  - spew
+- package: k8s.io/client-go
+  version: v3.0.0
+  subpackages:
+  - pkg/api
+  - pkg/api/install
   - pkg/api/v1
-  - pkg/apis
+  - pkg/apis/extensions/install
+  - pkg/apis/extensions/v1beta1
+  - kubernetes/typed/admissionregistration/v1alpha1
 # pinning it to k8s 1.6 release so that client-go does not complain
 - package: k8s.io/apimachinery
   version: release-1.6
+  subpackages:
+  - pkg/api/resource
+  - pkg/apis/meta/v1
+  - pkg/runtime
+  - pkg/util/intstr
 - package: github.com/Sirupsen/logrus
-  version: v1.0.0
+  version: v1.0.2

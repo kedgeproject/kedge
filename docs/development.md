@@ -151,3 +151,32 @@ by one incrementally so that it is easy to review and going back and forth on
 it is easier.
 
 **Note**: Above guidelines are not hard rules use those with discretion
+
+### Running tests
+
+#### Run all tests except end-to-end tests
+
+```bash
+make test
+```
+
+#### Run end-to-end tests
+
+Before running end to end tests locally make sure [minikube](https://github.com/kubernetes/minikube/)
+is running.
+
+```bash
+make bin
+make test-e2e
+```
+
+**Note**: When you run end to end tests, those tests are run in parallel. If
+you are low on resources you can limit number of tests that run in parallel by
+doing following:
+
+```bash
+make test-e2e PARALLEL=4
+```
+
+This will run only 4 tests in parallel. By default, it is set to the value of
+`GOMAXPROCS`.
