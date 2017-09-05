@@ -89,5 +89,3 @@ test-unit-cover:
 	# go test doesn't support colleting coverage across multiple packages,
 	# generate go test commands using go list and run go test for every package separately
 	go list -f '"go test -race -cover -v -coverprofile={{.Dir}}/.coverprofile {{.ImportPath}}"' github.com/kedgeproject/kedge/...  | grep -v "vendor" | grep -v "e2e" | xargs -L 1 -P4 sh -c
-
-
