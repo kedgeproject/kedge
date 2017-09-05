@@ -40,12 +40,12 @@ function check_glide-vc() {
     echo "Checking if vendor was cleaned using glide-vc."
 
     # dry run glide-vc and count how many could be deleted.
-    NO_DELETED_FILES=$(glide-vc --only-code --no-tests --dryrun | wc -l)
+    NO_DELETED_FILES=$(glide-vc --only-code --no-tests --use-lock-file --dryrun | wc -l)
 
     if [ $NO_DELETED_FILES -ne 0 ]; then
         echo "ERROR"
         echo "  There are $NO_DELETED_FILES files that can be deleted by glide-vc."
-        echo "  Please run 'glide-vc --only-code --no-tests'"
+        echo "  Please run 'glide-vc --only-code --no-tests --use-lock-file'"
         return 1
     else
         echo "OK"
