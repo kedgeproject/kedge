@@ -24,13 +24,12 @@ package v1beta1
 import (
 	"errors"
 	"fmt"
-	"reflect"
-	"runtime"
-	time "time"
-
 	codec1978 "github.com/ugorji/go/codec"
 	pkg1_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	pkg2_types "k8s.io/apimachinery/pkg/types"
+	"reflect"
+	"runtime"
+	time "time"
 )
 
 const (
@@ -2544,7 +2543,7 @@ func (x codecSelfer1234) decSliceCertificateSigningRequest(v *[]CertificateSigni
 
 			yyrg1 := len(yyv1) > 0
 			yyv21 := yyv1
-			yyrl1, yyrt1 = z.DecInferLen(yyl1, z.DecBasicHandle().MaxInitLen, 416)
+			yyrl1, yyrt1 = z.DecInferLen(yyl1, z.DecBasicHandle().MaxInitLen, 424)
 			if yyrt1 {
 				if yyrl1 <= cap(yyv1) {
 					yyv1 = yyv1[:yyrl1]
