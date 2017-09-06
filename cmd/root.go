@@ -32,7 +32,7 @@ var (
 // RootCmd represents the base command when called without any subcommands
 var RootCmd = &cobra.Command{
 	Use:   "kedge",
-	Short: "Define Kubernetes applications using Kubernetes constructs",
+	Short: "Kedge: Simple, Concise & Declarative Kubernetes Applications",
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 
 		// Add extra logging when verbosity is passed
