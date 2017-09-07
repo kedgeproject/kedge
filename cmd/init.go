@@ -49,7 +49,7 @@ containers:
 // initCmd represents the version command
 var initCmd = &cobra.Command{
 	Use:   "init",
-	Short: "Intialize kedge file",
+	Short: "Intialize Kedge file",
 	Run: func(cmd *cobra.Command, args []string) {
 		data := templateData{Name: name, Image: image, Ports: port}
 		if name != "" && image != "" {
