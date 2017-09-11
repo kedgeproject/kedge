@@ -117,6 +117,46 @@ func fixContainers(containers []Container, appName string) ([]Container, error) 
 	return containers, nil
 }
 
+func (cf *ControllerFields) fixControllerFields() error {
+
+	var err error
+
+	// fix Services
+	cf.Services, err = fixServices(cf.Services, cf.Name)
+	if err != nil {
+		return errors.Wrap(err, "Unable to fix services")
+	}
+
+	// fix VolumeClaims
+	cf.VolumeClaims, err = fixVolumeClaims(cf.VolumeClaims, cf.Name)
+	if err != nil {
+		return errors.Wrap(err, "Unable to fix persistentVolume")
+	}
+
+	// fix configMaps
+	cf.ConfigMaps, err = fixConfigMaps(cf.ConfigMaps, cf.Name)
+	if err != nil {
+		return errors.Wrap(err, "unable to fix configMaps")
+	}
+
+	cf.Containers, err = fixContainers(cf.Containers, cf.Name)
+	if err != nil {
+		return errors.Wrap(err, "unable to fix containers")
+	}
+
+	cf.InitContainers, err = fixContainers(cf.InitContainers, cf.Name)
+	if err != nil {
+		return errors.Wrap(err, "unable to fix init-containers")
+	}
+
+	cf.Secrets, err = fixSecrets(cf.Secrets, cf.Name)
+	if err != nil {
+		return errors.Wrap(err, "unable to fix secrets")
+	}
+
+	return nil
+}
+
 // Transform
 
 func (app *ControllerFields) getLabels() map[string]string {
@@ -381,6 +421,17 @@ func validateVolumeClaims(vcs []VolumeClaim) error {
 			return fmt.Errorf("duplicate entry of volume claim %q", vc.Name)
 		}
 	}
+
+	return nil
+}
+
+func (app *ControllerFields) validateControllerFields() error {
+
+	// validate volumeclaims
+	if err := validateVolumeClaims(app.VolumeClaims); err != nil {
+		return errors.Wrap(err, "error validating volume claims")
+	}
+
 	return nil
 }
 

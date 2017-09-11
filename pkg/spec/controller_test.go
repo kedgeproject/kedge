@@ -17,7 +17,6 @@ limitations under the License.
 package spec
 
 import (
-	"encoding/json"
 	"reflect"
 	"testing"
 
@@ -103,9 +102,4 @@ volumeClaims:
 			}
 		})
 	}
-}
-
-func prettyPrintObjects(v interface{}) string {
-	b, _ := json.MarshalIndent(v, "", "  ")
-	return string(b)
 }

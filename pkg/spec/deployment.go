@@ -29,7 +29,6 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/pkg/api"
 )
 
 func (deployment *DeploymentSpecMod) Unmarshal(data []byte) error {
@@ -43,52 +42,18 @@ func (deployment *DeploymentSpecMod) Unmarshal(data []byte) error {
 
 func (deployment *DeploymentSpecMod) Validate() error {
 
-	// validate volumeclaims
-	if err := validateVolumeClaims(deployment.VolumeClaims); err != nil {
-		return errors.Wrap(err, "error validating volume claims")
+	// validate controller fields
+	if err := deployment.ControllerFields.validateControllerFields(); err != nil {
+		return errors.Wrap(err, "unable to validate controller fields")
 	}
 
 	return nil
 }
 
-// TODO: abstract out this code when more controllers are added
 func (deployment *DeploymentSpecMod) Fix() error {
-
-	var err error
-
-	// fix deployment.Services
-	deployment.Services, err = fixServices(deployment.Services, deployment.Name)
-	if err != nil {
-		return errors.Wrap(err, "Unable to fix services")
+	if err := deployment.ControllerFields.fixControllerFields(); err != nil {
+		return errors.Wrap(err, "unable to fix ControllerFields")
 	}
-
-	// fix deployment.VolumeClaims
-	deployment.VolumeClaims, err = fixVolumeClaims(deployment.VolumeClaims, deployment.Name)
-	if err != nil {
-		return errors.Wrap(err, "Unable to fix persistentVolume")
-	}
-
-	// fix deployment.configMaps
-	deployment.ConfigMaps, err = fixConfigMaps(deployment.ConfigMaps, deployment.Name)
-	if err != nil {
-		return errors.Wrap(err, "unable to fix configMaps")
-	}
-
-	deployment.Containers, err = fixContainers(deployment.Containers, deployment.Name)
-	if err != nil {
-		return errors.Wrap(err, "unable to fix containers")
-	}
-
-	deployment.InitContainers, err = fixContainers(deployment.InitContainers, deployment.Name)
-	if err != nil {
-		return errors.Wrap(err, "unable to fix init-containers")
-	}
-
-	deployment.Secrets, err = fixSecrets(deployment.Secrets, deployment.Name)
-	if err != nil {
-		return errors.Wrap(err, "unable to fix secrets")
-	}
-
 	return nil
 }
 
@@ -121,17 +86,15 @@ func (deployment *DeploymentSpecMod) Transform() ([]runtime.Object, []string, er
 		return nil, nil, errors.New("No runtime objects created, possibly because not enough input data was passed")
 	}
 
+	scheme, err := GetScheme()
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "unable to get scheme")
+	}
+
 	for _, runtimeObject := range runtimeObjects {
-
-		gvk, isUnversioned, err := api.Scheme.ObjectKind(runtimeObject)
-		if err != nil {
-			return nil, nil, errors.Wrap(err, "ConvertToVersion failed")
+		if err := SetGVK(runtimeObject, scheme); err != nil {
+			return nil, nil, errors.Wrap(err, "unable to set Group, Version and Kind for generated Kubernetes resources")
 		}
-		if isUnversioned {
-			return nil, nil, fmt.Errorf("ConvertToVersion failed: can't output unversioned type: %T", runtimeObject)
-		}
-
-		runtimeObject.GetObjectKind().SetGroupVersionKind(gvk)
 	}
 
 	return runtimeObjects, extraResources, nil
@@ -142,7 +105,7 @@ func (deployment *DeploymentSpecMod) Transform() ([]runtime.Object, []string, er
 func (deployment *DeploymentSpecMod) CreateK8sController() (*ext_v1beta1.Deployment, error) {
 
 	// We need to error out if both, deployment.PodSpec and deployment.DeploymentSpec are empty
-	if reflect.DeepEqual(deployment.PodSpec, api_v1.PodSpec{}) && reflect.DeepEqual(deployment.DeploymentSpec, ext_v1beta1.DeploymentSpec{}) {
+	if deployment.isDeploymentSpecPodSpecEmpty() {
 		log.Debug("Both, deployment.PodSpec and deployment.DeploymentSpec are empty, not enough data to create a deployment.")
 		return nil, nil
 	}
@@ -151,7 +114,7 @@ func (deployment *DeploymentSpecMod) CreateK8sController() (*ext_v1beta1.Deploym
 	// This means that someone could specify containers in template.spec and also in top level PodSpec.
 	// This stupid check is supposed to make sure that only one of them set.
 	// TODO: merge DeploymentSpec.Template.Spec and top level PodSpec
-	if !(reflect.DeepEqual(deployment.DeploymentSpec.Template.Spec, api_v1.PodSpec{}) || reflect.DeepEqual(deployment.PodSpec, api_v1.PodSpec{})) {
+	if deployment.isMultiplePodSpecSpecified() {
 		return nil, fmt.Errorf("Pod can't be specfied in two places. Use top level PodSpec or template.spec (DeploymentSpec.Template.Spec) not both")
 	}
 
@@ -176,4 +139,12 @@ func (deployment *DeploymentSpecMod) CreateK8sController() (*ext_v1beta1.Deploym
 		},
 		Spec: deploymentSpec,
 	}, nil
+}
+
+func (deployment *DeploymentSpecMod) isDeploymentSpecPodSpecEmpty() bool {
+	return reflect.DeepEqual(deployment.PodSpec, api_v1.PodSpec{}) && reflect.DeepEqual(deployment.DeploymentSpec, ext_v1beta1.DeploymentSpec{})
+}
+
+func (deployment *DeploymentSpecMod) isMultiplePodSpecSpecified() bool {
+	return !(reflect.DeepEqual(deployment.DeploymentSpec.Template.Spec, api_v1.PodSpec{}) || reflect.DeepEqual(deployment.PodSpec, api_v1.PodSpec{}))
 }
