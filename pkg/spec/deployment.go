@@ -153,7 +153,7 @@ func (deployment *DeploymentSpecMod) CreateK8sController() (*ext_v1beta1.Deploym
 		deploymentSpec.Template.Spec = deployment.PodSpec
 	}
 
-	// TODO: check if this wasn't set by user, in that case we shouldn't ovewrite it
+	// TODO: check if this wasn't set by user, in that case we shouldn't overwrite it
 	deploymentSpec.Template.ObjectMeta.Name = deployment.Name
 
 	// TODO: merge with already existing labels and avoid duplication
