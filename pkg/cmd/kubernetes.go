@@ -21,7 +21,6 @@ import (
 	"io"
 	"os/exec"
 
-	"github.com/kedgeproject/kedge/pkg/encoding"
 	"github.com/kedgeproject/kedge/pkg/spec"
 
 	"github.com/ghodss/yaml"
@@ -41,14 +40,10 @@ func ExecuteKubectl(paths []string, args ...string) error {
 	}
 
 	for _, input := range inputs {
-		app, err := encoding.Decode(input.data)
-		if err != nil {
-			return errors.Wrap(err, "unable to unmarshal data")
-		}
 
-		ros, extraResources, err := spec.Transform(app)
+		ros, extraResources, err := spec.CoreOperations(input.data)
 		if err != nil {
-			return errors.Wrap(err, "unable to convert data")
+			return errors.Wrap(err, "unable to perform controller operations")
 		}
 
 		for _, o := range ros {
