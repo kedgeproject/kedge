@@ -363,3 +363,19 @@ func (app *ControllerFields) CreateK8sObjects() ([]runtime.Object, []string, err
 
 	return objects, app.ExtraResources, nil
 }
+
+// Validate
+
+func validateVolumeClaims(vcs []VolumeClaim) error {
+	// find the duplicate volume claim names, if found any then error out
+	vcmap := make(map[string]interface{})
+	for _, vc := range vcs {
+		if _, ok := vcmap[vc.Name]; !ok {
+			// value here does not matter
+			vcmap[vc.Name] = nil
+		} else {
+			return fmt.Errorf("duplicate entry of volume claim %q", vc.Name)
+		}
+	}
+	return nil
+}
