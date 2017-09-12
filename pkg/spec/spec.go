@@ -17,7 +17,6 @@ limitations under the License.
 package spec
 
 import (
-	"fmt"
 	api_v1 "k8s.io/client-go/pkg/api/v1"
 	ext_v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
 )
@@ -132,20 +131,4 @@ type DeploymentSpecMod struct {
 
 type Controller struct {
 	Controller string `json:"controller,omitempty"`
-}
-
-// Validate
-
-func validateVolumeClaims(vcs []VolumeClaim) error {
-	// find the duplicate volume claim names, if found any then error out
-	vcmap := make(map[string]interface{})
-	for _, vc := range vcs {
-		if _, ok := vcmap[vc.Name]; !ok {
-			// value here does not matter
-			vcmap[vc.Name] = nil
-		} else {
-			return fmt.Errorf("duplicate entry of volume claim %q", vc.Name)
-		}
-	}
-	return nil
 }
