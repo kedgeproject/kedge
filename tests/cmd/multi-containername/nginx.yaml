@@ -1,7 +1,0 @@
-name: nginx
-
-containers:
-- image: quay.io/tomkral/nonroot-nginx
-  name: nonroot
-- image: quay.io/tomkral/sleeper
-
