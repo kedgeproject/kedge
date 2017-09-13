@@ -25,7 +25,6 @@ import (
 	api_v1 "k8s.io/client-go/pkg/api/v1"
 
 	"github.com/davecgh/go-spew/spew"
-	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 func TestPopulateProbes(t *testing.T) {
@@ -714,122 +713,6 @@ func TestPopulateServicePortNames(t *testing.T) {
 
 			if !reflect.DeepEqual(test.inputServicePorts, test.outputServicePorts) {
 				t.Errorf("For input\n%v\nExpected output to be\n%v", spew.Sprint(test.inputServicePorts), spew.Sprint(test.outputServicePorts))
-			}
-		})
-	}
-}
-
-func TestParsePortMapping(t *testing.T) {
-	tests := []struct {
-		name        string
-		portMapping string
-		servicePort *api_v1.ServicePort
-		success     bool
-	}{
-		{
-			name:        "Nothing is passed, not even port",
-			portMapping: "",
-			servicePort: nil,
-			success:     false,
-		},
-		{
-			name:        "Only 'port' is passed",
-			portMapping: "1337",
-			servicePort: &api_v1.ServicePort{
-				Port: 1337,
-				TargetPort: intstr.IntOrString{
-					IntVal: 1337,
-				},
-				Protocol: api_v1.ProtocolTCP,
-			},
-			success: true,
-		},
-		{
-			name:        "port:targetPort is passed",
-			portMapping: "1337:1338",
-			servicePort: &api_v1.ServicePort{
-				Port: 1337,
-				TargetPort: intstr.IntOrString{
-					IntVal: 1338,
-				},
-				Protocol: api_v1.ProtocolTCP,
-			},
-			success: true,
-		},
-		{
-			name:        "port/protocol is passed",
-			portMapping: "1337/UDP",
-			servicePort: &api_v1.ServicePort{
-				Port: 1337,
-				TargetPort: intstr.IntOrString{
-					IntVal: 1337,
-				},
-				Protocol: api_v1.ProtocolUDP,
-			},
-			success: true,
-		},
-		{
-			name:        "port:targetPort/protocol is passed",
-			portMapping: "1337:1338/UDP",
-			servicePort: &api_v1.ServicePort{
-				Port: 1337,
-				TargetPort: intstr.IntOrString{
-					IntVal: 1338,
-				},
-				Protocol: api_v1.ProtocolUDP,
-			},
-			success: true,
-		},
-		{
-			name:        "Invalid protocol (neither TCP nor UDP) is passed",
-			portMapping: "1337:1338/INVALID",
-			servicePort: nil,
-			success:     false,
-		},
-		{
-			name:        "Multiple protocols passed, multiple '/' test",
-			portMapping: "1337/TCP:1338/TCP",
-			servicePort: nil,
-			success:     false,
-		},
-		{
-			name:        "Non int port is passed",
-			portMapping: "batman:1338/TCP",
-			servicePort: nil,
-			success:     false,
-		},
-		{
-			name:        "Non int targetPort is passed",
-			portMapping: "1337:batman/TCP",
-			servicePort: nil,
-			success:     false,
-		},
-		{
-			name:        "More than 2 ports passed, multiple ':' test",
-			portMapping: "1337:1338:1339/TCP",
-			servicePort: nil,
-			success:     false,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-
-			sp, err := parsePortMapping(test.portMapping)
-
-			switch test.success {
-			case true:
-				if err != nil {
-					t.Errorf("Expected test to pass but got an error -\n%v", err)
-				}
-			case false:
-				if err == nil {
-					t.Errorf("Expected %v to fail, but test passed!", test.portMapping)
-				}
-			}
-
-			if !reflect.DeepEqual(sp, test.servicePort) {
-				t.Errorf("Expected ServicePort to be -\n%v\nBut got -\n%v", spew.Sprint(test.servicePort), spew.Sprint(sp))
 			}
 		})
 	}
