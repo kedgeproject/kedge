@@ -163,7 +163,7 @@ type ControllerFields struct {
 
 // DeploymentSpecMod is Kedge's extension of Kubernetes DeploymentSpec and allows
 // defining a complete kedge application
-// kedgeSpec: io.kedge.DeploymentSpec
+// kedgeSpec: io.kedge.DeploymentSpecMod
 type DeploymentSpecMod struct {
 	ControllerFields `json:",inline"`
 	// k8s: io.k8s.kubernetes.pkg.apis.apps.v1beta1.DeploymentSpec
