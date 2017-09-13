@@ -27,7 +27,7 @@ import (
 // Represents the "generate" command
 var generateCmd = &cobra.Command{
 	Use:   "generate",
-	Short: "Generate Kubernetes resources from App definition",
+	Short: "Generate Kubernetes resources from an app definition",
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := ifFilesPassed(InputFiles); err != nil {
 			fmt.Println(err)

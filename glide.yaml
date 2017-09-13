@@ -3,7 +3,9 @@ import:
 - package: github.com/ghodss/yaml
   version: v1.0.0
 - package: github.com/spf13/cobra
+# pinning pflag to v1.0.0 because cobra complains if this is not done
 - package: github.com/spf13/pflag
+  version: v1.0.0
 - package: github.com/spf13/viper
 - package: github.com/pkg/errors
   version: v0.8.0
@@ -12,7 +14,7 @@ import:
   subpackages:
   - spew
 - package: k8s.io/client-go
-  version: v3.0.0
+  version: v4.0.0
   subpackages:
   - pkg/api
   - pkg/api/install
@@ -20,9 +22,7 @@ import:
   - pkg/apis/extensions/install
   - pkg/apis/extensions/v1beta1
   - kubernetes/typed/admissionregistration/v1alpha1
-# pinning it to k8s 1.6 release so that client-go does not complain
 - package: k8s.io/apimachinery
-  version: release-1.6
   subpackages:
   - pkg/api/resource
   - pkg/apis/meta/v1

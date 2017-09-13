@@ -22,7 +22,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/kedgeproject/kedge/pkg/encoding"
 	"github.com/kedgeproject/kedge/pkg/spec"
 
 	"github.com/ghodss/yaml"
@@ -42,14 +41,10 @@ func Generate(paths []string) error {
 	}
 
 	for _, input := range inputs {
-		app, err := encoding.Decode(input.data)
-		if err != nil {
-			return errors.Wrap(err, "unable to unmarshal data")
-		}
 
-		ros, extraResources, err := spec.Transform(app)
+		ros, extraResources, err := spec.CoreOperations(input.data)
 		if err != nil {
-			return errors.Wrap(err, "unable to transform data")
+			return errors.Wrap(err, "unable to perform controller operations")
 		}
 
 		// write all the kubernetes objects that were generated
