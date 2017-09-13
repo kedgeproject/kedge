@@ -2,6 +2,6 @@ name: httpd
 containers:
 - image: centos/httpd
 services:
-  - name: httpd
-    portMappings:
-    - 8080:80/TCP      # port:targetPort/protocol
+- name: httpd
+  portMappings:
+  - 8080:80/TCP      # port:targetPort/protocol

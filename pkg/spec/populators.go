@@ -20,14 +20,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
+	"strings"
 
 	log "github.com/Sirupsen/logrus"
+	api_v1 "k8s.io/client-go/pkg/api/v1"
+
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/pkg/api"
-	api_v1 "k8s.io/client-go/pkg/api/v1"
-	"strconv"
-	"strings"
 )
 
 func populateServicePortNames(serviceName string, servicePorts []api_v1.ServicePort) {
@@ -37,7 +38,6 @@ func populateServicePortNames(serviceName string, servicePorts []api_v1.ServiceP
 			// Only populate if the port name is not already specified
 			if len(servicePorts[i].Name) == 0 {
 				servicePorts[i].Name = serviceName + "-" + strconv.FormatInt(int64(servicePorts[i].Port), 10)
-				fmt.Println(servicePorts[i].Name)
 			}
 		}
 	}

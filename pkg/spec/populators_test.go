@@ -17,14 +17,15 @@ limitations under the License.
 package spec
 
 import (
+	"fmt"
 	"reflect"
 	"sort"
 	"testing"
 
-	"fmt"
+	api_v1 "k8s.io/client-go/pkg/api/v1"
+
 	"github.com/davecgh/go-spew/spew"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	api_v1 "k8s.io/client-go/pkg/api/v1"
 )
 
 func TestPopulateProbes(t *testing.T) {
