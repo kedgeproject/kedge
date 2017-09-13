@@ -321,3 +321,29 @@ Inspired from: [github.com/kubernetes/community/contributors/devel/api-conventio
   - Add an example in docs/example with its explanation README, for e.g. [health](https://github.com/kedgeproject/kedge/tree/master/docs/examples/health).
   - Add an e2e test on above example, for e.g. see test code for [health](https://github.com/kedgeproject/kedge/blob/cfee15ffde02c611d08420699a43869706be2d53/tests/e2e/e2e_test.go#L272).
   - Add this feature information to file-reference, for e.g. see [health section](https://github.com/kedgeproject/kedge/blob/master/docs/file-reference.md#health).
+
+### golang dependency import conventions
+
+Imports MUST be arranged in three sections, separated by an empty line.
+
+```go
+stdlib
+kedge
+thirdparty
+```
+
+For example:
+
+```go
+"fmt"
+"io"
+"os/exec"
+
+pkgcmd "github.com/kedgeproject/kedge/pkg/cmd"
+"github.com/kedgeproject/kedge/pkg/spec"
+
+"github.com/ghodss/yaml"
+"github.com/pkg/errors"
+```
+
+Once arranged, let `gofmt` sort the sequence of imports.
