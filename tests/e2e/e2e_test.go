@@ -19,9 +19,15 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-// Hardcoding the location of kedge, which is in root of project directory
+/*
+	This file tests the functionality of a tool that deploy to Kubernetes and checks
+	to see if that tools successfully deploys said file.
+*/
+
+// Hardcoding the location of the binary, which is in root of project directory
 var ProjectPath = "$GOPATH/src/github.com/kedgeproject/kedge/"
-var KedgeLoc = ProjectPath + "kedge"
+var BinaryLocation = ProjectPath + "kedge"
+var BinaryCommand = []string{"create", "-n"}
 
 func homeDir() string {
 	if h := os.Getenv("HOME"); h != "" {
@@ -30,6 +36,7 @@ func homeDir() string {
 	return os.Getenv("USERPROFILE") // windows
 }
 
+// Create a Kubernetes client
 func createClient() (*kubernetes.Clientset, error) {
 	var kubeconfig *string
 	if home := homeDir(); home != "" {
@@ -49,6 +56,7 @@ func createClient() (*kubernetes.Clientset, error) {
 	return kubernetes.NewForConfig(config)
 }
 
+// Create the repsective namespace
 func createNS(clientset *kubernetes.Clientset, name string) (*v1.Namespace, error) {
 	ns := &v1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
@@ -58,13 +66,16 @@ func createNS(clientset *kubernetes.Clientset, name string) (*v1.Namespace, erro
 	return clientset.CoreV1().Namespaces().Create(ns)
 }
 
-func RunKedge(files []string, namespace string) ([]byte, error) {
-	args := []string{"create", "-n", namespace}
+// Run the binary against the Kubernetes cluster using a specified command against a specific namespace
+// requirement: your binary must have a --namespace parameter to specify a namespace location as well as
+// -f to specific a file. Ex: command --namespace foobar -f foo.yml -f bar.yml
+func RunBinary(files []string, namespace string) ([]byte, error) {
+	args := append(BinaryCommand, namespace)
 	for _, file := range files {
 		args = append(args, "-f")
 		args = append(args, os.ExpandEnv(file))
 	}
-	cmd := exec.Command(os.ExpandEnv(KedgeLoc), args...)
+	cmd := exec.Command(os.ExpandEnv(BinaryLocation), args...)
 
 	var out, stdErr bytes.Buffer
 	cmd.Stdout = &out
@@ -73,12 +84,13 @@ func RunKedge(files []string, namespace string) ([]byte, error) {
 	err := cmd.Run()
 	if err != nil {
 		return nil, fmt.Errorf("error running %q\n%s %s",
-			fmt.Sprintf("kedge %s", strings.Join(args, " ")),
+			fmt.Sprintf("command: %s", strings.Join(args, " ")),
 			stdErr.String(), err)
 	}
 	return out.Bytes(), nil
 }
 
+// Map specific keys (utility function)
 func mapkeys(m map[string]int) []string {
 	var keys []string
 	for k := range m {
@@ -87,6 +99,7 @@ func mapkeys(m map[string]int) []string {
 	return keys
 }
 
+// Check to see if specific pods have been started
 func PodsStarted(t *testing.T, clientset *kubernetes.Clientset, namespace string, podNames []string) error {
 	// convert podNames to map
 	podUp := make(map[string]int)
@@ -125,6 +138,7 @@ func PodsStarted(t *testing.T, clientset *kubernetes.Clientset, namespace string
 	return nil
 }
 
+// Retrieve all required end-points via minikube (required!)
 func getEndPoints(t *testing.T, clientset *kubernetes.Clientset, namespace string, svcs []ServicePort) (map[string]string, error) {
 	// find the minikube ip
 	node, err := clientset.CoreV1().Nodes().List(metav1.ListOptions{})
@@ -159,6 +173,7 @@ func getEndPoints(t *testing.T, clientset *kubernetes.Clientset, namespace strin
 	return endpoint, nil
 }
 
+// Ping all endpoints
 func pingEndPoints(t *testing.T, ep map[string]string) error {
 	timeout := time.After(5 * time.Minute)
 	tick := time.Tick(time.Second)
@@ -166,7 +181,7 @@ func pingEndPoints(t *testing.T, ep map[string]string) error {
 	for {
 		select {
 		case <-timeout:
-			return fmt.Errorf("could not curl on the service in given time: 5 minutes")
+			return fmt.Errorf("could not ping the specific service in given time: 5 minutes")
 		case <-tick:
 			for e, u := range ep {
 				timeout := time.Duration(5 * time.Second)
@@ -194,6 +209,7 @@ func pingEndPoints(t *testing.T, ep map[string]string) error {
 	return nil
 }
 
+// Delete the namespace
 func deleteNamespace(t *testing.T, clientset *kubernetes.Clientset, namespace string) {
 	if err := clientset.CoreV1().Namespaces().Delete(namespace, &metav1.DeleteOptions{}); err != nil {
 		t.Logf("error deleting namespace %q: %v", namespace, err)
@@ -201,11 +217,13 @@ func deleteNamespace(t *testing.T, clientset *kubernetes.Clientset, namespace st
 	t.Logf("successfully deleted namespace: %q", namespace)
 }
 
+// These structs create a specific name as well as port to ping
 type ServicePort struct {
 	Name string
 	Port int32
 }
 
+// Here we will test all of our test data!
 type testData struct {
 	TestName         string
 	Namespace        string
@@ -214,6 +232,9 @@ type testData struct {
 	NodePortServices []ServicePort
 }
 
+// The "bread and butter" of the test-suite. We will iterate through
+// each test that is required and make sure that not only are the pods started
+// but that each test is pingable / is accessable.
 func Test_Integration(t *testing.T) {
 	clientset, err := createClient()
 	if err != nil {
@@ -347,7 +368,7 @@ func Test_Integration(t *testing.T) {
 			defer deleteNamespace(t, clientset, test.Namespace)
 
 			// run kedge
-			convertedOutput, err := RunKedge(test.InputFiles, test.Namespace)
+			convertedOutput, err := RunBinary(test.InputFiles, test.Namespace)
 			if err != nil {
 				t.Fatalf("error running kedge: %v", err)
 			}
