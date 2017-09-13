@@ -58,10 +58,18 @@ test-unit:
 .PHONY: test-e2e
 test-e2e:
 
+ifneq ($(and $(PARALLEL),$(TIMEOUT)),)
+	go test -parallel=$(PARALLEL) -timeout=$(TIMEOUT) -v github.com/kedgeproject/kedge/tests/e2e
+else
 ifdef PARALLEL
 	go test -parallel=$(PARALLEL) -v github.com/kedgeproject/kedge/tests/e2e
 else
+ifdef TIMEOUT
+	go test -timeout=$(TIMEOUT) -v github.com/kedgeproject/kedge/tests/e2e
+else
 	go test -v github.com/kedgeproject/kedge/tests/e2e
+endif
+endif
 endif
 
 # Run all tests
