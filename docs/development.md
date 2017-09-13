@@ -206,3 +206,106 @@ please add a ref tag comment:
 please refer to the swagger specification of Kubernetes for any particular release. For e.g
 In Kubernetes 1.7, the reference tag for deployment is
 `io.k8s.kubernetes.pkg.apis.apps.v1beta1.DeploymentSpec`.
+
+### Validation
+
+In order to facilitate consistent error messages, we ask that validation logic
+adheres to the following guidelines whenever possible (though exceptional cases will exist).
+
+* Be as precise as possible.
+* Telling users what they CAN do is more useful than telling them what they
+CANNOT do.
+* When asserting a requirement in the positive, use "must".  Examples: "must be
+greater than 0", "must match regex '[a-z]+'".  Words like "should" imply that
+the assertion is optional, and must be avoided.
+* When asserting a formatting requirement in the negative, use "must not".
+Example: "must not contain '..'".  Words like "should not" imply that the
+assertion is optional, and must be avoided.
+* When asserting a behavioral requirement in the negative, use "may not".
+Examples: "may not be specified when otherField is empty", "only `name` may be
+specified".
+* When referencing a literal string value, indicate the literal in
+single-quotes. Example: "must not contain '..'".
+* When referencing another field name, indicate the name in back-quotes.
+Example: "must be greater than `request`".
+* When specifying inequalities, use words rather than symbols.  Examples: "must
+be less than 256", "must be greater than or equal to 0".  Do not use words
+like "larger than", "bigger than", "more than", "higher than", etc.
+* When specifying numeric ranges, use inclusive ranges when possible.
+
+Taken from: [github.com/kubernetes/community/contributors/devel/api-conventions.md](https://github.com/kubernetes/community/blob/2bfe095e4dcd02b4ccd3e21c1f30591ca57518a6/contributors/devel/api-conventions.md#validation)
+
+
+### Naming conventions
+
+* Go field names must be CamelCase. JSON field names must be camelCase. Other
+than capitalization of the initial letter, the two should almost always match.
+No underscores nor dashes in either.
+* Field and resource names should be declarative, not imperative (DoSomething,
+SomethingDoer, DoneBy, DoneAt).
+* Use `Node` where referring to
+the node resource in the context of the cluster. Use `Host` where referring to
+properties of the individual physical/virtual system, such as `hostname`,
+`hostPath`, `hostNetwork`, etc.
+* `FooController` is a deprecated kind naming convention. Name the kind after
+the thing being controlled instead (e.g., `Job` rather than `JobController`).
+* The name of a field that specifies the time at which `something` occurs should
+be called `somethingTime`. Do not use `stamp` (e.g., `creationTimestamp`).
+* We use the `fooSeconds` convention for durations, as discussed in the [units
+subsection](#units).
+  * `fooPeriodSeconds` is preferred for periodic intervals and other waiting
+periods (e.g., over `fooIntervalSeconds`).
+  * `fooTimeoutSeconds` is preferred for inactivity/unresponsiveness deadlines.
+  * `fooDeadlineSeconds` is preferred for activity completion deadlines.
+* Do not use abbreviations in the API, except where they are extremely commonly
+used, such as "id", "args", or "stdin".
+* Acronyms should similarly only be used when extremely commonly known. All
+letters in the acronym should have the same case, using the appropriate case for
+the situation. For example, at the beginning of a field name, the acronym should
+be all lowercase, such as "httpGet". Where used as a constant, all letters
+should be uppercase, such as "TCP" or "UDP".
+* The name of a field referring to another resource of kind `Foo` by name should
+be called `fooName`. The name of a field referring to another resource of kind
+`Foo` by ObjectReference (or subset thereof) should be called `fooRef`.
+* More generally, include the units and/or type in the field name if they could
+be ambiguous and they are not specified by the value or value type.
+* The name of a field expressing a boolean property called 'fooable' should be
+called `Fooable`, not `IsFooable`.
+
+Taken from: [github.com/kubernetes/community/contributors/devel/api-conventions.md](https://github.com/kubernetes/community/blob/2bfe095e4dcd02b4ccd3e21c1f30591ca57518a6/contributors/devel/api-conventions.md#naming-conventions)
+
+### Optional vs. Required
+
+Fields must be either optional or required.
+
+Optional fields have the following properties:
+
+- They have the `+optional` comment tag in Go.
+- They are a pointer type in the Go definition (e.g. `bool *awesomeFlag`) or
+have a built-in `nil` value (e.g. maps and slices).
+
+In most cases, optional fields should also have the `omitempty` struct tag (the 
+`omitempty` option specifies that the field should be omitted from the json
+encoding if the field has an empty value).
+
+
+Required fields have the opposite properties, namely:
+
+- They do not have an `+optional` comment tag.
+- They do not have an `omitempty` struct tag.
+- They are not a pointer type in the Go definition (e.g. `bool otherFlag`).
+
+Using the `+optional` or the `omitempty` tag causes OpenAPI documentation to 
+reflect that the field is optional.
+
+Using a pointer allows distinguishing unset from the zero value for that type.
+There are examples of this in the codebase. However:
+
+- it can be difficult for implementors to anticipate all cases where an empty
+value might need to be distinguished from a zero value
+- having a pointer consistently imply optional is clearer
+
+Therefore, we ask that pointers always be used with optional fields that do not
+have a built-in `nil` value.
+
+Inspired from: [github.com/kubernetes/community/contributors/devel/api-conventions.md](https://github.com/kubernetes/community/blob/2bfe095e4dcd02b4ccd3e21c1f30591ca57518a6/contributors/devel/api-conventions.md#optional-vs-required)
