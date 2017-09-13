@@ -42,7 +42,7 @@ var createCmd = &cobra.Command{
 			kubectlCommand = append(kubectlCommand, "--namespace", Namespace)
 		}
 
-		if err := pkgcmd.ExecuteKubectl(InputFiles, kubectlCommand...); err != nil {
+		if err := pkgcmd.CreateKubernetesArtifacts(InputFiles, false, kubectlCommand...); err != nil {
 			fmt.Println(err)
 			os.Exit(-1)
 		}
