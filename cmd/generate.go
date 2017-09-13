@@ -33,7 +33,7 @@ var generateCmd = &cobra.Command{
 			fmt.Println(err)
 			os.Exit(-1)
 		}
-		if err := pkgcmd.Generate(InputFiles); err != nil {
+		if err := pkgcmd.CreateKubernetesArtifacts(InputFiles, true, ""); err != nil {
 			fmt.Println(err)
 			os.Exit(-1)
 		}
