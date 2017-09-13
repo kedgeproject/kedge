@@ -309,3 +309,15 @@ Therefore, we ask that pointers always be used with optional fields that do not
 have a built-in `nil` value.
 
 Inspired from: [github.com/kubernetes/community/contributors/devel/api-conventions.md](https://github.com/kubernetes/community/blob/2bfe095e4dcd02b4ccd3e21c1f30591ca57518a6/contributors/devel/api-conventions.md#optional-vs-required)
+
+### General guidelines for developers
+
+- When you add a new function/method
+
+  - Add unit-tests
+
+- When you add a new feature
+
+  - Add an example in docs/example with its explanation README, for e.g. [health](https://github.com/kedgeproject/kedge/tree/master/docs/examples/health).
+  - Add an e2e test on above example, for e.g. see test code for [health](https://github.com/kedgeproject/kedge/blob/cfee15ffde02c611d08420699a43869706be2d53/tests/e2e/e2e_test.go#L272).
+  - Add this feature information to file-reference, for e.g. see [health section](https://github.com/kedgeproject/kedge/blob/master/docs/file-reference.md#health).
