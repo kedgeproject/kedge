@@ -17,11 +17,14 @@ limitations under the License.
 package spec
 
 import (
+	"fmt"
 	"reflect"
 	"sort"
 	"testing"
 
 	api_v1 "k8s.io/client-go/pkg/api/v1"
+
+	"github.com/davecgh/go-spew/spew"
 )
 
 func TestPopulateProbes(t *testing.T) {
@@ -596,6 +599,120 @@ func TestPopulateEnvFrom(t *testing.T) {
 			if !reflect.DeepEqual(test.output, got) {
 				t.Fatalf("expected: %s, got %s",
 					prettyPrintObjects(test.output), prettyPrintObjects(got))
+			}
+		})
+	}
+}
+
+func TestPopulateServicePortNames(t *testing.T) {
+	serviceName := "batman"
+	tests := []struct {
+		name               string
+		inputServicePorts  []api_v1.ServicePort
+		outputServicePorts []api_v1.ServicePort
+	}{
+		{
+			name: "Passing only one servicePort, no population should happen",
+			inputServicePorts: []api_v1.ServicePort{
+				{
+					Port: 8080,
+				},
+			},
+			outputServicePorts: []api_v1.ServicePort{
+				{
+					Port: 8080,
+				},
+			},
+		},
+		{
+			name: "Passing multiple servicePorts with no names, population should happen",
+			inputServicePorts: []api_v1.ServicePort{
+				{
+					Port: 8080,
+				},
+				{
+					Port: 8081,
+				},
+			},
+			outputServicePorts: []api_v1.ServicePort{
+				{
+					Name: fmt.Sprintf("%v-%v", serviceName, 8080),
+					Port: 8080,
+				},
+				{
+					Name: fmt.Sprintf("%v-%v", serviceName, 8081),
+					Port: 8081,
+				},
+			},
+		},
+		{
+			name: "Passing multiple servicePorts with names, no population should happen",
+			inputServicePorts: []api_v1.ServicePort{
+				{
+					Name: fmt.Sprintf("%v-%v", "prepopulated", 8080),
+					Port: 8080,
+				},
+				{
+					Name: fmt.Sprintf("%v-%v", "prepopulated", 8081),
+					Port: 8081,
+				},
+			},
+			outputServicePorts: []api_v1.ServicePort{
+				{
+					Name: fmt.Sprintf("%v-%v", "prepopulated", 8080),
+					Port: 8080,
+				},
+				{
+					Name: fmt.Sprintf("%v-%v", "prepopulated", 8081),
+					Port: 8081,
+				},
+			},
+		},
+		{
+			name: "Passing multiple servicePorts, some with names, some without, selective population should happen",
+			inputServicePorts: []api_v1.ServicePort{
+				{
+					Name: fmt.Sprintf("%v-%v", "prepopulated", 8080),
+					Port: 8080,
+				},
+				{
+					Name: fmt.Sprintf("%v-%v", "prepopulated", 8081),
+					Port: 8081,
+				},
+				{
+					Port: 8082,
+				},
+				{
+					Port: 8083,
+				},
+			},
+			outputServicePorts: []api_v1.ServicePort{
+				{
+					Name: fmt.Sprintf("%v-%v", "prepopulated", 8080),
+					Port: 8080,
+				},
+				{
+					Name: fmt.Sprintf("%v-%v", "prepopulated", 8081),
+					Port: 8081,
+				},
+				{
+					Name: fmt.Sprintf("%v-%v", serviceName, 8082),
+					Port: 8082,
+				},
+				{
+					Name: fmt.Sprintf("%v-%v", serviceName, 8083),
+					Port: 8083,
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			populateServicePortNames(serviceName, test.inputServicePorts)
+
+			if !reflect.DeepEqual(test.inputServicePorts, test.outputServicePorts) {
+				t.Errorf("For input\n%v\nExpected output to be\n%v", spew.Sprint(test.inputServicePorts), spew.Sprint(test.outputServicePorts))
 			}
 		})
 	}

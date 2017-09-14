@@ -348,6 +348,19 @@ func Test_Integration(t *testing.T) {
 				{Name: "wordpress", Port: 80},
 			},
 		},
+		{
+			TestName:  "Test portMappings",
+			Namespace: "portmappings",
+			InputFiles: []string{
+				ProjectPath + "docs/examples/portMappings/wordpress.yaml",
+				ProjectPath + "docs/examples/portMappings/mariadb.yaml",
+			},
+			PodStarted: []string{"wordpress"},
+			NodePortServices: []ServicePort{
+				{Name: "wordpress", Port: 80},
+				{Name: "mariadb", Port: 3306},
+			},
+		},
 	}
 
 	_, err = clientset.CoreV1().Pods("").List(metav1.ListOptions{})

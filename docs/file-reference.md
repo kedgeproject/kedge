@@ -323,6 +323,8 @@ name: <string>
 ports:
 - port: <int>
   endpoint: <URL>/<Path>
+portMappings:
+- <port>:<targetPort>/<protocol>
 <Kubernetes Service Spec>
 ```
 
@@ -335,7 +337,6 @@ name: wordpress
 ports:
 - port: 8080
   targetPort: 80
-
 ```
 
 Each service gets converted into a Kubernetes `service` and `ingress`es
@@ -362,6 +363,32 @@ of `service`.
 `endpoint` the way it is defined is can actually can be divided into
 two parts the `URL` and `Path`, it is delimited by a forward slash.
 
+#### portMappings
+```yaml
+portMappings:
+- 8081:81/UDP
+```
+
+`portMappings` is an added field to ServiceSpec.
+This lets us set the port, targetPort and the protocol for a service in a single line. This is parsed and converted to a Kubernetes ServicePort object.
+
+`portMappings` is an array of `port:targetPort/protocol` definitions, so the syntax looks like -
+
+```yaml
+portMappings:
+- <port:targetPort/protocol>
+- <port:targetPort/protocol>
+```
+
+The only mandatory part to specify in a portMapping is "port".
+There are 4 possible cases here
+
+- When only `port` is specified - `targetPort` is set to `port` and protocol is set to `TCP`
+- When `port:targetPort` is specified - protocol is set to `TCP`
+- When `port/protocol` is specified - `targetPort` is set to `port`
+- When `port:targetPort/protocol` is specified - no auto population is done since all values are provided
+
+Find a working example using `portMappings` field [here](https://github.com/kedgeproject/kedge/tree/master/docs/examples/portMappings/httpd.yaml)
 
 ## ingresses
 
