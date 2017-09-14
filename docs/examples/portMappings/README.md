@@ -24,7 +24,7 @@ name: httpd
 containers:
 - image: centos/httpd
 services:
-  - name: httpd
-    portMappings:
-    - 8080:80/TCP
+- name: httpd
+  portMappings:
+  - 8080:80/TCP
 ```
