@@ -17,9 +17,10 @@ limitations under the License.
 package spec
 
 import (
+	"encoding/json"
 	"fmt"
 
-	"encoding/json"
+	log "github.com/Sirupsen/logrus"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/pkg/api"
@@ -96,4 +97,19 @@ func getInt64Addr(i int64) *int64 {
 func prettyPrintObjects(v interface{}) string {
 	b, _ := json.MarshalIndent(v, "", "  ")
 	return string(b)
+}
+
+// addKeyValueToMap adds a key value pair to a given map[string]string only if
+// the map does not contain the supplied key. Creates a new map if map is empty
+func addKeyValueToMap(k string, v string, m map[string]string) {
+
+	if len(m) == 0 {
+		m = make(map[string]string)
+	}
+
+	if _, ok := m[k]; !ok {
+		m[k] = v
+	} else {
+		log.Debugf("not adding '%v: %v' to map since there exists a user defined label '%v: %v'", k, v, k, m[k])
+	}
 }

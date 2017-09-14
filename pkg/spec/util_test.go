@@ -20,8 +20,10 @@ import (
 	"testing"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1"
+	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	api_v1 "k8s.io/client-go/pkg/api/v1"
 	batch_v1 "k8s.io/client-go/pkg/apis/batch/v1"
+
 	"reflect"
 )
 
@@ -50,7 +52,23 @@ func TestIsVolumeDefined(t *testing.T) {
 }
 
 func TestIsPVCDefined(t *testing.T) {
-	volumes := []VolumeClaim{{Name: "foo"}, {Name: "bar"}, {Name: "baz"}}
+	volumes := []VolumeClaim{
+		{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name: "foo",
+			},
+		},
+		{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name: "bar",
+			},
+		},
+		{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name: "baz",
+			},
+		},
+	}
 
 	tests := []struct {
 		Search string

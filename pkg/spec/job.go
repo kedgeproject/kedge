@@ -26,7 +26,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	log "github.com/Sirupsen/logrus"
-	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	api_v1 "k8s.io/client-go/pkg/api/v1"
 	batch_v1 "k8s.io/client-go/pkg/apis/batch/v1"
 )
@@ -44,6 +43,9 @@ func (job *JobSpecMod) Fix() error {
 	if err := job.ControllerFields.fixControllerFields(); err != nil {
 		return errors.Wrap(err, "unable to fix ControllerFields")
 	}
+
+	addKeyValueToMap(appLabelKey, job.ControllerFields.Name, job.ObjectMeta.Labels)
+
 	return nil
 }
 
@@ -115,11 +117,8 @@ func (job *JobSpecMod) CreateK8sController() (*batch_v1.Job, error) {
 	}
 
 	return &batch_v1.Job{
-		ObjectMeta: meta_v1.ObjectMeta{
-			Name:   job.Name,
-			Labels: job.Labels,
-		},
-		Spec: jobSpec,
+		ObjectMeta: job.ObjectMeta,
+		Spec:       jobSpec,
 	}, nil
 }
 

@@ -38,6 +38,8 @@ import (
 	_ "k8s.io/client-go/pkg/apis/extensions/install"
 )
 
+const appLabelKey = "app"
+
 // Fix
 
 func fixServices(services []ServiceSpecMod, appName string) ([]ServiceSpecMod, error) {
@@ -50,6 +52,8 @@ func fixServices(services []ServiceSpecMod, appName string) ([]ServiceSpecMod, e
 				return nil, errors.New("More than one service mentioned, please specify name for each one")
 			}
 		}
+
+		addKeyValueToMap(appLabelKey, appName, service.ObjectMeta.Labels)
 
 		// this should be the last statement in this for loop
 		services[i] = service
@@ -67,6 +71,9 @@ func fixVolumeClaims(volumeClaims []VolumeClaim, appName string) ([]VolumeClaim,
 					" please specify name for each one")
 			}
 		}
+
+		addKeyValueToMap(appLabelKey, appName, pVolume.ObjectMeta.Labels)
+
 		volumeClaims[i] = pVolume
 	}
 	return volumeClaims, nil
@@ -75,13 +82,15 @@ func fixVolumeClaims(volumeClaims []VolumeClaim, appName string) ([]VolumeClaim,
 func fixConfigMaps(configMaps []ConfigMapMod, appName string) ([]ConfigMapMod, error) {
 	// if only one configMap is defined and its name is not specified
 	if len(configMaps) == 1 && configMaps[0].Name == "" {
-		configMaps[0].Name = appName
+		configMaps[0].ObjectMeta.Name = appName
+		addKeyValueToMap(appLabelKey, appName, configMaps[0].ObjectMeta.Labels)
 	} else if len(configMaps) > 1 {
 		// if multiple configMaps is defined then each should have a name
 		for cdn, cd := range configMaps {
 			if cd.Name == "" {
 				return nil, fmt.Errorf("name not specified for app.configMaps[%d]", cdn)
 			}
+			addKeyValueToMap(appLabelKey, appName, cd.ObjectMeta.Labels)
 		}
 	}
 	return configMaps, nil
@@ -90,12 +99,14 @@ func fixConfigMaps(configMaps []ConfigMapMod, appName string) ([]ConfigMapMod, e
 func fixSecrets(secrets []SecretMod, appName string) ([]SecretMod, error) {
 	// populate secret name only if one secret is specified
 	if len(secrets) == 1 && secrets[0].Name == "" {
-		secrets[0].Name = appName
+		secrets[0].ObjectMeta.Name = appName
+		addKeyValueToMap(appLabelKey, appName, secrets[0].ObjectMeta.Labels)
 	} else if len(secrets) > 1 {
 		for i, sec := range secrets {
 			if sec.Name == "" {
 				return nil, fmt.Errorf("name not specified for app.secrets[%d]", i)
 			}
+			addKeyValueToMap(appLabelKey, appName, sec.ObjectMeta.Labels)
 		}
 	}
 	return secrets, nil
@@ -104,12 +115,14 @@ func fixSecrets(secrets []SecretMod, appName string) ([]SecretMod, error) {
 func fixIngresses(ingresses []IngressSpecMod, appName string) ([]IngressSpecMod, error) {
 	// populate ingress name only if one ingress is specified
 	if len(ingresses) == 1 && ingresses[0].Name == "" {
-		ingresses[0].Name = appName
+		ingresses[0].ObjectMeta.Name = appName
+		addKeyValueToMap(appLabelKey, appName, ingresses[0].ObjectMeta.Labels)
 	} else if len(ingresses) > 1 {
 		for i, ing := range ingresses {
 			if ing.Name == "" {
 				return nil, fmt.Errorf("name not specified for app.ingresses[%d]", i)
 			}
+			addKeyValueToMap(appLabelKey, appName, ing.ObjectMeta.Labels)
 		}
 	}
 	return ingresses, nil
@@ -180,7 +193,7 @@ func (cf *ControllerFields) fixControllerFields() error {
 // Transform
 
 func (app *ControllerFields) getLabels() map[string]string {
-	labels := map[string]string{"app": app.Name}
+	labels := map[string]string{appLabelKey: app.Name}
 	return labels
 }
 
@@ -189,11 +202,8 @@ func (app *ControllerFields) createIngresses() ([]runtime.Object, error) {
 
 	for _, i := range app.Ingresses {
 		ing := &ext_v1beta1.Ingress{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:   i.Name,
-				Labels: app.Labels,
-			},
-			Spec: i.IngressSpec,
+			ObjectMeta: i.ObjectMeta,
+			Spec:       i.IngressSpec,
 		}
 		ings = append(ings, ing)
 	}
@@ -204,11 +214,8 @@ func (app *ControllerFields) createServices() ([]runtime.Object, error) {
 	var svcs []runtime.Object
 	for _, s := range app.Services {
 		svc := &api_v1.Service{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:   s.Name,
-				Labels: app.Labels,
-			},
-			Spec: s.ServiceSpec,
+			ObjectMeta: s.ObjectMeta,
+			Spec:       s.ServiceSpec,
 		}
 		for _, servicePortMod := range s.Ports {
 			svc.Spec.Ports = append(svc.Spec.Ports, servicePortMod.ServicePort)
@@ -314,10 +321,7 @@ func (app *ControllerFields) createPVC() ([]runtime.Object, error) {
 			v.AccessModes = []api_v1.PersistentVolumeAccessMode{api_v1.ReadWriteOnce}
 		}
 		pvcs = append(pvcs, &api_v1.PersistentVolumeClaim{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:   v.Name,
-				Labels: app.Labels,
-			},
+			ObjectMeta: v.ObjectMeta,
 			// since we updated the pvc spec before so this can be directly fed
 			// without having to do any addition extra
 			Spec: api_v1.PersistentVolumeClaimSpec(v.PersistentVolumeClaimSpec),
@@ -331,10 +335,7 @@ func (app *ControllerFields) createSecrets() ([]runtime.Object, error) {
 
 	for _, s := range app.Secrets {
 		secret := &api_v1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:   s.Name,
-				Labels: app.Labels,
-			},
+			ObjectMeta: s.ObjectMeta,
 			Data:       s.Data,
 			StringData: s.StringData,
 			Type:       s.Type,

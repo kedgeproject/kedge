@@ -56,7 +56,7 @@ func populateProbes(c Container) (Container, error) {
 
 func searchConfigMap(cms []ConfigMapMod, name string) (ConfigMapMod, error) {
 	for _, cm := range cms {
-		if cm.Name == name {
+		if cm.ObjectMeta.Name == name {
 			return cm, nil
 		}
 	}
@@ -66,7 +66,7 @@ func searchConfigMap(cms []ConfigMapMod, name string) (ConfigMapMod, error) {
 func getSecretDataKeys(secrets []SecretMod, name string) ([]string, error) {
 	var dataKeys []string
 	for _, secret := range secrets {
-		if secret.Name == name {
+		if secret.ObjectMeta.Name == name {
 			for dk := range secret.Data {
 				dataKeys = append(dataKeys, dk)
 			}
@@ -173,7 +173,6 @@ func populateContainers(containers []Container, cms []ConfigMapMod, secrets []Se
 		if err != nil {
 			return cnts, errors.Wrapf(err, "error converting 'health' to 'probes', app.containers[%d]", cn)
 		}
-
 		// process envFrom field
 		c, err = populateEnvFrom(c, cms, secrets)
 		if err != nil {

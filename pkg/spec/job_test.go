@@ -40,8 +40,10 @@ func TestJobSpecMod_CreateK8sController(t *testing.T) {
 					Controller: "job",
 					Secrets: []SecretMod{
 						{
-							Name: "secret",
 							Secret: api_v1.Secret{
+								ObjectMeta: meta_v1.ObjectMeta{
+									Name: "secret",
+								},
 								StringData: map[string]string{
 									"testData": "testValue",
 								},
@@ -57,7 +59,9 @@ func TestJobSpecMod_CreateK8sController(t *testing.T) {
 			name: "ActiveDeadlineSeconds is specified, make sure it's only populated for JobSpec and not for PodSpec",
 			jobSpecMod: &JobSpecMod{
 				ControllerFields: ControllerFields{
-					Name:       "testJob",
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "testJob",
+					},
 					Controller: "job",
 					PodSpecMod: PodSpecMod{
 						PodSpec: api_v1.PodSpec{

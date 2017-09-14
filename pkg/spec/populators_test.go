@@ -22,6 +22,7 @@ import (
 	"sort"
 	"testing"
 
+	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	api_v1 "k8s.io/client-go/pkg/api/v1"
 
 	"github.com/davecgh/go-spew/spew"
@@ -228,30 +229,48 @@ func TestConvertMapToList(t *testing.T) {
 
 var cms = []ConfigMapMod{
 	{
-		Name: "test1", Data: map[string]string{"ten": "TEN"},
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name: "test1",
+		},
+		ConfigMap: api_v1.ConfigMap{
+			Data: map[string]string{"ten": "TEN"},
+		},
 	},
 	{
-		Name: "test2",
-		Data: map[string]string{"two": "TWO", "four": "FOUR", "eight": "EIGHT"},
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name: "test2",
+		},
+		ConfigMap: api_v1.ConfigMap{
+			Data: map[string]string{"two": "TWO", "four": "FOUR", "eight": "EIGHT"},
+		},
 	},
 }
 var secrets = []SecretMod{
 	{
-		Name: "test1",
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name: "test1",
+		},
 		Secret: api_v1.Secret{
 			Data:       map[string][]byte{"one": []byte("ONE"), "five": []byte("FIVE")},
 			StringData: map[string]string{"three": "THREE", "four": "FOUR"},
 		},
 	},
 	{
-		Name: "test2",
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name: "test2",
+		},
+
 		Secret: api_v1.Secret{
 			Data:       map[string][]byte{"one": []byte("ONE"), "two": []byte("TWO")},
 			StringData: map[string]string{"three": "THREE", "four": "FOUR"},
 		},
 	},
 	{
-		Name: "test3",
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name: "test3",
+		},
+
+		Secret: api_v1.Secret{},
 	},
 }
 
@@ -719,7 +738,24 @@ func TestPopulateServicePortNames(t *testing.T) {
 }
 
 func TestPopulateVolumes(t *testing.T) {
-	volumeClaims := []VolumeClaim{{Name: "foo"}, {Name: "bar"}, {Name: "barfoo"}}
+	volumeClaims := []VolumeClaim{
+		{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name: "foo",
+			},
+		},
+		{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name: "bar",
+			},
+		},
+		{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name: "barfoo",
+			},
+		},
+	}
+
 	volumes := []api_v1.Volume{{Name: "foo"}}
 
 	// a volumeMount is defined but that is not there in volumeClaims
