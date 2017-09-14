@@ -41,6 +41,16 @@ func (deployment *DeploymentSpecMod) Unmarshal(data []byte) error {
 	return nil
 }
 
+func (deployment *DeploymentSpecMod) Validate() error {
+
+	// validate volumeclaims
+	if err := validateVolumeClaims(deployment.VolumeClaims); err != nil {
+		return errors.Wrap(err, "error validating volume claims")
+	}
+
+	return nil
+}
+
 // TODO: abstract out this code when more controllers are added
 func (deployment *DeploymentSpecMod) Fix() error {
 
@@ -166,14 +176,4 @@ func (deployment *DeploymentSpecMod) CreateK8sController() (*ext_v1beta1.Deploym
 		},
 		Spec: deploymentSpec,
 	}, nil
-}
-
-func (deployment *DeploymentSpecMod) Validate() error {
-
-	// validate volumeclaims
-	if err := validateVolumeClaims(deployment.VolumeClaims); err != nil {
-		return errors.Wrap(err, "error validating volume claims")
-	}
-
-	return nil
 }
