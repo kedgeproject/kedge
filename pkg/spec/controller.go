@@ -49,8 +49,9 @@ func GetController(data []byte) (ControllerInterface, error) {
 	switch specController.Controller {
 	// If no controller is defined, we default to deployment controller
 	case "", "deployment":
-		// validate if the user provided input is valid kedge app
 		return &DeploymentSpecMod{}, nil
+	case "deploymentconfig":
+		return &DeploymentConfigSpecMod{}, nil
 	default:
 		return nil, fmt.Errorf("invalid controller: %v", specController.Controller)
 	}
@@ -59,29 +60,40 @@ func GetController(data []byte) (ControllerInterface, error) {
 // CoreOperations takes in the raw input data and extracts the controller
 // information, and proceeds to run the controller specific operations on the
 // parsed data.
+
+// The "core operations" is important to Kedge as it unmarshals, validates the artifacts
+// as well as return the correct transformation of said artifact.
+//
 // Returns the converted Kubernetes objects, extra resources and an error, if any.
 func CoreOperations(data []byte) ([]runtime.Object, []string, error) {
+
+	// Retrieve the selected controller
 	kController, err := GetController(data)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "unable to get Kubernetes controller information from Kedge definition")
 	}
 
+	// Unmarshal all data
 	if err := kController.Unmarshal(data); err != nil {
 		return nil, nil, errors.Wrap(err, "unable to unmarshal data")
 	}
 
+	// Validate said data
 	if err := kController.Validate(); err != nil {
 		return nil, nil, errors.Wrap(err, "unable to validate data")
 	}
 
+	// Fix any problems that may occur
 	if err := kController.Fix(); err != nil {
 		return nil, nil, errors.Wrap(err, "unable to fix data")
 	}
 
-	ros, extraResources, err := kController.Transform()
+	// Transform! Here we shall transform all the data to their Kubernetes (or OpenShift) object equivilant.
+	artifacts, extraResources, err := kController.Transform()
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "unable to transform data")
 	}
 
-	return ros, extraResources, nil
+	// In the end we return both the transformed data as well as any extra resources passed in.
+	return artifacts, extraResources, nil
 }

@@ -30,6 +30,7 @@ import (
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/pkg/api"
+	kapi "k8s.io/kubernetes/pkg/api"
 )
 
 func (deployment *DeploymentSpecMod) Unmarshal(data []byte) error {
@@ -160,7 +161,7 @@ func (deployment *DeploymentSpecMod) CreateK8sController() (*ext_v1beta1.Deploym
 	deploymentSpec.Template.ObjectMeta.Labels = deployment.Labels
 
 	return &ext_v1beta1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
+		ObjectMeta: kapi.ObjectMeta{
 			Name:   deployment.Name,
 			Labels: deployment.Labels,
 		},

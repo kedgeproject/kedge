@@ -1,22 +1,7 @@
-/*
-Copyright 2017 The Kedge Authors All rights reserved.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package spec
 
 import (
+	// openshift_api "github.com/openshift/origin/pkg/deploy/api"
 	api_v1 "k8s.io/client-go/pkg/api/v1"
 	ext_v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
 )
@@ -161,6 +146,11 @@ type ControllerFields struct {
 	PodSpecMod `json:",inline"`
 }
 
+type Controller struct {
+	Controller string `json:"controller,omitempty"`
+}
+
+// Orchestrator: Kubernetes, OpenShift
 // DeploymentSpecMod is Kedge's extension of Kubernetes DeploymentSpec and allows
 // defining a complete kedge application
 // kedgeSpec: io.kedge.DeploymentSpec
@@ -170,6 +160,12 @@ type DeploymentSpecMod struct {
 	ext_v1beta1.DeploymentSpec `json:",inline"`
 }
 
-type Controller struct {
-	Controller string `json:"controller,omitempty"`
+// TODOOOOOO!!
+// Ochestrator: OpenShift
+// DeploymentConfigSpecMod is Kedge's extension of OpenShift DeploymentConfig in order to define and allow
+// a complete kedge app based on OpenShift
+type DeploymentConfigSpecMod struct {
+	ControllerFields           `json:",inline"`
+	ext_v1beta1.DeploymentSpec `json:",inline"`
+	//	openshift_api.DeploymentConfig `json:",inline"`
 }
