@@ -94,7 +94,9 @@ func PodsStarted(t *testing.T, clientset *kubernetes.Clientset, namespace string
 		podUp[p] = 0
 	}
 
-	timeout := time.After(5 * time.Minute)
+	// Timeouts after 9 minutes if the Pod has not yet started
+	// 9 minute reasoning = 1 minute before 10-minute Golang test timeout.
+	timeout := time.After(9 * time.Minute)
 	tick := time.Tick(time.Second)
 
 	for {

@@ -181,6 +181,12 @@ make test-e2e PARALLEL=4
 This will run only 4 tests in parallel. By default, it is set to the value of
 `GOMAXPROCS`.
 
+You may also add a timeout which will increase the overall timeout period for the tests.
+
+```bash
+make test-e2e TIMEOUT=15m
+```
+
 ### spec.go conventions
 
 - Add explanation on top of each struct and struct field in `spec.go` to explain what it does,
