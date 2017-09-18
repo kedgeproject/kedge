@@ -31,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/client-go/pkg/api"
 
 	// install api (register and add types to api.Schema)
 	_ "k8s.io/client-go/pkg/api/install"
@@ -48,14 +49,6 @@ func fixServices(services []ServiceSpecMod, appName string) ([]ServiceSpecMod, e
 			} else {
 				return nil, errors.New("More than one service mentioned, please specify name for each one")
 			}
-		}
-
-		for i, servicePort := range service.Ports {
-			// auto populate port names if not specified
-			if len(service.Ports) > 1 && servicePort.Name == "" {
-				servicePort.Name = service.Name + "-" + strconv.FormatInt(int64(servicePort.Port), 10)
-			}
-			service.Ports[i] = servicePort
 		}
 
 		// this should be the last statement in this for loop
@@ -124,6 +117,46 @@ func fixContainers(containers []Container, appName string) ([]Container, error) 
 	return containers, nil
 }
 
+func (cf *ControllerFields) fixControllerFields() error {
+
+	var err error
+
+	// fix Services
+	cf.Services, err = fixServices(cf.Services, cf.Name)
+	if err != nil {
+		return errors.Wrap(err, "Unable to fix services")
+	}
+
+	// fix VolumeClaims
+	cf.VolumeClaims, err = fixVolumeClaims(cf.VolumeClaims, cf.Name)
+	if err != nil {
+		return errors.Wrap(err, "Unable to fix persistentVolume")
+	}
+
+	// fix configMaps
+	cf.ConfigMaps, err = fixConfigMaps(cf.ConfigMaps, cf.Name)
+	if err != nil {
+		return errors.Wrap(err, "unable to fix configMaps")
+	}
+
+	cf.Containers, err = fixContainers(cf.Containers, cf.Name)
+	if err != nil {
+		return errors.Wrap(err, "unable to fix containers")
+	}
+
+	cf.InitContainers, err = fixContainers(cf.InitContainers, cf.Name)
+	if err != nil {
+		return errors.Wrap(err, "unable to fix init-containers")
+	}
+
+	cf.Secrets, err = fixSecrets(cf.Secrets, cf.Name)
+	if err != nil {
+		return errors.Wrap(err, "unable to fix secrets")
+	}
+
+	return nil
+}
+
 // Transform
 
 func (app *ControllerFields) getLabels() map[string]string {
@@ -160,6 +193,17 @@ func (app *ControllerFields) createServices() ([]runtime.Object, error) {
 		for _, servicePortMod := range s.Ports {
 			svc.Spec.Ports = append(svc.Spec.Ports, servicePortMod.ServicePort)
 		}
+
+		for _, portMapping := range s.PortMappings {
+			servicePort, err := parsePortMapping(portMapping)
+			if err != nil {
+				return nil, errors.Wrap(err, "unable to parse port mapping")
+			}
+			svc.Spec.Ports = append(svc.Spec.Ports, *servicePort)
+		}
+
+		populateServicePortNames(svc.Name, svc.Spec.Ports)
+
 		if len(svc.Spec.Selector) == 0 {
 			svc.Spec.Selector = app.Labels
 		}
@@ -377,5 +421,105 @@ func validateVolumeClaims(vcs []VolumeClaim) error {
 			return fmt.Errorf("duplicate entry of volume claim %q", vc.Name)
 		}
 	}
+
 	return nil
+}
+
+func (app *ControllerFields) validateControllerFields() error {
+
+	// validate volumeclaims
+	if err := validateVolumeClaims(app.VolumeClaims); err != nil {
+		return errors.Wrap(err, "error validating volume claims")
+	}
+
+	return nil
+}
+
+// Others
+
+// Parse the string the get the port, targetPort and protocol
+// information, and then return the resulting ServicePort object
+func parsePortMapping(pm string) (*api_v1.ServicePort, error) {
+
+	// The current syntax for portMapping is - port:targetPort/protocol
+	// The only field mandatory here is "port". There are 4 possible cases here
+	// which are handled in this function.
+
+	// Case 1 - port
+	// Case 2 - port:targetPort
+	// Case 3 - port/protocol
+	// Case 4 - port:targetPort/protocol
+
+	var port int32
+	var targetPort intstr.IntOrString
+	var protocol api_v1.Protocol
+
+	protocolSplit := strings.Split(pm, "/")
+	switch len(protocolSplit) {
+
+	// When no protocol is specified, we set the protocol to TCP
+	// Case 1 - port
+	// Case 2 - port:targetPort
+	case 1:
+		protocol = api_v1.ProtocolTCP
+
+	// When protocol is specified
+	// Case 3 - port/protocol
+	// Case 4 - port:targetPort/protocol
+	case 2:
+		switch api_v1.Protocol(protocolSplit[1]) {
+		case api_v1.ProtocolTCP, api_v1.ProtocolUDP:
+			protocol = api_v1.Protocol(protocolSplit[1])
+		default:
+			return nil, fmt.Errorf("invalid protocol '%v' provided, the acceptable values are '%v' and '%v'", protocolSplit[1], api.ProtocolTCP, api.ProtocolUDP)
+		}
+	// There is no case in which splitting by "/" provides < 1 or > 2 values
+	default:
+		return nil, fmt.Errorf("invalid syntax for protocol '%v' provided, use 'port:targetPort/protocol'", pm)
+	}
+
+	portSplit := strings.Split(pm, ":")
+	switch len(portSplit) {
+
+	// When only port is specified
+	// Case 1 - port
+	// Case 3 - port/protocol
+	case 1:
+		// Ignoring the protocol part, if present, and converting only the port
+		// part
+		p, err := strconv.ParseInt(strings.Split(portSplit[0], "/")[0], 10, 32)
+		if err != nil {
+			return nil, errors.Wrap(err, "port is not an int")
+		}
+
+		port, targetPort.IntVal = int32(p), int32(p)
+
+	// When port and targetPort both are specified
+	// Case 2 - port:targetPort
+	// Case 4 - port:targetPort/protocol
+	case 2:
+		p, err := strconv.ParseInt(portSplit[0], 10, 32)
+		if err != nil {
+			return nil, errors.Wrap(err, "port is not an int")
+		}
+		port = int32(p)
+
+		// Ignoring the protocol part, if present, and converting only the
+		// targetPort part
+		tp, err := strconv.ParseInt(strings.Split(portSplit[1], "/")[0], 10, 32)
+		if err != nil {
+			return nil, errors.Wrap(err, "targetPort is not an int")
+		}
+		targetPort.IntVal = int32(tp)
+
+	// There is no case in which splitting by ": provides < 1 or > 2 values
+	default:
+		return nil, fmt.Errorf("invalid syntax for portMapping '%v', use 'port:targetPort/protocol'", pm)
+	}
+
+	return &api_v1.ServicePort{
+		Port:       port,
+		TargetPort: targetPort,
+		Protocol:   protocol,
+	}, nil
 }

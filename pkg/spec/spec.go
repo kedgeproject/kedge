@@ -18,6 +18,7 @@ package spec
 
 import (
 	api_v1 "k8s.io/client-go/pkg/api/v1"
+	batch_v1 "k8s.io/client-go/pkg/apis/batch/v1"
 	ext_v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
 )
 
@@ -57,6 +58,9 @@ type ServiceSpecMod struct {
 	// https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies
 	// ref: io.kedge.ServicePort
 	Ports []ServicePortMod `json:"ports,conflicting"`
+	// The list of portMappings, where each portMapping allows specifying port,
+	// targetPort and protocol in the format '<port>:<targetPort>/<protocol>'
+	PortMappings []string `json:"portMappings,omitempty"`
 }
 
 // IngressSpecMod defines Kubernetes Ingress object
@@ -163,11 +167,25 @@ type ControllerFields struct {
 
 // DeploymentSpecMod is Kedge's extension of Kubernetes DeploymentSpec and allows
 // defining a complete kedge application
-// kedgeSpec: io.kedge.DeploymentSpec
+// kedgeSpec: io.kedge.DeploymentSpecMod
 type DeploymentSpecMod struct {
 	ControllerFields `json:",inline"`
 	// k8s: io.k8s.kubernetes.pkg.apis.apps.v1beta1.DeploymentSpec
 	ext_v1beta1.DeploymentSpec `json:",inline"`
+}
+
+// JobSpecMod is Kedge's extension of Kubernetes JobSpec and allows
+// defining a complete kedge application
+// kedgeSpec: io.kedge.JobSpecMod
+type JobSpecMod struct {
+	ControllerFields `json:",inline"`
+	// k8s: io.k8s.kubernetes.pkg.apis.batch.v1.JobSpec
+	batch_v1.JobSpec `json:",inline"`
+	// Optional duration in seconds relative to the startTime that the job may be active
+	// before the system tries to terminate it; value must be positive integer
+	// This only sets ActiveDeadlineSeconds in JobSpec, not PodSpec
+	// +optional
+	ActiveDeadlineSeconds *int64 `json:"activeDeadlineSeconds,conflicting,omitempty"`
 }
 
 type Controller struct {

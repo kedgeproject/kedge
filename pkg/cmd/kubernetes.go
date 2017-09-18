@@ -19,7 +19,10 @@ package cmd
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
+	"os"
 	"os/exec"
+	"path/filepath"
 
 	"github.com/kedgeproject/kedge/pkg/spec"
 
@@ -27,7 +30,10 @@ import (
 	"github.com/pkg/errors"
 )
 
-func ExecuteKubectl(paths []string, args ...string) error {
+// Generate Kubernetes Artifacts and either writes to file
+// or uses kubectl to deploy.
+// TODO: Refactor into two separate functions (remove `generate bool`).
+func CreateKubernetesArtifacts(paths []string, generate bool, args ...string) error {
 
 	files, err := GetAllYAMLFiles(paths)
 	if err != nil {
@@ -46,38 +52,61 @@ func ExecuteKubectl(paths []string, args ...string) error {
 			return errors.Wrap(err, "unable to perform controller operations")
 		}
 
-		for _, o := range ros {
-			data, err := yaml.Marshal(o)
+		for _, runtimeObject := range ros {
+
+			// Unmarshal said object
+			data, err := yaml.Marshal(runtimeObject)
 			if err != nil {
 				return errors.Wrap(err, "failed to marshal object")
 			}
-			// We need to add "-f -" at the end of the command passed to us to
-			// pass the generated files.
-			// e.g. If the command and arguments are "apply --namespace staging", then the
-			// final command becomes "kubectl apply --namespace staging -f -"
-			arguments := append(args, "-f", "-")
-			err = runKubectl(arguments, data)
-			if err != nil {
-				return errors.Wrap(err, "kubectl error")
+
+			// Write to file if generate = true
+			if generate {
+				err = writeObject(data)
+				if err != nil {
+					return errors.Wrap(err, "failed to write object")
+				}
+			} else {
+				// We need to add "-f -" at the end of the command passed to us to
+				// pass the generated files.
+				// e.g. If the command and arguments are "apply --namespace staging", then the
+				// final command becomes "kubectl apply --namespace staging -f -"
+				arguments := append(args, "-f", "-")
+				err = runKubectl(arguments, data)
+				if err != nil {
+					return errors.Wrap(err, "kubectl error")
+				}
 			}
+
 		}
 
 		for _, file := range extraResources {
 			// change the file name to absolute file name
 			file = findAbsPath(input.fileName, file)
 
-			// We need to add "-f absolute-filename" at the end of the command passed to us to
-			// pass the generated files.
-			// e.g. If the command and arguments are "apply --namespace staging", then the
-			// final command becomes "kubectl apply --namespace staging -f absolute-filename"
-			arguments := append(args, "-f", file)
-			err = runKubectl(arguments, nil)
-			if err != nil {
-				return errors.Wrap(err, "kubectl error")
+			if generate {
+				data, err := ioutil.ReadFile(file)
+				if err != nil {
+					return errors.Wrap(err, "file reading failed")
+				}
+				err = writeObject(data)
+				if err != nil {
+					return errors.Wrap(err, "failed to write object")
+				}
+			} else {
+
+				// We need to add "-f absolute-filename" at the end of the command passed to us to
+				// pass the generated files.
+				// e.g. If the command and arguments are "apply --namespace staging", then the
+				// final command becomes "kubectl apply --namespace staging -f absolute-filename"
+				arguments := append(args, "-f", file)
+				err = runKubectl(arguments, nil)
+				if err != nil {
+					return errors.Wrap(err, "kubectl error")
+				}
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -104,4 +133,26 @@ func runKubectl(args []string, data []byte) error {
 	}
 	fmt.Printf("%s", string(out))
 	return nil
+}
+
+func writeObject(data []byte) error {
+	_, err := fmt.Fprintln(os.Stdout, "---")
+	if err != nil {
+		return errors.Wrap(err, "could not print to STDOUT")
+	}
+
+	_, err = os.Stdout.Write(data)
+	return errors.Wrap(err, "could not write to STDOUT")
+}
+
+func findAbsPath(baseFilePath, path string) string {
+	// TODO: if the baseFilePath is empty then just take the
+	// pwd as basefilePath, here we will force user to
+	// use the kedge binary from the directory that has files
+	// otherwise there is no way of knowing where the files will be
+	// this condition will happen when we add support for reading from the stdin
+	if filepath.IsAbs(path) {
+		return path
+	}
+	return filepath.Join(filepath.Dir(baseFilePath), path)
 }

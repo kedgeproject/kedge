@@ -1,8 +1,7 @@
 # Kedge file reference
 
 Each file defines one micro-service, which forms one `pod` controlled by it's
-controller(right now the default controller is `deployment`).
-
+controller.
 
 A example using all the keys added in Kedge(not all keys from Kubernetes
 API are included):
@@ -71,20 +70,20 @@ defines.
 
 Supported controllers:
 - Deployment
+- Job
 
 Default controller is **Deployment**
 
-## replicas
-
-`replicas: 4`
-
-| **Type** | **Required** |
-|----------|--------------|
-| integer  | no           |
-
-Number of desired pods. This is a pointer to distinguish between explicit zero
-and not specified. Defaults to 1. The valid value can only be a positive number.
-This is an optional field.
+##### Note:
+`activeDeadlineSeconds` is a conflicting field which exists in both, v1.PodSpec
+and batch/v1.JobSpec, and both of these fields exist at the top level of the
+Kedge spec.
+So, whenever `activeDeadlineSeconds` field is set, only JobSpec is populated,
+which means that `activeDeadlineSeconds` is set only for the job and not for the
+pod.
+To populate a pod's `activeDeadlineSeconds`, the user will have to pass this
+field the long way by defining the pod exclusively under
+`job.spec.template.spec.activeDeadlineSeconds`.
 
 
 ## labels
@@ -323,6 +322,8 @@ name: <string>
 ports:
 - port: <int>
   endpoint: <URL>/<Path>
+portMappings:
+- <port>:<targetPort>/<protocol>
 <Kubernetes Service Spec>
 ```
 
@@ -335,7 +336,6 @@ name: wordpress
 ports:
 - port: 8080
   targetPort: 80
-
 ```
 
 Each service gets converted into a Kubernetes `service` and `ingress`es
@@ -362,6 +362,32 @@ of `service`.
 `endpoint` the way it is defined is can actually can be divided into
 two parts the `URL` and `Path`, it is delimited by a forward slash.
 
+#### portMappings
+```yaml
+portMappings:
+- 8081:81/UDP
+```
+
+`portMappings` is an added field to ServiceSpec.
+This lets us set the port, targetPort and the protocol for a service in a single line. This is parsed and converted to a Kubernetes ServicePort object.
+
+`portMappings` is an array of `port:targetPort/protocol` definitions, so the syntax looks like -
+
+```yaml
+portMappings:
+- <port:targetPort/protocol>
+- <port:targetPort/protocol>
+```
+
+The only mandatory part to specify in a portMapping is "port".
+There are 4 possible cases here
+
+- When only `port` is specified - `targetPort` is set to `port` and protocol is set to `TCP`
+- When `port:targetPort` is specified - protocol is set to `TCP`
+- When `port/protocol` is specified - `targetPort` is set to `port`
+- When `port:targetPort/protocol` is specified - no auto population is done since all values are provided
+
+Find a working example using `portMappings` field [here](https://github.com/kedgeproject/kedge/tree/master/docs/examples/portMappings/httpd.yaml)
 
 ## ingresses
 
@@ -497,7 +523,7 @@ The file path are relative to the kedge application file.
 This is one of the mechanisms to extend kedge beyond its capabilites to support
 anything in the Kubernetes land.
 
-## Complete example
+## Complete example (deployment)
 
 ```yaml
 name: database
@@ -551,4 +577,16 @@ secrets:
 - name: wordpress
   data:
     MYSQL_ROOT_PASSWORD: YWRtaW4=
+```
+
+## Example (job)
+
+```yaml
+controller: job
+name: pival
+containers:
+- image: perl
+  command: ["perl",  "-Mbignum=bpi", "-wle", "print bpi(2000)"]
+restartPolicy: Never
+parallelism: 3
 ```

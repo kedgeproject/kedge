@@ -43,6 +43,7 @@ func TestConflictingFields(t *testing.T) {
 		&ConfigMapMod{},
 		&PodSpecMod{},
 		&DeploymentSpecMod{},
+		&JobSpecMod{},
 	}
 
 	for _, inputStruct := range structsToTest {

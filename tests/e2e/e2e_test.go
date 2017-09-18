@@ -107,7 +107,9 @@ func PodsStarted(t *testing.T, clientset *kubernetes.Clientset, namespace string
 		podUp[p] = 0
 	}
 
-	timeout := time.After(5 * time.Minute)
+	// Timeouts after 9 minutes if the Pod has not yet started
+	// 9 minute reasoning = 1 minute before 10-minute Golang test timeout.
+	timeout := time.After(9 * time.Minute)
 	tick := time.Tick(time.Second)
 
 	for {
@@ -346,6 +348,19 @@ func Test_Integration(t *testing.T) {
 			PodStarted: []string{"wordpress"},
 			NodePortServices: []ServicePort{
 				{Name: "wordpress", Port: 80},
+			},
+		},
+		{
+			TestName:  "Test portMappings",
+			Namespace: "portmappings",
+			InputFiles: []string{
+				ProjectPath + "docs/examples/portMappings/wordpress.yaml",
+				ProjectPath + "docs/examples/portMappings/mariadb.yaml",
+			},
+			PodStarted: []string{"wordpress"},
+			NodePortServices: []ServicePort{
+				{Name: "wordpress", Port: 80},
+				{Name: "mariadb", Port: 3306},
 			},
 		},
 	}
