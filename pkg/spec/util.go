@@ -16,7 +16,16 @@ limitations under the License.
 
 package spec
 
-import api_v1 "k8s.io/client-go/pkg/api/v1"
+import (
+	"fmt"
+
+	"encoding/json"
+	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/pkg/api"
+	api_v1 "k8s.io/client-go/pkg/api/v1"
+	batch_v1 "k8s.io/client-go/pkg/apis/batch/v1"
+)
 
 // This function will search in the pod level volumes
 // and see if the volume with given name is defined
@@ -37,4 +46,54 @@ func isPVCDefined(volumes []VolumeClaim, name string) bool {
 		}
 	}
 	return false
+}
+
+// GetScheme() returns runtime.Scheme with supported Kubernetes API resource
+// definitions which Kedge supports right now.
+// The core v1 scheme is first initialized and then other controllers' scheme
+// is added to that scheme, e.g. batch/v1 scheme is added to add support for
+// Jobs controller to the v1 Scheme.
+// Also, (from upstream) Scheme defines methods for serializing and deserializing API objects, a type
+// registry for converting group, version, and kind information to and from Go
+// schemas, and mappings between Go schemas of different versions. A scheme is the
+// foundation for a versioned API and versioned configuration over time.
+func GetScheme() (*runtime.Scheme, error) {
+	// Initializing the scheme with the core v1 api
+	scheme := api.Scheme
+
+	// Adding the batch scheme to support Jobs
+	// TODO: find a way where we don't have to add batch/v1 to the v1 scheme,
+	// instead we should be able to have different scheme for different controllers
+	if err := batch_v1.AddToScheme(scheme); err != nil {
+		return nil, errors.Wrap(err, "unable to add 'batch' to scheme")
+	}
+	return scheme, nil
+}
+
+// SetGVK() sets Group, Version and Kind for the generated Kubernetes resources.
+// This takes in a generated Kubernetes API resource's runtime object and
+// runtime scheme based on which the GVK will be set.
+func SetGVK(runtimeObject runtime.Object, scheme *runtime.Scheme) error {
+	gvk, isUnversioned, err := scheme.ObjectKind(runtimeObject)
+	if err != nil {
+		return errors.Wrap(err, "ConvertToVersion failed")
+	}
+	if isUnversioned {
+		return fmt.Errorf("ConvertToVersion failed: can't output unversioned type: %T", runtimeObject)
+	}
+	runtimeObject.GetObjectKind().SetGroupVersionKind(gvk)
+	return nil
+}
+
+func getInt32Addr(i int32) *int32 {
+	return &i
+}
+
+func getInt64Addr(i int64) *int64 {
+	return &i
+}
+
+func prettyPrintObjects(v interface{}) string {
+	b, _ := json.MarshalIndent(v, "", "  ")
+	return string(b)
 }

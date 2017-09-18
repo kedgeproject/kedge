@@ -19,7 +19,10 @@ package spec
 import (
 	"testing"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1"
 	api_v1 "k8s.io/client-go/pkg/api/v1"
+	batch_v1 "k8s.io/client-go/pkg/apis/batch/v1"
+	"reflect"
 )
 
 func TestIsVolumeDefined(t *testing.T) {
@@ -67,4 +70,50 @@ func TestIsPVCDefined(t *testing.T) {
 			t.Logf("test passed for search query %q", test.Search)
 		}
 	}
+}
+
+func TestSetGVK(t *testing.T) {
+	jobTest := struct {
+		name         string
+		beforeObject *batch_v1.Job
+		afterObject  *batch_v1.Job
+	}{
+		name: "Set GVK for a Job",
+		beforeObject: &batch_v1.Job{
+			ObjectMeta: v1.ObjectMeta{
+				Name: "testJob",
+			},
+			Spec: batch_v1.JobSpec{
+				Parallelism: getInt32Addr(2),
+			},
+		},
+		afterObject: &batch_v1.Job{
+			TypeMeta: v1.TypeMeta{
+				Kind:       "Job",
+				APIVersion: "batch/v1",
+			},
+			ObjectMeta: v1.ObjectMeta{
+				Name: "testJob",
+			},
+			Spec: batch_v1.JobSpec{
+				Parallelism: getInt32Addr(2),
+			},
+		},
+	}
+
+	t.Run(jobTest.name, func(t *testing.T) {
+
+		scheme, err := GetScheme()
+		if err != nil {
+			t.Fatalf("unable to get scheme - %v", err)
+		}
+
+		if err := SetGVK(jobTest.beforeObject, scheme); err != nil {
+			t.Fatalf("unable to set GVK - %v", err)
+		}
+
+		if !reflect.DeepEqual(jobTest.beforeObject, jobTest.afterObject) {
+			t.Errorf("Expected runtime object after setting GVK to be -\n%v\nBut got -\n%v", jobTest.afterObject, jobTest.beforeObject)
+		}
+	})
 }

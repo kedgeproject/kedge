@@ -51,6 +51,8 @@ func GetController(data []byte) (ControllerInterface, error) {
 	case "", "deployment":
 		// validate if the user provided input is valid kedge app
 		return &DeploymentSpecMod{}, nil
+	case "job":
+		return &JobSpecMod{}, nil
 	default:
 		return nil, fmt.Errorf("invalid controller: %v", specController.Controller)
 	}

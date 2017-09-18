@@ -1,8 +1,7 @@
 # Kedge file reference
 
 Each file defines one micro-service, which forms one `pod` controlled by it's
-controller(right now the default controller is `deployment`).
-
+controller.
 
 A example using all the keys added in Kedge(not all keys from Kubernetes
 API are included):
@@ -71,20 +70,20 @@ defines.
 
 Supported controllers:
 - Deployment
+- Job
 
 Default controller is **Deployment**
 
-## replicas
-
-`replicas: 4`
-
-| **Type** | **Required** |
-|----------|--------------|
-| integer  | no           |
-
-Number of desired pods. This is a pointer to distinguish between explicit zero
-and not specified. Defaults to 1. The valid value can only be a positive number.
-This is an optional field.
+##### Note:
+`activeDeadlineSeconds` is a conflicting field which exists in both, v1.PodSpec
+and batch/v1.JobSpec, and both of these fields exist at the top level of the
+Kedge spec.
+So, whenever `activeDeadlineSeconds` field is set, only JobSpec is populated,
+which means that `activeDeadlineSeconds` is set only for the job and not for the
+pod.
+To populate a pod's `activeDeadlineSeconds`, the user will have to pass this
+field the long way by defining the pod exclusively under
+`job.spec.template.spec.activeDeadlineSeconds`.
 
 
 ## labels
@@ -524,7 +523,7 @@ The file path are relative to the kedge application file.
 This is one of the mechanisms to extend kedge beyond its capabilites to support
 anything in the Kubernetes land.
 
-## Complete example
+## Complete example (deployment)
 
 ```yaml
 name: database
@@ -578,4 +577,16 @@ secrets:
 - name: wordpress
   data:
     MYSQL_ROOT_PASSWORD: YWRtaW4=
+```
+
+## Example (job)
+
+```yaml
+controller: job
+name: pival
+containers:
+- image: perl
+  command: ["perl",  "-Mbignum=bpi", "-wle", "print bpi(2000)"]
+restartPolicy: Never
+parallelism: 3
 ```
