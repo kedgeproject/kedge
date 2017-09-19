@@ -7,25 +7,21 @@ redirect_from: "/docs/file-reference.md"
 # Kedge file reference
 
 Each file defines one micro-service, which forms one `pod` controlled by it's
-controller(right now the default controller is `deployment`).
-
+controller.
 
 A example using all the keys added in Kedge(not all keys from Kubernetes
 API are included):
 
 ```yaml
 name: database
+controller: deployment
 containers:
 - image: mariadb:10
-  env:
-  - name: MYSQL_ROOT_PASSWORD
-    valueFrom:
-      secretKeyRef:
-        name: wordpress
-        key: MYSQL_ROOT_PASSWORD
   envFrom:
   - configMapRef:
       name: database
+  - secretRef:
+      name: wordpress
   volumeMounts:
   - name: database
     mountPath: /var/lib/mysql
@@ -45,6 +41,10 @@ volumeClaims:
 configMaps:
 - data:
     MYSQL_DATABASE: wordpress
+secrets:
+- name: wordpress
+  data:
+    MYSQL_ROOT_PASSWORD: YWRtaW4=
 ```
 
 # Root level constructs
@@ -63,17 +63,33 @@ More info: https://kubernetes.io/docs/api-reference/v1.6/#podspec-v1-core
 
 The name of the app or micro-service this particular file defines.
 
-## replicas
+## controller
 
-`replicas: 4`
+`controller: deployment`
 
 | **Type** | **Required** |
 |----------|--------------|
-| integer  | no           |
+| string   | no           |
 
-Number of desired pods. This is a pointer to distinguish between explicit zero
-and not specified. Defaults to 1. The valid value can only be a positive number.
-This is an optional field.
+The Kubernetes controller of the app or micro-service this particular file
+defines.
+
+Supported controllers:
+- Deployment
+- Job
+
+Default controller is **Deployment**
+
+##### Note:
+`activeDeadlineSeconds` is a conflicting field which exists in both, v1.PodSpec
+and batch/v1.JobSpec, and both of these fields exist at the top level of the
+Kedge spec.
+So, whenever `activeDeadlineSeconds` field is set, only JobSpec is populated,
+which means that `activeDeadlineSeconds` is set only for the job and not for the
+pod.
+To populate a pod's `activeDeadlineSeconds`, the user will have to pass this
+field the long way by defining the pod exclusively under
+`job.spec.template.spec.activeDeadlineSeconds`.
 
 
 ## labels
@@ -126,17 +142,16 @@ simultaneously then the tool will error out.
 envFrom:
 - configMapRef:
     name: <string>
+- secretRef:
+    name: <string>
 ```
 
 This is similar to the envFrom field in container which is added since Kubernetes
-1.6. `envFrom` is a list of references. Right now the only reference that is
-supported is of `configMap`. The `configMap` that you refer here, all the data
-from that `configMap` will be populated as `env` inside the container.
+1.6. All the data from the ConfigMaps and Secrets referred here will be populated
+as `env` inside the container.
 
-The restriction being that the `configMap` also has to be defined in the file.
-If the `configMap` is not defined in the file under the root level field called
-`configMaps`, the tool will throw an error, since it has no way of knowing
-from where to populate the environment variables from.
+The restriction is that the ConfigMaps and Secrets also have to be defined in the
+file since there is no way to get the data to be populated.
 
 To read more about this field from the Kubernetes upstream docs see this:
 https://kubernetes.io/docs/api-reference/v1.6/#envfromsource-v1-core
@@ -254,7 +269,7 @@ configMaps:
 |----------------------------------|--------------|
 | array of [configMap](#configMap) | no           |
 
-###configMap
+### configMap
 
 ```yaml
 name: string
@@ -313,6 +328,8 @@ name: <string>
 ports:
 - port: <int>
   endpoint: <URL>/<Path>
+portMappings:
+- <port>:<targetPort>/<protocol>
 <Kubernetes Service Spec>
 ```
 
@@ -325,7 +342,6 @@ name: wordpress
 ports:
 - port: 8080
   targetPort: 80
-
 ```
 
 Each service gets converted into a Kubernetes `service` and `ingress`es
@@ -352,6 +368,32 @@ of `service`.
 `endpoint` the way it is defined is can actually can be divided into
 two parts the `URL` and `Path`, it is delimited by a forward slash.
 
+#### portMappings
+```yaml
+portMappings:
+- 8081:81/UDP
+```
+
+`portMappings` is an added field to ServiceSpec.
+This lets us set the port, targetPort and the protocol for a service in a single line. This is parsed and converted to a Kubernetes ServicePort object.
+
+`portMappings` is an array of `port:targetPort/protocol` definitions, so the syntax looks like -
+
+```yaml
+portMappings:
+- <port:targetPort/protocol>
+- <port:targetPort/protocol>
+```
+
+The only mandatory part to specify in a portMapping is "port".
+There are 4 possible cases here
+
+- When only `port` is specified - `targetPort` is set to `port` and protocol is set to `TCP`
+- When `port:targetPort` is specified - protocol is set to `TCP`
+- When `port/protocol` is specified - `targetPort` is set to `port`
+- When `port:targetPort/protocol` is specified - no auto population is done since all values are provided
+
+Find a working example using `portMappings` field [here](https://github.com/kedgeproject/kedge/tree/master/docs/examples/portMappings/httpd.yaml)
 
 ## ingresses
 
@@ -407,21 +449,97 @@ More info about Probe: https://kubernetes.io/docs/api-reference/v1.6/#probe-v1-c
 
 The name of the Ingress.
 
-## Complete example
+## secrets
+
+```yaml
+secrets:
+- <secret>
+- <secret>
+```
+
+| **Type**                         | **Required** |
+|----------------------------------|--------------|
+| array of [secret](#secret) | no           |
+
+###secret
+
+```yaml
+name: string
+<Kubernetes Secret Definition>
+```
+
+The Kubernetes Secret resource is being reused here.
+More info: https://kubernetes.io/docs/api-reference/v1.6/#secret-v1-core
+
+So, the Kubernetes Secret resource allows specifying the secret data as base64
+encoded as well as in plaintext.
+This would look in kedge as:
+
+```yaml
+secrets:
+- name: <name of the secret>
+  data:
+    <secret data key>: <base64 encoded value of the secret data>
+  stringData:
+    <secret data key>: <plaintext value of the secret data>
+```
+
+example:
+
+```yaml
+secrets:
+- name: wordpress
+  data:
+    MYSQL_ROOT_PASSWORD: YWRtaW4=
+    MYSQL_PASSWORD: cGFzc3dvcmQ=
+```
+
+#### Name
+
+`name: wordpress`
+
+| **Type** | **Required** |
+|----------|--------------|
+| string   | no           |
+
+The name of the secret.
+
+## extraResources
+
+```yaml
+extraResources:
+- <string>
+- <string>
+```
+
+e.g.
+
+```yaml
+extraResources:
+- ./kubernetes/cron-job.yaml
+- secrets.yaml
+```
+
+This is list of files that are Kubernetes resources which can be passed to
+Kubernetes directly. On these list of files Kedge won't do any processing, but
+pass it to Kubernetes directly.
+
+The file path are relative to the kedge application file.
+
+This is one of the mechanisms to extend kedge beyond its capabilites to support
+anything in the Kubernetes land.
+
+## Complete example (deployment)
 
 ```yaml
 name: database
 containers:
 - image: mariadb:10
-  env:
-  - name: MYSQL_ROOT_PASSWORD
-    valueFrom:
-      secretKeyRef:
-        name: wordpress
-        key: MYSQL_ROOT_PASSWORD
   envFrom:
   - configMapRef:
       name: database
+  - secretRef:
+      name: wordpress
   volumeMounts:
   - name: database
     mountPath: /var/lib/mysql
@@ -461,4 +579,20 @@ volumeClaims:
 configMaps:
 - data:
     MYSQL_DATABASE: wordpress
+secrets:
+- name: wordpress
+  data:
+    MYSQL_ROOT_PASSWORD: YWRtaW4=
+```
+
+## Example (job)
+
+```yaml
+controller: job
+name: pival
+containers:
+- image: perl
+  command: ["perl",  "-Mbignum=bpi", "-wle", "print bpi(2000)"]
+restartPolicy: Never
+parallelism: 3
 ```
