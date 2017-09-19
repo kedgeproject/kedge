@@ -6,7 +6,10 @@ repository_url: https://github.com/kedgeproject/kedge
 repository_shorthand: kedgeproject/kedge
 
 author_name: The Kedge Authors
-author_url: https://github.com/kedgeproject/kedge
+author_url: https://github.com/kedgeproject/kedge/graphs/contributors
+
+license: Kedge is an Apache 2.0 project.
+copyright: © 2017 The Kedge Authors | 'Whale' and 'Anchor' logos are distributed under CC0 BY 4.0
 
 markdown: kramdown
 

@@ -1,0 +1,11 @@
+<div class="language-yaml highlighter-rouge"><pre class="highlight"><code><span class="s">name</span><span class="pi">:</span> <span class="s">httpd</span>
+<span class="s">containers</span><span class="pi">:</span>
+<span class="pi">-</span> <span class="s">image</span><span class="pi">:</span> <span class="s">centos/httpd</span>
+<span class="s">services</span><span class="pi">:</span>
+<span class="pi">-</span> <span class="s">name</span><span class="pi">:</span> <span class="s">httpd</span>
+<span class="s">type</span><span class="pi">:</span> <span class="s">NodePort</span>
+<span class="s">ports</span><span class="pi">:</span>
+<span class="pi">-</span> <span class="s">port</span><span class="pi">:</span> <span class="s">8080</span>
+<span class="s">targetPort</span><span class="pi">:</span> <span class="s">80</span>
+</code></pre>
+</div>

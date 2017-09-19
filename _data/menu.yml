@@ -1,5 +1,6 @@
 items:
   "Introduction": "/"
+  "Quick Start": "/quickstart/"
   "User Guide": "/user-guide/"
   "File Reference": "/file-reference/"
   "Development": "/development/"

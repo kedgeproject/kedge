@@ -9,7 +9,9 @@ redirect_from: "/docs/user-guide.md"
 - CLI
   - [`create`](#kedge-create)
   - [`generate`](#kedge-generate)
-  - [`version`](#kedge-version)
+  - [`delete`](#kedge-delete)
+  - [`version`](#kedge-version)  
+  - [`init`](#kedge-init)
 
 ## `kedge create`
 
@@ -84,6 +86,15 @@ deployment "httpd" created
 service "httpd" created
 ```
 
+## `kedge delete`
+
+Deletes Kubernetes artifacts
+
+```sh
+$ kedge delete -f httpd.yaml
+deployment "httpd" deleted
+service "httpd" deleted
+```
 ## `kedge version`
 
 Outputs the current Kedge version
@@ -92,4 +103,12 @@ Outputs the current Kedge version
 
 ```sh
 kedge version
+```
+
+## `kedge init`
+
+Initialize kedge file
+
+```sh
+kedge init --file kedge.yml --name web --image centos/httpd --port 80
 ```
