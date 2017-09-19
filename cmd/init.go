@@ -54,6 +54,10 @@ var initCmd = &cobra.Command{
 		data := templateData{Name: name, Image: image, Ports: port}
 		if name != "" && image != "" {
 			masterTmpl, err := template.New("master").Parse(boilerplate)
+			if err != nil {
+				fmt.Println("failed to create template")
+				os.Exit(-1)
+			}
 			_, err = os.Stat(fileName)
 			if err != nil {
 				f, err := os.Create(fileName)
