@@ -17,6 +17,7 @@ limitations under the License.
 package spec
 
 import (
+	os_v1 "github.com/kedgeproject/kedge/pkg/hack/openshift"
 	api_v1 "k8s.io/client-go/pkg/api/v1"
 	batch_v1 "k8s.io/client-go/pkg/apis/batch/v1"
 	ext_v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
@@ -165,6 +166,11 @@ type ControllerFields struct {
 	PodSpecMod `json:",inline"`
 }
 
+type Controller struct {
+	Controller string `json:"controller,omitempty"`
+}
+
+// Orchestrator: Kubernetes, OpenShift
 // DeploymentSpecMod is Kedge's extension of Kubernetes DeploymentSpec and allows
 // defining a complete kedge application
 // kedgeSpec: io.kedge.DeploymentSpecMod
@@ -188,6 +194,11 @@ type JobSpecMod struct {
 	ActiveDeadlineSeconds *int64 `json:"activeDeadlineSeconds,conflicting,omitempty"`
 }
 
-type Controller struct {
-	Controller string `json:"controller,omitempty"`
+// TODOOOOOO!!
+// Ochestrator: OpenShift
+// DeploymentConfigSpecMod is Kedge's extension of OpenShift DeploymentConfig in order to define and allow
+// a complete kedge app based on OpenShift
+type DeploymentConfigSpecMod struct {
+	ControllerFields       `json:",inline"`
+	os_v1.DeploymentConfig `json:",inline"`
 }
