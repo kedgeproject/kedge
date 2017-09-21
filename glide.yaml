@@ -21,12 +21,22 @@ import:
   - pkg/api/v1
   - pkg/apis/extensions/install
   - pkg/apis/extensions/v1beta1
-  - kubernetes/typed/admissionregistration/v1alpha1
+  - kubernetes
+  - tools/clientcmd
+
+# This is a "hack" in order to get apimachinery to work with both
+# client-go and github.com/kubernetes/kubernetes by adding the "List" struct
+# to pkg/apis/meta/internalversion/types.go without changing anything else.
+# Fork is based on commit 1fd2e63a9a370677308a42f24fd40c86438afddf of apimachinery
 - package: k8s.io/apimachinery
+  repo: https://github.com/cdrage/apimachinery
+  version: c1a302d0c88438111d4af3940638f6116d1cfeb1
+  vcs: git
   subpackages:
   - pkg/api/resource
   - pkg/apis/meta/v1
   - pkg/runtime
   - pkg/util/intstr
+
 - package: github.com/Sirupsen/logrus
   version: v1.0.2
