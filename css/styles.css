@@ -1,8 +1,5 @@
 body {
-  background: url(/img/pattern.png) no-repeat center center fixed; 
-  -webkit-background-size: cover;
-  -moz-background-size: cover;
-  -o-background-size: cover;
+  background-color: white;
   font: 12px;
   font-family: 'Ubuntu', sans-serif;
   color:#595959;
@@ -13,47 +10,16 @@ strong, b {
   font-weight:500;
 }
 
-.installation {
-  color:white;
-  background-color:#3fb1e5;
-}
-
-.installation h3 {
-  color:white;
-}
-
-.installation a {
-  color:white;
-  font-weight:500;
-}
-
 .examples {
-  color:white;
-  background-color:#2ba0d3;
   text-align:left;
 }
 
-.examples h3 {
-  color:white;
-}
-
 .examples a {
-  color:white;
   font-weight:500;
 }
 
-.demo {
-  color:white;
-  background-color:#2090cd;
-}
-
-.demo h3 {
-  color:white;
-  text-align:center;
-}
 
 .demo a {
-  color:white;
   font-weight:500;
 }
 
@@ -174,20 +140,14 @@ header {
   margin: 0 auto;
 }
 
-.introduction {
-  background-color: #31abdf;
-}
-
 .introduction h1 {
   padding-top:30px;
   text-align:center;
-  color: white;
-font-weight:500;
+  font-weight:500;
 }
 
 .introduction h2 {
   text-align:center;
-  color: white;
   font-weight:400;
 }
 
@@ -370,7 +330,7 @@ li {
 }
 
 .demoexample {
-  text-align:center;
+  text-align:left;
 }
 
 .demoto {
