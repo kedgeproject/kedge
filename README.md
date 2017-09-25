@@ -76,7 +76,7 @@ go get github.com/kedgeproject/kedge
 
 ### Trying it out
 
-We have an [extensive list of examples](examples) to check out, but the simplest of them all is a [standard http example](https://raw.githubusercontent.com/kedgeproject/kedge/master/examples/simplest/httpd.yaml) with [minikube](https://github.com/kubernetes/minikube):
+We have an [extensive list of examples](docs/examples) to check out, but the simplest of them all is a [standard http example](https://raw.githubusercontent.com/kedgeproject/kedge/master/docs/examples/simplest/httpd.yaml) with [minikube](https://github.com/kubernetes/minikube):
 
 ```yaml
 name: httpd
@@ -116,7 +116,7 @@ $ minikube service httpd
 Opening kubernetes service default/httpd in default browser...
 ```
 
-Our examples range from [as simple as you can get](examples/simplest) to [every possible key you can use](examples/all). More can be found in the [/examples](examples) directory.
+Our examples range from [as simple as you can get](docs/examples/simplest) to [every possible key you can use](docs/examples/all). More can be found in the [docs/examples](docs/examples) directory.
 
 ## Community, Discussion, Contribution, and Support
 
