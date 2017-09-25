@@ -326,7 +326,7 @@ func (app *ControllerFields) createSecrets() ([]runtime.Object, error) {
 
 // CreateK8sObjects, if given object DeploymentSpecMod, this function reads
 // them and returns kubernetes objects as list of runtime.Object
-// If the deployment is using field 'extraResources' then it will
+// If the deployment is using field 'includeResources' then it will
 // also return file names mentioned there as list of string
 func (app *ControllerFields) CreateK8sObjects() ([]runtime.Object, []string, error) {
 	var objects []runtime.Object
@@ -405,7 +405,7 @@ func (app *ControllerFields) CreateK8sObjects() ([]runtime.Object, []string, err
 	objects = append(objects, configMap...)
 	log.Debugf("app: %s, configMap: %s\n", app.Name, spew.Sprint(configMap))
 
-	return objects, app.ExtraResources, nil
+	return objects, app.IncludeResources, nil
 }
 
 // Validate

@@ -281,10 +281,10 @@ func Test_Integration(t *testing.T) {
 			},
 		},
 		{
-			TestName:  "Testing extraResources",
-			Namespace: "extraresources",
+			TestName:  "Testing includeResources",
+			Namespace: "include-resources",
 			InputFiles: []string{
-				ProjectPath + "docs/examples/extraResources/app.yaml",
+				ProjectPath + "docs/examples/includeResources/app.yaml",
 			},
 			PodStarted: []string{"web"},
 			NodePortServices: []ServicePort{

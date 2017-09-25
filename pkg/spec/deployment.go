@@ -59,11 +59,11 @@ func (deployment *DeploymentSpecMod) Fix() error {
 
 // Transform function if given DeploymentSpecMod data creates the versioned
 // kubernetes objects and returns them in list of runtime.Object
-// And if the field in DeploymentSpecMod called 'extraResources' is used
+// And if the field in DeploymentSpecMod called 'includeResources' is used
 // then it returns the filenames mentioned there as list of string
 func (deployment *DeploymentSpecMod) Transform() ([]runtime.Object, []string, error) {
 
-	runtimeObjects, extraResources, err := deployment.CreateK8sObjects()
+	runtimeObjects, includeResources, err := deployment.CreateK8sObjects()
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "failed to create Kubernetes objects")
 	}
@@ -97,7 +97,7 @@ func (deployment *DeploymentSpecMod) Transform() ([]runtime.Object, []string, er
 		}
 	}
 
-	return runtimeObjects, extraResources, nil
+	return runtimeObjects, includeResources, nil
 }
 
 // Creates a Deployment Kubernetes resource. The returned Deployment resource

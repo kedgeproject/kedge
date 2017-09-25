@@ -80,10 +80,10 @@ func CoreOperations(data []byte) ([]runtime.Object, []string, error) {
 		return nil, nil, errors.Wrap(err, "unable to fix data")
 	}
 
-	ros, extraResources, err := kController.Transform()
+	ros, includeResources, err := kController.Transform()
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "unable to transform data")
 	}
 
-	return ros, extraResources, nil
+	return ros, includeResources, nil
 }
