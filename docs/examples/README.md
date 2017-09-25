@@ -11,7 +11,7 @@ Go in the following order:
 6. [Ingress](ingress)
 7. [Secrets](secrets)
 8. [envFrom Field](envFrom)
-9. [Defining resources not supported by kedge](extraResources)
+9. [Defining resources not supported by kedge](includeResources)
 10. [Define multiple apps in single file](single_file)
 11. [All constructs](all)
 12. [All constructs no magic](allnomagic)

@@ -18,5 +18,5 @@ services:
 volumeClaims:
 - name: web
   size: 100Mi
-extraResources:
+includeResources:
 - cronjob.yaml

@@ -498,10 +498,10 @@ secrets:
 
 The name of the secret.
 
-## extraResources
+## includeResources
 
 ```yaml
-extraResources:
+includeResources:
 - <string>
 - <string>
 ```
@@ -509,7 +509,7 @@ extraResources:
 e.g.
 
 ```yaml
-extraResources:
+includeResources:
 - ./kubernetes/cron-job.yaml
 - secrets.yaml
 ```

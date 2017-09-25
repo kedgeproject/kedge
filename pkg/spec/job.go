@@ -49,7 +49,7 @@ func (job *JobSpecMod) Fix() error {
 
 func (job *JobSpecMod) Transform() ([]runtime.Object, []string, error) {
 
-	runtimeObjects, extraResources, err := job.CreateK8sObjects()
+	runtimeObjects, includeResources, err := job.CreateK8sObjects()
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "failed to create Kubernetes objects")
 	}
@@ -81,7 +81,7 @@ func (job *JobSpecMod) Transform() ([]runtime.Object, []string, error) {
 		}
 	}
 
-	return runtimeObjects, extraResources, nil
+	return runtimeObjects, includeResources, nil
 }
 
 func (job *JobSpecMod) CreateK8sController() (*batch_v1.Job, error) {

@@ -160,7 +160,7 @@ type ControllerFields struct {
 	Secrets []SecretMod `json:"secrets,omitempty"`
 	// List of Kubernetes resource files, that can be directly given to Kubernetes
 	// +optional
-	ExtraResources []string `json:"extraResources,omitempty"`
+	IncludeResources []string `json:"includeResources,omitempty"`
 
 	PodSpecMod `json:",inline"`
 }

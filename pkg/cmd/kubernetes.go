@@ -47,7 +47,7 @@ func CreateKubernetesArtifacts(paths []string, generate bool, args ...string) er
 
 	for _, input := range inputs {
 
-		ros, extraResources, err := spec.CoreOperations(input.data)
+		ros, includeResources, err := spec.CoreOperations(input.data)
 		if err != nil {
 			return errors.Wrap(err, "unable to perform controller operations")
 		}
@@ -80,7 +80,7 @@ func CreateKubernetesArtifacts(paths []string, generate bool, args ...string) er
 
 		}
 
-		for _, file := range extraResources {
+		for _, file := range includeResources {
 			// change the file name to absolute file name
 			file = findAbsPath(input.fileName, file)
 
