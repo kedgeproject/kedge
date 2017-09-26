@@ -305,17 +305,17 @@ li {
   margin-bottom:5px;
 }
 
-.democode {
+.demo-code {
   display:inline-block;
   vertical-align:top;
   text-align:left;
 }
 
-.democode .highlight {
+.demo-code .highlight {
   padding-bottom:13px;
 }
 
-.demogif {
+.demo-gif {
   display:inline-block;
   vertical-align:top;
   padding: 0 8px 0px 8px;
@@ -357,3 +357,6 @@ li {
   font-size:30px;
 }
 
+.center-text {
+  text-align:center;
+}
