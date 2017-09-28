@@ -28,5 +28,5 @@ import:
   - pkg/apis/meta/v1
   - pkg/runtime
   - pkg/util/intstr
-- package: github.com/Sirupsen/logrus
-  version: v1.0.2
+- package: github.com/sirupsen/logrus
+  version: v1.0.3
