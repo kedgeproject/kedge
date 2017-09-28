@@ -22,7 +22,7 @@ import (
 	"sort"
 	"strconv"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	api_v1 "k8s.io/client-go/pkg/api/v1"
 
 	"github.com/pkg/errors"
