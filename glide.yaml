@@ -23,6 +23,7 @@ import:
   - pkg/apis/extensions/v1beta1
   - kubernetes/typed/admissionregistration/v1alpha1
 - package: k8s.io/apimachinery
+  version: 1fd2e63a9a370677308a42f24fd40c86438afddf
   subpackages:
   - pkg/api/resource
   - pkg/apis/meta/v1
