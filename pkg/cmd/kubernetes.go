@@ -47,7 +47,15 @@ func CreateKubernetesArtifacts(paths []string, generate bool, args ...string) er
 
 	for _, input := range inputs {
 
-		ros, includeResources, err := spec.CoreOperations(input.data)
+		// Substitute variables
+		// We do this on raw Kedge file before unmarshalling, because it would be
+		// complicated to go through all different go structs.
+		data, err := SubstituteVariables(input.data)
+		if err != nil {
+			return errors.Wrap(err, "failed to replace variables")
+		}
+
+		ros, includeResources, err := spec.CoreOperations(data)
 		if err != nil {
 			return errors.Wrap(err, "unable to perform controller operations")
 		}
