@@ -1,0 +1,45 @@
+version: 0.1
+log:
+  level: debug
+http:
+  addr: :5000
+storage:
+  cache:
+    blobdescriptor: inmemory
+  filesystem:
+    rootdirectory: /registry
+  delete:
+    enabled: true
+auth:
+  openshift:
+    realm: openshift
+    audit:
+      enabled: false
+
+    # tokenrealm is a base URL to use for the token-granting registry endpoint.
+    # If unspecified, the scheme and host for the token redirect are determined from the incoming request.
+    # If specified, a scheme and host must be chosen that all registry clients can resolve and access:
+    #
+    # tokenrealm: https://example.com:5000
+middleware:
+  registry:
+    - name: openshift
+  repository:
+    - name: openshift
+      options:
+        acceptschema2: true
+        pullthrough: true
+        mirrorpullthrough: true
+        enforcequota: false
+        projectcachettl: 1m
+        blobrepositorycachettl: 10m
+  storage:
+    - name: openshift
+openshift:
+  version: 1.0
+  metrics:
+    enabled: false
+    # secret is used to authenticate to metrics endpoint. It cannot be empty.
+    # Attention! A weak secret can lead to the leakage of private data.
+    #
+    # secret: TopSecretLongToken

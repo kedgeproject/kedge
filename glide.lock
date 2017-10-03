@@ -1,56 +1,24 @@
-<<<<<<< HEAD
-hash: 6a587e17cdda6137bf312c6cf7f6981c0d42edd7ab71ea3eeebbd9d9a41fc86d
-updated: 2017-10-03T17:35:11.913154754+05:30
-=======
-hash: e96e18ffcf55c9537b8a7d121f8f35418aa73a0d0683132e5adc07253dddd23c
-updated: 2017-09-29T12:54:49.024337049+02:00
->>>>>>> Add script to correctly vendor OpenShift
+hash: 8bdb00cecd8fb108579c6bb3168b96ab95ed000c08a3d936bc6c0e8c408c594f
+updated: 2017-10-03T17:25:52.960592+02:00
 imports:
 - name: github.com/davecgh/go-spew
-  version: 346938d642f2ec3594ed81d874461961cd0faa76
+  version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
   subpackages:
   - spew
 - name: github.com/ghodss/yaml
-  version: 0ca9ea5df5451ffdf184b4428c902747c2c11cd7
+  version: 73d445a93680fa1a78ae23a5839bad48f32ba1ee
 - name: github.com/inconshreveable/mousetrap
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
 - name: github.com/pkg/errors
-  version: 645ef00459ed84a119197bfb8d8205042c6df63d
-<<<<<<< HEAD
-- name: github.com/PuerkitoBio/purell
-  version: 8a290539e2e8629dbc4e6bad948158f790ec31f4
-- name: github.com/PuerkitoBio/urlesc
-  version: 5bd2802263f21d8788851d5305584c82a5c75d7e
+  version: 01fa4104b9c248c8945d14d9f128454d5b28d595
 - name: github.com/Sirupsen/logrus
   version: 55eb11d21d2a31a3cc93838241d04800f52e823d
-=======
-- name: github.com/Sirupsen/logrus
-  version: a3f95b5c423586578a4e099b11a46c2479628cac
-- name: github.com/sirupsen/logrus
-  version: 89742aefa4b206dcf400792f3bd35b542998eb3b
->>>>>>> Add script to correctly vendor OpenShift
 - name: github.com/spf13/cobra
-  version: 0dacccfbaabc71b872087c1719c5380d3e185173
+  version: 7c674d9e72017ed25f6d2b5e497a1368086b6a6f
 - name: github.com/spf13/pflag
-  version: e57e3eeb33f795204c1ca35f56c44f83227c6e66
+  version: 9ff6c6923cfffbcd502984b8e0c80539a94968b7
 - name: github.com/spf13/viper
-<<<<<<< HEAD
-  version: d9cca5ef33035202efb1586825bdbb15ff9ec3ba
-- name: github.com/ugorji/go
-  version: ded73eae5db7e7a0ef6f55aace87a2873c5d2b74
-  subpackages:
-  - codec
-=======
   version: 7fb2782df3d83e0036cc89f461ed0422628776f4
->>>>>>> Add script to correctly vendor OpenShift
-- name: golang.org/x/crypto
-  version: d172538b2cfce0c13cee31e647d0367aa8cd2486
-  subpackages:
-  - ssh/terminal
-- name: golang.org/x/sys
-  version: 314a259e304ff91bd6985da2a7149bbf91237993
-  subpackages:
-  - unix
 - name: gopkg.in/yaml.v2
   version: eb3733d160e74a9c7e442f435eb3bea458e1d19f
 testImports: []
