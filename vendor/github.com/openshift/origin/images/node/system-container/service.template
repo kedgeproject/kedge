@@ -1,0 +1,21 @@
+[Unit]
+After=${DOCKER_SERVICE}
+After=${OPENVSWITCH_SERVICE}
+Wants=${DOCKER_SERVICE}
+After=$NAME-dep.service
+After=${MASTER_SERVICE}
+
+[Service]
+EnvironmentFile=/etc/sysconfig/$NAME
+EnvironmentFile=/etc/sysconfig/$NAME-dep
+ExecStartPre=/bin/bash -c 'export -p > /run/$NAME-env'
+ExecStart=$EXEC_START
+ExecStop=$EXEC_STOP
+SyslogIdentifier=$NAME
+Restart=always
+RestartSec=5s
+WorkingDirectory=$DESTDIR
+RuntimeDirectory=${NAME}
+
+[Install]
+WantedBy=docker.service

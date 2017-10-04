@@ -53,11 +53,10 @@ git push -f origin myfeature
 2. Click the "Compare and pull request" button next to your "myfeature" branch.
 3. Check out the pull request process for more details
 
-## `glide`, `glide-vc` and dependency management
+## Dependency management
 
-Kedge uses `glide` to manage dependencies and `glide-vc` to clean vendor directory.
-They are not strictly required for building Kedge but they are required when managing dependencies under the `vendor/` directory.
-If you want to make changes to dependencies please make sure that `glide` and `glide-vc` are installed and are in your `$PATH`.
+Kedge uses `glide` to manage dependencies.
+If you want to make changes to dependencies please make sure that `glide` is in your `$PATH`.
 
 ### Installing glide
 
@@ -68,14 +67,12 @@ Use `apt-get install mercurial git` or `yum install mercurial git` on Linux, or 
 
 ```console
 go get -u github.com/Masterminds/glide
-go get github.com/sgotti/glide-vc
 ```
 
-Check that `glide` and `glide-vc` commands are working.
+Check that `glide` is working.
 
 ```console
 glide --version
-glide-vc -h
 ```
 
 ### Using glide
@@ -87,16 +84,14 @@ glide-vc -h
   Add new packages or subpackages to `glide.yaml` depending if you added whole
   new package as dependency or just new subpackage.
 
+  Kedge vendors OpenShift and all its dependencies. (see comments in `glide.yaml` and `./scripts/vendor-openshift.yaml`)
+  It is possible that the dependency you want to add is already in OpenShift as a vendored dependency. If that is true, please make sure 
+  that you use the same version OpenShift is using.
+
 2. Get new dependencies
 
 ```bash
-glide update --strip-vendor
-```
-
-3. Delete all unnecessary files from vendor
-
-```bash
-glide-vc --only-code --no-tests --use-lock-file
+make vendor-update
 ```
 
 3. Commit updated glide files and vendor
@@ -121,16 +116,11 @@ This step is necessary if not done glide will pick up old data from it's cache.
 3. Get new and updated dependencies
 
 ```bash
-glide update --strip-vendor
+make vendor-update
 ```
 
-4. Delete all unnecessary files from vendor
 
-```bash
-glide-vc --only-code --no-tests --use-lock-file
-```
-
-5. Commit updated glide files and vendor
+4. Commit updated glide files and vendor
 
 ```bash
 git add glide.yaml glide.lock vendor

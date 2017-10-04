@@ -86,11 +86,11 @@ endif
 
 # Run all tests
 .PHONY: test
-test: test-dep check-vendor validate test-unit
+test: test-dep validate test-unit
 
 # Tests that are run on travs-ci
 .PHONY: travis-tests
-travis-tests: test-dep check-vendor validate test-unit-cover
+travis-tests: test-dep validate test-unit-cover
 
 # Install all the required test-dependencies before executing tests (only valid when running `make test`)
 .PHONY: test-dep
@@ -109,3 +109,12 @@ test-unit-cover:
 	# go test doesn't support colleting coverage across multiple packages,
 	# generate go test commands using go list and run go test for every package separately
 	go list -f '"go test -race -cover -v -coverprofile={{.Dir}}/.coverprofile {{.ImportPath}}"' github.com/kedgeproject/kedge/...  | grep -v "vendor" | grep -v "e2e" | xargs -L 1 -P4 sh -c
+
+# Update vendoring
+# Vendoring is a bit messy right now
+.PHONY: vendor-update
+vendor-update:
+	# Handles packages defined in glide.yaml
+	glide update -v
+	# Vendors OpenShift and its dependencies
+	./scripts/vendor-openshift.sh
