@@ -38,22 +38,25 @@ import (
 	_ "k8s.io/client-go/pkg/apis/extensions/install"
 )
 
+// allLabelKey is the key that Kedge injects in every Kubernetes resource that
+// it generates as an ObjectMeta label
 const appLabelKey = "app"
 
 // Fix
 
 func fixServices(services []ServiceSpecMod, appName string) ([]ServiceSpecMod, error) {
+
+	// auto populate name only if one service is specified without any name
+	if len(services) == 1 && services[0].ObjectMeta.Name == "" {
+		services[0].ObjectMeta.Name = appName
+	}
+
 	for i, service := range services {
-		// auto populate service name if only one service is specified
-		if service.Name == "" {
-			if len(services) == 1 {
-				service.Name = appName
-			} else {
-				return nil, errors.New("More than one service mentioned, please specify name for each one")
-			}
+		if service.ObjectMeta.Name == "" {
+			return nil, fmt.Errorf("please specify name for app.services[%d]", i)
 		}
 
-		addKeyValueToMap(appLabelKey, appName, service.ObjectMeta.Labels)
+		service.ObjectMeta.Labels = addKeyValueToMap(appLabelKey, appName, service.ObjectMeta.Labels)
 
 		// this should be the last statement in this for loop
 		services[i] = service
@@ -62,83 +65,95 @@ func fixServices(services []ServiceSpecMod, appName string) ([]ServiceSpecMod, e
 }
 
 func fixVolumeClaims(volumeClaims []VolumeClaim, appName string) ([]VolumeClaim, error) {
+
+	// auto populate name only if one volumeClaim is specified without any name
+	if len(volumeClaims) == 1 && volumeClaims[0].ObjectMeta.Name == "" {
+		volumeClaims[0].ObjectMeta.Name = appName
+	}
+
 	for i, pVolume := range volumeClaims {
-		if pVolume.Name == "" {
-			if len(volumeClaims) == 1 {
-				pVolume.Name = appName
-			} else {
-				return nil, errors.New("More than one persistent volume mentioned," +
-					" please specify name for each one")
-			}
+		if pVolume.ObjectMeta.Name == "" {
+			return nil, fmt.Errorf("please specify name for app.volumeClaims[%d]", i)
 		}
 
-		addKeyValueToMap(appLabelKey, appName, pVolume.ObjectMeta.Labels)
+		pVolume.ObjectMeta.Labels = addKeyValueToMap(appLabelKey, appName, pVolume.ObjectMeta.Labels)
 
+		// this should be the last statement in this for loop
 		volumeClaims[i] = pVolume
 	}
 	return volumeClaims, nil
 }
 
 func fixConfigMaps(configMaps []ConfigMapMod, appName string) ([]ConfigMapMod, error) {
-	// if only one configMap is defined and its name is not specified
-	if len(configMaps) == 1 && configMaps[0].Name == "" {
+
+	// auto populate name only if one configMap is specified without any name
+	if len(configMaps) == 1 && configMaps[0].ObjectMeta.Name == "" {
 		configMaps[0].ObjectMeta.Name = appName
-		addKeyValueToMap(appLabelKey, appName, configMaps[0].ObjectMeta.Labels)
-	} else if len(configMaps) > 1 {
-		// if multiple configMaps is defined then each should have a name
-		for cdn, cd := range configMaps {
-			if cd.Name == "" {
-				return nil, fmt.Errorf("name not specified for app.configMaps[%d]", cdn)
-			}
-			addKeyValueToMap(appLabelKey, appName, cd.ObjectMeta.Labels)
+	}
+
+	for i, cm := range configMaps {
+		if cm.ObjectMeta.Name == "" {
+			return nil, fmt.Errorf("please specify name for app.configMaps[%d]", i)
 		}
+
+		cm.ObjectMeta.Labels = addKeyValueToMap(appLabelKey, appName, cm.ObjectMeta.Labels)
+
+		// this should be the last statement in this for loop
+		configMaps[i] = cm
 	}
 	return configMaps, nil
 }
 
 func fixSecrets(secrets []SecretMod, appName string) ([]SecretMod, error) {
-	// populate secret name only if one secret is specified
-	if len(secrets) == 1 && secrets[0].Name == "" {
+
+	// auto populate name only if one secret is specified without any name
+	if len(secrets) == 1 && secrets[0].ObjectMeta.Name == "" {
 		secrets[0].ObjectMeta.Name = appName
-		addKeyValueToMap(appLabelKey, appName, secrets[0].ObjectMeta.Labels)
-	} else if len(secrets) > 1 {
-		for i, sec := range secrets {
-			if sec.Name == "" {
-				return nil, fmt.Errorf("name not specified for app.secrets[%d]", i)
-			}
-			addKeyValueToMap(appLabelKey, appName, sec.ObjectMeta.Labels)
+	}
+
+	for i, sec := range secrets {
+		if sec.Name == "" {
+			return nil, fmt.Errorf("please specify name for app.secrets[%d]", i)
 		}
+
+		sec.ObjectMeta.Labels = addKeyValueToMap(appLabelKey, appName, sec.ObjectMeta.Labels)
+
+		// this should be the last statement in this for loop
+		secrets[i] = sec
 	}
 	return secrets, nil
 }
 
 func fixIngresses(ingresses []IngressSpecMod, appName string) ([]IngressSpecMod, error) {
-	// populate ingress name only if one ingress is specified
+
+	// auto populate name only if one ingress is specified without any name
 	if len(ingresses) == 1 && ingresses[0].Name == "" {
 		ingresses[0].ObjectMeta.Name = appName
-		addKeyValueToMap(appLabelKey, appName, ingresses[0].ObjectMeta.Labels)
-	} else if len(ingresses) > 1 {
-		for i, ing := range ingresses {
-			if ing.Name == "" {
-				return nil, fmt.Errorf("name not specified for app.ingresses[%d]", i)
-			}
-			addKeyValueToMap(appLabelKey, appName, ing.ObjectMeta.Labels)
+	}
+
+	for i, ing := range ingresses {
+		if ing.Name == "" {
+			return nil, fmt.Errorf("please specify name for app.ingresses[%d]", i)
 		}
+
+		ing.ObjectMeta.Labels = addKeyValueToMap(appLabelKey, appName, ing.ObjectMeta.Labels)
+
+		// this should be the last statement in this for loop
+		ingresses[i] = ing
 	}
 	return ingresses, nil
 }
 
 func fixContainers(containers []Container, appName string) ([]Container, error) {
-	// if only one container set name of it as app name
+
+	// auto populate name only if one ingress is specified without any name
 	if len(containers) == 1 && containers[0].Name == "" {
 		containers[0].Name = appName
-	} else if len(containers) > 1 {
-		// check if all the containers have a name
-		// if not fail giving error
-		for cn, c := range containers {
-			if c.Name == "" {
-				return nil, fmt.Errorf("app %q: container name not defined for app.containers[%d]", appName, cn)
-			}
+	}
+
+	for i, c := range containers {
+		if c.Name == "" {
+			return nil, fmt.Errorf("please specify name for app.ingresses[%d]", i)
 		}
 	}
 	return containers, nil

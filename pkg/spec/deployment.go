@@ -54,7 +54,7 @@ func (deployment *DeploymentSpecMod) Fix() error {
 		return errors.Wrap(err, "unable to fix ControllerFields")
 	}
 
-	addKeyValueToMap(appLabelKey, deployment.ControllerFields.Name, deployment.ObjectMeta.Labels)
+	deployment.ControllerFields.ObjectMeta.Labels = addKeyValueToMap(appLabelKey, deployment.ControllerFields.Name, deployment.ControllerFields.ObjectMeta.Labels)
 
 	return nil
 }

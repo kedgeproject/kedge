@@ -100,8 +100,10 @@ func prettyPrintObjects(v interface{}) string {
 }
 
 // addKeyValueToMap adds a key value pair to a given map[string]string only if
-// the map does not contain the supplied key. Creates a new map if map is empty
-func addKeyValueToMap(k string, v string, m map[string]string) {
+// the map does not contain the supplied key. Creates a new map if map is empty.
+// We need to return the map because in case a nil map is passed to this
+// function, the new map created will not be reflected in the original nil map.
+func addKeyValueToMap(k string, v string, m map[string]string) map[string]string {
 
 	if len(m) == 0 {
 		m = make(map[string]string)
@@ -112,4 +114,6 @@ func addKeyValueToMap(k string, v string, m map[string]string) {
 	} else {
 		log.Debugf("not adding '%v: %v' to map since there exists a user defined label '%v: %v'", k, v, k, m[k])
 	}
+
+	return m
 }

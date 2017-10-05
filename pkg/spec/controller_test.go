@@ -43,6 +43,9 @@ services:
 				ControllerFields: ControllerFields{
 					ObjectMeta: meta_v1.ObjectMeta{
 						Name: "test",
+						Labels: map[string]string{
+							appLabelKey: "test",
+						},
 					},
 					PodSpecMod: PodSpecMod{
 						Containers: []Container{{Container: api_v1.Container{Name: "test", Image: "nginx"}}},
@@ -51,6 +54,9 @@ services:
 						{
 							ObjectMeta: meta_v1.ObjectMeta{
 								Name: "test",
+								Labels: map[string]string{
+									appLabelKey: "test",
+								},
 							},
 							Ports: []ServicePortMod{{ServicePort: api_v1.ServicePort{Port: 8080}}}},
 					},
@@ -72,6 +78,9 @@ volumeClaims:
 				ControllerFields: ControllerFields{
 					ObjectMeta: meta_v1.ObjectMeta{
 						Name: "test",
+						Labels: map[string]string{
+							appLabelKey: "test",
+						},
 					},
 					PodSpecMod: PodSpecMod{
 						Containers: []Container{{Container: api_v1.Container{Name: "test", Image: "nginx"}}},
@@ -80,6 +89,9 @@ volumeClaims:
 						{
 							ObjectMeta: meta_v1.ObjectMeta{
 								Name: "test",
+								Labels: map[string]string{
+									appLabelKey: "test",
+								},
 							},
 							Ports: []ServicePortMod{
 								{
@@ -90,7 +102,16 @@ volumeClaims:
 							},
 						},
 					},
-					VolumeClaims: []VolumeClaim{{ObjectMeta: meta_v1.ObjectMeta{Name: "test"}, Size: "500Mi"}},
+					VolumeClaims: []VolumeClaim{
+						{
+							ObjectMeta: meta_v1.ObjectMeta{
+								Name: "test",
+								Labels: map[string]string{
+									appLabelKey: "test",
+								},
+							},
+							Size: "500Mi"},
+					},
 				},
 			},
 		},

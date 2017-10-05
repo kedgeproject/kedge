@@ -44,7 +44,7 @@ func (job *JobSpecMod) Fix() error {
 		return errors.Wrap(err, "unable to fix ControllerFields")
 	}
 
-	addKeyValueToMap(appLabelKey, job.ControllerFields.Name, job.ObjectMeta.Labels)
+	job.ControllerFields.ObjectMeta.Labels = addKeyValueToMap(appLabelKey, job.ControllerFields.Name, job.ControllerFields.ObjectMeta.Labels)
 
 	return nil
 }
