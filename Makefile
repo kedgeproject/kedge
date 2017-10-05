@@ -71,15 +71,15 @@ test-unit:
 test-e2e:
 
 ifneq ($(and $(PARALLEL),$(TIMEOUT)),)
-	go test -parallel=$(PARALLEL) -timeout=$(TIMEOUT) -v github.com/kedgeproject/kedge/tests/e2e
+	./tests/e2e/run_e2e.sh -p $(PARALLEL) -t $(TIMEOUT)
 else
 ifdef PARALLEL
-	go test -parallel=$(PARALLEL) -v github.com/kedgeproject/kedge/tests/e2e
+	./tests/e2e/run_e2e.sh -p $(PARALLEL)
 else
 ifdef TIMEOUT
-	go test -timeout=$(TIMEOUT) -v github.com/kedgeproject/kedge/tests/e2e
+	./tests/e2e/run_e2e.sh -t $(TIMEOUT)
 else
-	go test -v github.com/kedgeproject/kedge/tests/e2e
+	./tests/e2e/run_e2e.sh
 endif
 endif
 endif
