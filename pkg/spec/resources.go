@@ -101,6 +101,20 @@ func fixSecrets(secrets []SecretMod, appName string) ([]SecretMod, error) {
 	return secrets, nil
 }
 
+func fixIngresses(ingresses []IngressSpecMod, appName string) ([]IngressSpecMod, error) {
+	// populate ingress name only if one ingress is specified
+	if len(ingresses) == 1 && ingresses[0].Name == "" {
+		ingresses[0].Name = appName
+	} else if len(ingresses) > 1 {
+		for i, ing := range ingresses {
+			if ing.Name == "" {
+				return nil, fmt.Errorf("name not specified for app.ingresses[%d]", i)
+			}
+		}
+	}
+	return ingresses, nil
+}
+
 func fixContainers(containers []Container, appName string) ([]Container, error) {
 	// if only one container set name of it as app name
 	if len(containers) == 1 && containers[0].Name == "" {
@@ -152,6 +166,12 @@ func (cf *ControllerFields) fixControllerFields() error {
 	cf.Secrets, err = fixSecrets(cf.Secrets, cf.Name)
 	if err != nil {
 		return errors.Wrap(err, "unable to fix secrets")
+	}
+
+	// fix ingresses
+	cf.Ingresses, err = fixIngresses(cf.Ingresses, cf.Name)
+	if err != nil {
+		return errors.Wrap(err, "unable to fix ingresses")
 	}
 
 	return nil
