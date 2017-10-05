@@ -57,9 +57,11 @@ type ServiceSpecMod struct {
 	// The list of ports that are exposed by this service. More info:
 	// https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies
 	// ref: io.kedge.ServicePort
+	// +optional
 	Ports []ServicePortMod `json:"ports,conflicting"`
 	// The list of portMappings, where each portMapping allows specifying port,
 	// targetPort and protocol in the format '<port>:<targetPort>/<protocol>'
+	// +optional
 	PortMappings []string `json:"portMappings,omitempty"`
 }
 
