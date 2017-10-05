@@ -1,14 +1,40 @@
-hash: 8bdb00cecd8fb108579c6bb3168b96ab95ed000c08a3d936bc6c0e8c408c594f
-updated: 2017-10-03T17:25:52.960592+02:00
+hash: f3e767e8346d32c0a86b9c441a9f5a580a4da1e4e9b201cffc7e2b313149bc5d
+updated: 2017-10-04T22:45:37.982127629+05:30
 imports:
 - name: github.com/davecgh/go-spew
   version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
   subpackages:
   - spew
+- name: github.com/fsouza/go-dockerclient
+  version: 3f9370a4738ba8d0ed6eea63582ca6db5eb48032
+  subpackages:
+  - external/github.com/Sirupsen/logrus
+  - external/github.com/docker/docker/opts
+  - external/github.com/docker/docker/pkg/archive
+  - external/github.com/docker/docker/pkg/fileutils
+  - external/github.com/docker/docker/pkg/homedir
+  - external/github.com/docker/docker/pkg/idtools
+  - external/github.com/docker/docker/pkg/ioutils
+  - external/github.com/docker/docker/pkg/longpath
+  - external/github.com/docker/docker/pkg/pools
+  - external/github.com/docker/docker/pkg/promise
+  - external/github.com/docker/docker/pkg/stdcopy
+  - external/github.com/docker/docker/pkg/system
+  - external/github.com/docker/go-units
+  - external/github.com/hashicorp/go-cleanhttp
+  - external/github.com/opencontainers/runc/libcontainer/user
+  - external/golang.org/x/net/context
+  - external/golang.org/x/sys/unix
 - name: github.com/ghodss/yaml
   version: 73d445a93680fa1a78ae23a5839bad48f32ba1ee
 - name: github.com/inconshreveable/mousetrap
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
+- name: github.com/novln/docker-parser
+  version: 6030251119d652af8ead44ac7907444227b64d56
+  subpackages:
+  - distribution/digest
+  - distribution/reference
+  - docker
 - name: github.com/pkg/errors
   version: 01fa4104b9c248c8945d14d9f128454d5b28d595
 - name: github.com/Sirupsen/logrus
@@ -19,6 +45,10 @@ imports:
   version: 9ff6c6923cfffbcd502984b8e0c80539a94968b7
 - name: github.com/spf13/viper
   version: 7fb2782df3d83e0036cc89f461ed0422628776f4
+- name: golang.org/x/sys
+  version: 8d1157a435470616f975ff9bb013bea8d0962067
+  subpackages:
+  - unix
 - name: gopkg.in/yaml.v2
-  version: eb3733d160e74a9c7e442f435eb3bea458e1d19f
+  version: 53feefa2559fb8dfa8d81baad31be332c97d6c77
 testImports: []

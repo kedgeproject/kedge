@@ -22,6 +22,18 @@ import:
 - package: github.com/Sirupsen/logrus
   version: v0.7.3
 
+- package: github.com/fsouza/go-dockerclient
+  version: 3f9370a4738ba8d0ed6eea63582ca6db5eb48032
+
+- package: github.com/novln/docker-parser
+  version: 6030251119d652af8ead44ac7907444227b64d56
+
+# pinning 'golang.org/x/sys' otherwise docker dependencies complain to compiling
+- package: golang.org/x/sys
+  version: 8d1157a435470616f975ff9bb013bea8d0962067
+  subpackages:
+  - unix
+  
 
 # Those are packages that OpenShift patches in its vendor directory.
 # Those patched libs are not published elsewhere.
