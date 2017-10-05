@@ -107,3 +107,49 @@ func GetAllYAMLFiles(paths []string) ([]string, error) {
 	}
 	return files, nil
 }
+
+// SubstituteVariables handles environment variable substitution
+// Expression [[ NAME ]] or [[NAME]] is used for defining variables.
+// [[NAME]] will be replaced with the value from NAME environment variable.
+// Returns new byte array with all variables replaced with values.
+// If no matching variable is found, an error is raised.
+func SubstituteVariables(kedgeFileContent []byte) ([]byte, error) {
+	// all occurrences  [[ something ]]
+	// (there can be any number of white characters after '[[' and before ']]' )
+	re := regexp.MustCompile("\\[\\[\\s*(.*?)\\s*\\]\\]")
+	newContent := re.ReplaceAllFunc(kedgeFileContent, replaceWithEnv)
+
+	// check for any remaining variables in newContent
+	remains := re.FindAllSubmatch(newContent, -1)
+	remainingVariables := []string{}
+
+	for _, r := range remains {
+		name := string(r[1][:])
+		remainingVariables = append(remainingVariables, name)
+	}
+
+	if len(remainingVariables) > 0 {
+		return nil, fmt.Errorf("undefined variable(s): %s", strings.Join(remainingVariables, ", "))
+	}
+
+	return newContent, nil
+}
+
+// replaceWithEnv is used with regexp.ReplaceAllFunc to replace variable
+// with value from environment
+func replaceWithEnv(in []byte) []byte {
+	// get just a name from variable (withot '[[' and ']]')
+	re := regexp.MustCompile("\\[\\[\\s*(.*?)\\s*\\]\\]")
+	groups := re.FindSubmatch(in)
+	// index 0 contains full match, 1 contains first group
+	name := string(groups[1][:])
+
+	value, found := os.LookupEnv(name)
+	if !found {
+		// If there is no corresponding env variable, return original string.
+		// We will use this to detect remaining variables in the input file.
+		// We can't return error from this function.
+		return in
+	}
+	return []byte(value)
+}

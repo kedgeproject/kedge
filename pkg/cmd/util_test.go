@@ -17,6 +17,7 @@ limitations under the License.
 package cmd
 
 import (
+	"bytes"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -93,4 +94,116 @@ func TestGetAllYMLFiles(t *testing.T) {
 		}
 	}
 
+}
+
+func TestReplaceWithEnv(t *testing.T) {
+	err := os.Setenv("MYENV", "value")
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+
+	tests := []struct {
+		input  []byte
+		output []byte
+	}{
+		{
+			[]byte("[[MYENV]]"),
+			[]byte("value"),
+		},
+		{
+			[]byte("[[   MYENV]]"),
+			[]byte("value"),
+		},
+		{
+			[]byte("[[  MYENV  ]]"),
+			[]byte("value"),
+		},
+		{
+			[]byte("[[ DOESNOTEXIST ]]"),
+			[]byte("[[ DOESNOTEXIST ]]"),
+		},
+	}
+
+	for _, test := range tests {
+		output := replaceWithEnv(test.input)
+
+		if !bytes.Equal(output, test.output) {
+			t.Errorf("output doesn't match expected output \n output  : %s \n expected: %s \n", string(output[:]), string(test.output[:]))
+		}
+	}
+
+}
+
+func TestSubstituteVariables(t *testing.T) {
+	err := os.Setenv("TEST_IMAGE_TAG", "version")
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+
+	err = os.Setenv("TEST_SERVICE_NAME", "name")
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+
+	tests := []struct {
+		input            []byte
+		out              []byte
+		shouldRaiseError bool
+	}{
+		{
+			[]byte(`
+				name: httpd
+				containers:
+				- image: foo/bar:[[ TEST_IMAGE_TAG ]]
+				`),
+			[]byte(`
+				name: httpd
+				containers:
+				- image: foo/bar:version
+				`),
+			false,
+		},
+		{
+			[]byte(`
+			name: [[ TEST_SERVICE_NAME]]
+			containers:
+			- image: foo/bar:[[TEST_IMAGE_TAG]]
+			`),
+			[]byte(`
+			name: name
+			containers:
+			- image: foo/bar:version
+			`),
+			false,
+		},
+		{
+			[]byte(`
+				name: httpd-[[ NONEXISTING ]]
+				containers:
+				- image: foo/bar
+				`),
+			[]byte(""),
+			true,
+		},
+	}
+
+	for _, test := range tests {
+		output, err := SubstituteVariables(test.input)
+
+		if test.shouldRaiseError && err == nil {
+			t.Errorf("input should cause error, but no error was returned \n input: %s\n", string(test.input[:]))
+		}
+
+		if !test.shouldRaiseError && err != nil {
+			t.Errorf("input caused error \n error: %s", err)
+		}
+
+		if !bytes.Equal(output, test.out) {
+			t.Errorf("output doesn't match expected output \n output  : %s \n expected: %s \n", string(output[:]), string(test.out[:]))
+		}
+
+	}
 }

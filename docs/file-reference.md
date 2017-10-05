@@ -590,3 +590,41 @@ containers:
 restartPolicy: Never
 parallelism: 3
 ```
+
+
+# Variables
+You can use variables anywhere in the Kedge file. Variable names are enclosed
+in double square brackets (`[[ variable_name ]]`).
+For example `[[ IMAGE_NAME ]]` will be replaced with value of environment variable `$IMAGE_NAME`
+
+## Example
+```yaml
+# nginx.yaml
+
+name: nginx
+containers:
+- image: nginx:[[ NGINX_VERSION ]]
+services:
+- name: nginx
+  ports:
+  - port: 8080
+    targetPort: 80
+```
+
+Now you can call Kedge and define `NGINX_VERSION` variable.
+```
+NGINX_VERSION=1.13 kedge apply -f nginx.yaml
+```
+The string `[[ NGINX_VERSION ]]` will be replaced with `1.13`.
+Effecting Kedge file will look as following:
+```
+name: nginx
+containers:
+- image: nginx:1.13
+services:
+- name: nginx
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 80
+```
