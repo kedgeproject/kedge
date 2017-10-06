@@ -20,12 +20,12 @@ import (
 	"reflect"
 	"testing"
 
-	"k8s.io/apimachinery/pkg/runtime"
-
 	"github.com/davecgh/go-spew/spew"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	api_v1 "k8s.io/client-go/pkg/api/v1"
+	ext_v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
 )
 
 func TestFixServices(t *testing.T) {
@@ -48,9 +48,18 @@ func TestFixServices(t *testing.T) {
 		Output []ServiceSpecMod
 	}{
 		{
-			Name:   "only one service given",
-			Input:  []ServiceSpecMod{{}},
-			Output: []ServiceSpecMod{{Name: appName}},
+			Name:  "only one service given",
+			Input: []ServiceSpecMod{{}},
+			Output: []ServiceSpecMod{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: appName,
+						Labels: map[string]string{
+							appLabelKey: appName,
+						},
+					},
+				},
+			},
 		},
 	}
 
@@ -79,7 +88,16 @@ func TestFixVolumeClaims(t *testing.T) {
 
 	appName := "test"
 	passingTest := []VolumeClaim{{}}
-	expected := []VolumeClaim{{Name: appName}}
+	expected := []VolumeClaim{
+		{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name: appName,
+				Labels: map[string]string{
+					appLabelKey: appName,
+				},
+			},
+		},
+	}
 	got, err := fixVolumeClaims(passingTest, appName)
 	if err != nil {
 		t.Errorf("expected to pass but failed with: %v", err)
@@ -101,7 +119,15 @@ func TestFixConfigMaps(t *testing.T) {
 
 	appName := "test"
 	passingTest := []ConfigMapMod{{}}
-	expected := []ConfigMapMod{{Name: appName}}
+	expected := []ConfigMapMod{
+		{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name: appName,
+				Labels: map[string]string{
+					appLabelKey: appName,
+				},
+			},
+		}}
 	got, err := fixConfigMaps(passingTest, appName)
 	if err != nil {
 		t.Errorf("expected to pass but failed with: %v", err)
@@ -123,7 +149,16 @@ func TestFixSecrets(t *testing.T) {
 
 	appName := "test"
 	passingTest := []SecretMod{{}}
-	expected := []SecretMod{{Name: appName}}
+	expected := []SecretMod{
+		{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name: appName,
+				Labels: map[string]string{
+					appLabelKey: appName,
+				},
+			},
+		},
+	}
 	got, err := fixSecrets(passingTest, appName)
 	if err != nil {
 		t.Errorf("expected to pass but failed with: %v", err)
@@ -132,6 +167,193 @@ func TestFixSecrets(t *testing.T) {
 		t.Errorf("expected: %s, got: %s", prettyPrintObjects(expected),
 			prettyPrintObjects(got))
 	}
+}
+
+func TestFixIngresses(t *testing.T) {
+	appName := "testAppName"
+	tests := []struct {
+		name    string
+		input   []IngressSpecMod
+		output  []IngressSpecMod
+		success bool
+	}{
+		{
+			name: "passing one ingress without name",
+			input: []IngressSpecMod{
+				{
+					IngressSpec: ext_v1beta1.IngressSpec{
+						Rules: []ext_v1beta1.IngressRule{
+							{
+								Host: "testHost",
+							},
+						},
+					},
+				},
+			},
+			output: []IngressSpecMod{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: appName,
+						Labels: map[string]string{
+							appLabelKey: appName,
+						},
+					},
+					IngressSpec: ext_v1beta1.IngressSpec{
+						Rules: []ext_v1beta1.IngressRule{
+							{
+								Host: "testHost",
+							},
+						},
+					},
+				},
+			},
+			success: true,
+		},
+		{
+			name: "passing one ingress with name",
+			input: []IngressSpecMod{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "ingressName",
+					},
+					IngressSpec: ext_v1beta1.IngressSpec{
+						Rules: []ext_v1beta1.IngressRule{
+							{
+								Host: "testHost",
+							},
+						},
+					},
+				},
+			},
+			output: []IngressSpecMod{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "ingressName",
+						Labels: map[string]string{
+							appLabelKey: appName,
+						},
+					},
+					IngressSpec: ext_v1beta1.IngressSpec{
+						Rules: []ext_v1beta1.IngressRule{
+							{
+								Host: "testHost",
+							},
+						},
+					},
+				},
+			},
+			success: true,
+		},
+		{
+			name: "passing multiple ingresses without names",
+			input: []IngressSpecMod{
+				{
+					IngressSpec: ext_v1beta1.IngressSpec{
+						Rules: []ext_v1beta1.IngressRule{
+							{
+								Host: "testHost1",
+							},
+						},
+					},
+				},
+				{
+					IngressSpec: ext_v1beta1.IngressSpec{
+						Rules: []ext_v1beta1.IngressRule{
+							{
+								Host: "testHost2",
+							},
+						},
+					},
+				},
+			},
+			output:  nil,
+			success: false,
+		},
+		{
+			name: "passing multiple ingresses",
+			input: []IngressSpecMod{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "ingress1",
+					},
+					IngressSpec: ext_v1beta1.IngressSpec{
+						Rules: []ext_v1beta1.IngressRule{
+							{
+								Host: "testHost1",
+							},
+						},
+					},
+				},
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "ingress2",
+					},
+					IngressSpec: ext_v1beta1.IngressSpec{
+						Rules: []ext_v1beta1.IngressRule{
+							{
+								Host: "testHost2",
+							},
+						},
+					},
+				},
+			},
+			output: []IngressSpecMod{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "ingress1",
+						Labels: map[string]string{
+							appLabelKey: appName,
+						},
+					},
+					IngressSpec: ext_v1beta1.IngressSpec{
+						Rules: []ext_v1beta1.IngressRule{
+							{
+								Host: "testHost1",
+							},
+						},
+					},
+				},
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "ingress2",
+						Labels: map[string]string{
+							appLabelKey: appName,
+						},
+					},
+					IngressSpec: ext_v1beta1.IngressSpec{
+						Rules: []ext_v1beta1.IngressRule{
+							{
+								Host: "testHost2",
+							},
+						},
+					},
+				},
+			},
+			success: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fixedIngresses, err := fixIngresses(test.input, appName)
+
+			switch test.success {
+			case true:
+				if err != nil {
+					t.Errorf("Expected test to pass but got an error -\n%v", err)
+				}
+			case false:
+				if err == nil {
+					t.Errorf("For the input -\n%v\nexpected test to fail, but test passed", prettyPrintObjects(test.input))
+				}
+			}
+
+			if !reflect.DeepEqual(fixedIngresses, test.output) {
+				t.Errorf("Expected fixed ingresses to be -\n%v\nBut got -\n%v\n", prettyPrintObjects(test.output), prettyPrintObjects(fixedIngresses))
+			}
+		})
+	}
+
 }
 
 func TestFixContainers(t *testing.T) {
@@ -160,7 +382,23 @@ func TestFixContainers(t *testing.T) {
 
 func TestValidateVolumeClaims(t *testing.T) {
 
-	failingTest := []VolumeClaim{{Name: "foo"}, {Name: "bar"}, {Name: "foo"}}
+	failingTest := []VolumeClaim{
+		{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name: "foo",
+			},
+		},
+		{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name: "bar",
+			},
+		},
+		{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name: "foo",
+			},
+		},
+	}
 
 	err := validateVolumeClaims(failingTest)
 	if err == nil {
@@ -181,18 +419,23 @@ func TestCreateServices(t *testing.T) {
 			"Single container specified",
 			&DeploymentSpecMod{
 				ControllerFields: ControllerFields{
-
-					Name: "test",
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "test",
+					},
 					PodSpecMod: PodSpecMod{
 						Containers: []Container{{Container: api_v1.Container{Image: "nginx"}}},
 					},
 					Services: []ServiceSpecMod{
-						{Name: "test", Ports: []ServicePortMod{{ServicePort: api_v1.ServicePort{Port: 8080}}}},
+						{
+							ObjectMeta: meta_v1.ObjectMeta{
+								Name: "test",
+							},
+							Ports: []ServicePortMod{{ServicePort: api_v1.ServicePort{Port: 8080}}}},
 					},
 				},
 			},
 			append(make([]runtime.Object, 0), &api_v1.Service{
-				ObjectMeta: metav1.ObjectMeta{Name: "test"},
+				ObjectMeta: meta_v1.ObjectMeta{Name: "test"},
 				Spec:       api_v1.ServiceSpec{Ports: []api_v1.ServicePort{{Port: 8080}}},
 			}),
 		},

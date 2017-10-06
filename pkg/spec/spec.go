@@ -17,6 +17,7 @@ limitations under the License.
 package spec
 
 import (
+	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	api_v1 "k8s.io/client-go/pkg/api/v1"
 	batch_v1 "k8s.io/client-go/pkg/apis/batch/v1"
 	ext_v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
@@ -28,11 +29,10 @@ type VolumeClaim struct {
 	// Data from the kubernetes persistent volume claim spec
 	// k8s: io.k8s.kubernetes.pkg.api.v1.PersistentVolumeClaimSpec
 	api_v1.PersistentVolumeClaimSpec `json:",inline"`
-	// Name of the persistent Volume Claim
-	// +optional
-	Name string `json:"name"`
 	// Size of persistent volume
 	Size string `json:"size"`
+	// k8s: io.k8s.kubernetes.pkg.apis.meta.v1.ObjectMeta
+	meta_v1.ObjectMeta `json:",inline"`
 }
 
 // ServicePortMod is used to define Kubernetes service's port
@@ -51,9 +51,6 @@ type ServicePortMod struct {
 type ServiceSpecMod struct {
 	// k8s: io.k8s.kubernetes.pkg.api.v1.ServiceSpec
 	api_v1.ServiceSpec `json:",inline"`
-	// Name of the service
-	// +optional
-	Name string `json:"name,omitempty"`
 	// The list of ports that are exposed by this service. More info:
 	// https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies
 	// ref: io.kedge.ServicePort
@@ -63,16 +60,17 @@ type ServiceSpecMod struct {
 	// targetPort and protocol in the format '<port>:<targetPort>/<protocol>'
 	// +optional
 	PortMappings []string `json:"portMappings,omitempty"`
+	// k8s: io.k8s.kubernetes.pkg.apis.meta.v1.ObjectMeta
+	meta_v1.ObjectMeta `json:",inline"`
 }
 
 // IngressSpecMod defines Kubernetes Ingress object
 // kedgeSpec: io.kedge.IngressSpec
 type IngressSpecMod struct {
-	// Name of the ingress
-	// +optional
-	Name string `json:"name"`
 	// k8s: io.k8s.kubernetes.pkg.apis.extensions.v1beta1.IngressSpec
 	ext_v1beta1.IngressSpec `json:",inline"`
+	// k8s: io.k8s.kubernetes.pkg.apis.meta.v1.ObjectMeta
+	meta_v1.ObjectMeta `json:",inline"`
 }
 
 // Container defines a single application container that you want to run within a pod.
@@ -93,11 +91,15 @@ type Container struct {
 // ConfigMapMod holds configuration data for pods to consume.
 // kedgeSpec: io.kedge.ConfigMap
 type ConfigMapMod struct {
-	// Name of the configMap
-	// +optional
-	Name string `json:"name,omitempty"`
-	// Data contains the configuration data. Each key must consist of alphanumeric characters, '-', '_' or '.'
-	Data map[string]string `json:"data,omitempty"`
+	// k8s: io.k8s.kubernetes.pkg.api.v1.ConfigMap
+	api_v1.ConfigMap `json:",inline"`
+	// k8s: io.k8s.kubernetes.pkg.apis.meta.v1.ObjectMeta
+	// We need ObjectMeta here, even though it is present in api.ConfigMap
+	// because the one upstream has a JSON tag "metadata" due to which it
+	// cannot be merged at ConfigMap's root level. The ObjectMeta here
+	// overwrites the one in upstream and lets us merge ObjectMeta at
+	// ConfigMap's root YAML syntax
+	meta_v1.ObjectMeta `json:",inline"`
 }
 
 // PodSpecMod is a description of a pod
@@ -121,25 +123,20 @@ type PodSpecMod struct {
 // SecretMod defines secret that will be consumed by application
 // kedgeSpec: io.kedge.SecretSpec
 type SecretMod struct {
-	// Name of the secret
-	// +optional
-	Name string `json:"name,omitempty"`
 	// k8s: io.k8s.kubernetes.pkg.api.v1.Secret
 	api_v1.Secret `json:",inline"`
+	// k8s: io.k8s.kubernetes.pkg.apis.meta.v1.ObjectMeta
+	// We need ObjectMeta here, even though it is present in api.Secret
+	// because the one upstream has a JSON tag "metadata" due to which it
+	// cannot be merged at Secret's root level. The ObjectMeta here
+	// overwrites the one in upstream and lets us merge ObjectMeta at
+	// Secret's root YAML syntax
+	meta_v1.ObjectMeta `json:",inline"`
 }
 
 // ControllerFields are the common fields in every controller Kedge supports
 type ControllerFields struct {
-	// Name of the micro-service
-	Name string `json:"name"`
-	// Specify which Kubernetes controller to generate. Defaults to deployment.
-	// +optional
 	Controller string `json:"controller,omitempty"`
-	// Map of string keys and values that can be used to organize and categorize
-	// (scope and select) objects. May match selectors of replication controllers
-	// and services. More info: http://kubernetes.io/docs/user-guide/labels
-	// +optional
-	Labels map[string]string `json:"labels,omitempty"`
 	// List of volume that should be mounted on the pod.
 	// ref: io.kedge.VolumeClaim
 	// +optional
@@ -164,7 +161,9 @@ type ControllerFields struct {
 	// +optional
 	IncludeResources []string `json:"includeResources,omitempty"`
 
-	PodSpecMod `json:",inline"`
+	// k8s: io.k8s.kubernetes.pkg.apis.meta.v1.ObjectMeta
+	meta_v1.ObjectMeta `json:",inline"`
+	PodSpecMod         `json:",inline"`
 }
 
 // DeploymentSpecMod is Kedge's extension of Kubernetes DeploymentSpec and allows

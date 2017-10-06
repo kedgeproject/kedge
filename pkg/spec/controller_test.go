@@ -20,6 +20,7 @@ import (
 	"reflect"
 	"testing"
 
+	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	api_v1 "k8s.io/client-go/pkg/api/v1"
 )
 
@@ -40,12 +41,24 @@ services:
     - port: 8080`),
 			App: &DeploymentSpecMod{
 				ControllerFields: ControllerFields{
-					Name: "test",
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "test",
+						Labels: map[string]string{
+							appLabelKey: "test",
+						},
+					},
 					PodSpecMod: PodSpecMod{
 						Containers: []Container{{Container: api_v1.Container{Name: "test", Image: "nginx"}}},
 					},
 					Services: []ServiceSpecMod{
-						{Name: "test", Ports: []ServicePortMod{{ServicePort: api_v1.ServicePort{Port: 8080}}}},
+						{
+							ObjectMeta: meta_v1.ObjectMeta{
+								Name: "test",
+								Labels: map[string]string{
+									appLabelKey: "test",
+								},
+							},
+							Ports: []ServicePortMod{{ServicePort: api_v1.ServicePort{Port: 8080}}}},
 					},
 				},
 			},
@@ -63,15 +76,42 @@ volumeClaims:
 - size: 500Mi`),
 			App: &DeploymentSpecMod{
 				ControllerFields: ControllerFields{
-
-					Name: "test",
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "test",
+						Labels: map[string]string{
+							appLabelKey: "test",
+						},
+					},
 					PodSpecMod: PodSpecMod{
 						Containers: []Container{{Container: api_v1.Container{Name: "test", Image: "nginx"}}},
 					},
 					Services: []ServiceSpecMod{
-						{Name: "test", Ports: []ServicePortMod{{ServicePort: api_v1.ServicePort{Port: 8080}}}},
+						{
+							ObjectMeta: meta_v1.ObjectMeta{
+								Name: "test",
+								Labels: map[string]string{
+									appLabelKey: "test",
+								},
+							},
+							Ports: []ServicePortMod{
+								{
+									ServicePort: api_v1.ServicePort{
+										Port: 8080,
+									},
+								},
+							},
+						},
 					},
-					VolumeClaims: []VolumeClaim{{Name: "test", Size: "500Mi"}},
+					VolumeClaims: []VolumeClaim{
+						{
+							ObjectMeta: meta_v1.ObjectMeta{
+								Name: "test",
+								Labels: map[string]string{
+									appLabelKey: "test",
+								},
+							},
+							Size: "500Mi"},
+					},
 				},
 			},
 		},

@@ -20,8 +20,10 @@ import (
 	"testing"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1"
+	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	api_v1 "k8s.io/client-go/pkg/api/v1"
 	batch_v1 "k8s.io/client-go/pkg/apis/batch/v1"
+
 	"reflect"
 )
 
@@ -50,7 +52,23 @@ func TestIsVolumeDefined(t *testing.T) {
 }
 
 func TestIsPVCDefined(t *testing.T) {
-	volumes := []VolumeClaim{{Name: "foo"}, {Name: "bar"}, {Name: "baz"}}
+	volumes := []VolumeClaim{
+		{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name: "foo",
+			},
+		},
+		{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name: "bar",
+			},
+		},
+		{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name: "baz",
+			},
+		},
+	}
 
 	tests := []struct {
 		Search string
@@ -116,4 +134,61 @@ func TestSetGVK(t *testing.T) {
 			t.Errorf("Expected runtime object after setting GVK to be -\n%v\nBut got -\n%v", jobTest.afterObject, jobTest.beforeObject)
 		}
 	})
+}
+
+func TestAddKeyValueToMap(t *testing.T) {
+	testKey := "testKey"
+	testValue := "testValue"
+	var nilMap map[string]string
+
+	tests := []struct {
+		name      string
+		beforeMap map[string]string
+		afterMap  map[string]string
+	}{
+		{
+			name:      "test nil map, a new map should be created and populated",
+			beforeMap: nilMap,
+			afterMap: map[string]string{
+				testKey: testValue,
+			},
+		},
+		{
+			name: "test a pre-populated map without conflicting input key",
+			beforeMap: map[string]string{
+				"preKey1": "preVal1",
+				"preKey2": "preVal2",
+			},
+			afterMap: map[string]string{
+				"preKey1": "preVal1",
+				"preKey2": "preVal2",
+				testKey:   testValue,
+			},
+		},
+		{
+			name: "test a pre-populated map with conflicting input key, the conflicting key should not be overwritten",
+			beforeMap: map[string]string{
+				"preKey1": "preVal1",
+				"preKey2": "preVal2",
+				testKey:   "preVal3",
+			},
+			afterMap: map[string]string{
+				"preKey1": "preVal1",
+				"preKey2": "preVal2",
+				testKey:   "preVal3",
+			},
+		},
+	}
+
+	for _, test := range tests {
+
+		t.Run(test.name, func(t *testing.T) {
+			newMap := addKeyValueToMap(testKey, testValue, test.beforeMap)
+			if !reflect.DeepEqual(newMap, test.afterMap) {
+				t.Errorf("Expected map:\n%v\nBut got:\n%v\n",
+					prettyPrintObjects(test.afterMap),
+					prettyPrintObjects(test.beforeMap))
+			}
+		})
+	}
 }

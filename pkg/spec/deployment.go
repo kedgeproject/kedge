@@ -21,7 +21,6 @@ import (
 	"reflect"
 
 	log "github.com/Sirupsen/logrus"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	api_v1 "k8s.io/client-go/pkg/api/v1"
 	ext_v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
 
@@ -54,6 +53,9 @@ func (deployment *DeploymentSpecMod) Fix() error {
 	if err := deployment.ControllerFields.fixControllerFields(); err != nil {
 		return errors.Wrap(err, "unable to fix ControllerFields")
 	}
+
+	deployment.ControllerFields.ObjectMeta.Labels = addKeyValueToMap(appLabelKey, deployment.ControllerFields.Name, deployment.ControllerFields.ObjectMeta.Labels)
+
 	return nil
 }
 
@@ -133,11 +135,8 @@ func (deployment *DeploymentSpecMod) CreateK8sController() (*ext_v1beta1.Deploym
 	deploymentSpec.Template.ObjectMeta.Labels = deployment.Labels
 
 	return &ext_v1beta1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:   deployment.Name,
-			Labels: deployment.Labels,
-		},
-		Spec: deploymentSpec,
+		ObjectMeta: deployment.ObjectMeta,
+		Spec:       deploymentSpec,
 	}, nil
 }
 
