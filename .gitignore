@@ -5,6 +5,7 @@
 # Ignore compiled files
 kedge
 bin
+changes.txt
 
 #
 # GO SPECIFIC
