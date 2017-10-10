@@ -22,7 +22,7 @@ Key features and goals include:
 
 We are a very evolving project with high velocity, we have listed a [file reference specification](docs/file-reference.md) as well as document our RFC's and changes as [GitHub issues](https://github.com/kedgeproject/kedge/issues).
 
-Check out our [roadmap](ROADMAP.md) as we push towards a __0.2.0__ release.
+Check out our [roadmap](ROADMAP.md) as we push towards a __0.3.0__ release.
 
 ## Using Kedge
 
@@ -34,10 +34,10 @@ __Linux and macOS:__
 
 ```sh
 # Linux
-curl -L https://github.com/kedgeproject/kedge/releases/download/v0.2.0/kedge-linux-amd64 -o kedge
+curl -L https://github.com/kedgeproject/kedge/releases/download/v0.3.0/kedge-linux-amd64 -o kedge
 
 # macOS
-curl -L https://github.com/kedgeproject/kedge/releases/download/v0.2.0/kedge-darwin-amd64 -o kedge
+curl -L https://github.com/kedgeproject/kedge/releases/download/v0.3.0/kedge-darwin-amd64 -o kedge
 
 chmod +x kedge
 sudo mv ./kedge /usr/local/bin/kedge
@@ -45,7 +45,7 @@ sudo mv ./kedge /usr/local/bin/kedge
 
 __Windows:__
 
-Download from [GitHub](https://github.com/kedgeproject/kedge/releases/download/v0.2.0/kedge-windows-amd64.exe) and add the binary to your PATH.
+Download from [GitHub](https://github.com/kedgeproject/kedge/releases/download/v0.3.0/kedge-windows-amd64.exe) and add the binary to your PATH.
 
 ### Installing the latest binary (master)
 
