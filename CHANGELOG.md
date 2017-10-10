@@ -1,5 +1,54 @@
 # Change Log
 
+## [v0.3.0](https://github.com/kedgeproject/kedge/tree/v0.3.0) (2017-10-10)
+[Full Changelog](https://github.com/kedgeproject/kedge/compare/v0.2.0...v0.3.0)
+
+**Closed issues:**
+
+- Generating Kedge maifests from Kubernetes and OpenShift [\#321](https://github.com/kedgeproject/kedge/issues/321)
+- Name is not propagated to single Ingress [\#306](https://github.com/kedgeproject/kedge/issues/306)
+- imagePullSecrets are dropped on the floor [\#304](https://github.com/kedgeproject/kedge/issues/304)
+- `kedge build` subcommand which is alias to docker build [\#287](https://github.com/kedgeproject/kedge/issues/287)
+- Add annotations support [\#262](https://github.com/kedgeproject/kedge/issues/262)
+- version numbers / image tags in kedge YAML [\#224](https://github.com/kedgeproject/kedge/issues/224)
+- Rename `extraResources` to `includeResources` [\#218](https://github.com/kedgeproject/kedge/issues/218)
+- "Introduce root level `controller` field", and sub tasks [\#188](https://github.com/kedgeproject/kedge/issues/188)
+- Jobs do not support activeDeadlineSeconds [\#114](https://github.com/kedgeproject/kedge/issues/114)
+- Jobs will not support populating container names, we need to support that [\#113](https://github.com/kedgeproject/kedge/issues/113)
+- abstract out kedge "populators" [\#98](https://github.com/kedgeproject/kedge/issues/98)
+- our build story [\#89](https://github.com/kedgeproject/kedge/issues/89)
+- e2e tests - test conversions on running cluster [\#59](https://github.com/kedgeproject/kedge/issues/59)
+- Add travis/fabric8 CI support for PR building [\#57](https://github.com/kedgeproject/kedge/issues/57)
+- Add unit tests [\#56](https://github.com/kedgeproject/kedge/issues/56)
+- Add support for defining `Job` controller [\#52](https://github.com/kedgeproject/kedge/issues/52)
+- Decouple injecting default values from the generation code [\#50](https://github.com/kedgeproject/kedge/issues/50)
+- Decouple validation from generation code [\#49](https://github.com/kedgeproject/kedge/issues/49)
+- generate a json-schema file [\#45](https://github.com/kedgeproject/kedge/issues/45)
+- Add testing \(unit, conversion & e2e testing\) [\#24](https://github.com/kedgeproject/kedge/issues/24)
+- defining configmap/secret data in a way that auto-creates the container env vars [\#2](https://github.com/kedgeproject/kedge/issues/2)
+
+**Merged pull requests:**
+
+- fix\(spec\): add optional tag in struct fields [\#311](https://github.com/kedgeproject/kedge/pull/311) ([surajssd](https://github.com/surajssd))
+- auto populate ingress name [\#310](https://github.com/kedgeproject/kedge/pull/310) ([containscafeine](https://github.com/containscafeine))
+- pin down apimachinery with a git commit [\#303](https://github.com/kedgeproject/kedge/pull/303) ([surajssd](https://github.com/surajssd))
+- Move to old logrus version 0.7.3 [\#302](https://github.com/kedgeproject/kedge/pull/302) ([surajssd](https://github.com/surajssd))
+- Add support for environment variable substitution [\#300](https://github.com/kedgeproject/kedge/pull/300) ([kadel](https://github.com/kadel))
+- Add OpenShift vendoring [\#299](https://github.com/kedgeproject/kedge/pull/299) ([kadel](https://github.com/kadel))
+- make indentation uniform in example file [\#298](https://github.com/kedgeproject/kedge/pull/298) ([containscafeine](https://github.com/containscafeine))
+- Update vendor logrus [\#296](https://github.com/kedgeproject/kedge/pull/296) ([surajssd](https://github.com/surajssd))
+- \(feat\): build docker images using, `kedge build` [\#295](https://github.com/kedgeproject/kedge/pull/295) ([surajssd](https://github.com/surajssd))
+- Reworks layout + index output [\#294](https://github.com/kedgeproject/kedge/pull/294) ([cdrage](https://github.com/cdrage))
+- fix broken example links in readme [\#292](https://github.com/kedgeproject/kedge/pull/292) ([jdolitsky](https://github.com/jdolitsky))
+- spec change: rename `extraResources` to `includeResources` [\#291](https://github.com/kedgeproject/kedge/pull/291) ([surajssd](https://github.com/surajssd))
+- Make website more minimal, remove colours+whale [\#289](https://github.com/kedgeproject/kedge/pull/289) ([cdrage](https://github.com/cdrage))
+- Minor fixes [\#283](https://github.com/kedgeproject/kedge/pull/283) ([cdrage](https://github.com/cdrage))
+- Redesign site + adds logo [\#282](https://github.com/kedgeproject/kedge/pull/282) ([cdrage](https://github.com/cdrage))
+- add license to Makefile [\#281](https://github.com/kedgeproject/kedge/pull/281) ([surajssd](https://github.com/surajssd))
+- Added error handling in cmd/init.go [\#279](https://github.com/kedgeproject/kedge/pull/279) ([surajnarwade](https://github.com/surajnarwade))
+- Script to display live output from e2e tests [\#275](https://github.com/kedgeproject/kedge/pull/275) ([ashetty1](https://github.com/ashetty1))
+- merge ObjectMeta with ControllerFields [\#267](https://github.com/kedgeproject/kedge/pull/267) ([containscafeine](https://github.com/containscafeine))
+
 ## [v0.2.0](https://github.com/kedgeproject/kedge/tree/v0.2.0) (2017-09-18)
 [Full Changelog](https://github.com/kedgeproject/kedge/compare/v0.1.0...v0.2.0)
 
@@ -26,6 +75,7 @@
 
 **Merged pull requests:**
 
+- 0.2.0 Release [\#278](https://github.com/kedgeproject/kedge/pull/278) ([cdrage](https://github.com/cdrage))
 - Fix order of controller functions [\#266](https://github.com/kedgeproject/kedge/pull/266) ([cdrage](https://github.com/cdrage))
 - Increase ping timeout for e2e tests [\#264](https://github.com/kedgeproject/kedge/pull/264) ([cdrage](https://github.com/cdrage))
 - Add timeout param to make test-e2e [\#263](https://github.com/kedgeproject/kedge/pull/263) ([cdrage](https://github.com/cdrage))
