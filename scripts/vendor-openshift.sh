@@ -1,4 +1,4 @@
-#!/bin/sh 
+#!/bin/bash 
 
 # 'glide update -v' has to be run before running this script.
 # If you do 'glide update' after running this scripts, glide is going to ovewrite all changes.
