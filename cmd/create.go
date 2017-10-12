@@ -34,7 +34,7 @@ var createCmd = &cobra.Command{
 			os.Exit(-1)
 		}
 
-		kubectlCommand := []string{"create"}
+		kubectlCommand := []string{"create", "--save-config"}
 
 		// Only setting the namespace flag to kubectl when --namespace is passed
 		// explicitly by the user
