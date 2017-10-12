@@ -22,11 +22,11 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	api_v1 "k8s.io/client-go/pkg/api/v1"
-	batch_v1 "k8s.io/client-go/pkg/apis/batch/v1"
+	api_v1 "k8s.io/kubernetes/pkg/api/v1"
+	batch_v1 "k8s.io/kubernetes/pkg/apis/batch/v1"
 )
 
-func TestJobSpecMod_CreateK8sController(t *testing.T) {
+func TestJobSpecMod_CreateKubernetesController(t *testing.T) {
 	tests := []struct {
 		name          string
 		jobSpecMod    *JobSpecMod
@@ -107,7 +107,7 @@ func TestJobSpecMod_CreateK8sController(t *testing.T) {
 
 		t.Run(test.name, func(t *testing.T) {
 
-			kJob, err := test.jobSpecMod.CreateK8sController()
+			kJob, err := test.jobSpecMod.createKubernetesController()
 
 			switch test.success {
 			case true:

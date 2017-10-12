@@ -24,8 +24,8 @@ import (
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	api_v1 "k8s.io/client-go/pkg/api/v1"
-	ext_v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
+	api_v1 "k8s.io/kubernetes/pkg/api/v1"
+	ext_v1beta1 "k8s.io/kubernetes/pkg/apis/extensions/v1beta1"
 )
 
 func TestFixServices(t *testing.T) {
