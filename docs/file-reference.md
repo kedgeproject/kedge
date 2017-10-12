@@ -131,27 +131,6 @@ define only `health`. And then it gets copied in both in the resultant spec.
 But if `health` and `livenessProbe` or `readinessProbe` are defined
 simultaneously then the tool will error out.
 
-#### envFrom
-
-```yaml
-envFrom:
-- configMapRef:
-    name: <string>
-- secretRef:
-    name: <string>
-```
-
-This is similar to the envFrom field in container which is added since Kubernetes
-1.6. All the data from the ConfigMaps and Secrets referred here will be populated
-as `env` inside the container.
-
-The restriction is that the ConfigMaps and Secrets also have to be defined in the
-file since there is no way to get the data to be populated.
-
-To read more about this field from the Kubernetes upstream docs see this:
-https://kubernetes.io/docs/api-reference/v1.6/#envfromsource-v1-core
-
-
 ## volumeClaims
 
 ```yaml
