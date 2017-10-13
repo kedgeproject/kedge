@@ -26,6 +26,82 @@ import (
 	api_v1 "k8s.io/kubernetes/pkg/api/v1"
 )
 
+func TestFixDeploymentConfig(t *testing.T) {
+	tests := []struct {
+		name           string
+		input          *DeploymentConfigSpecMod
+		expectedOutput *DeploymentConfigSpecMod
+	}{
+		{
+			name:  "No replicas passed at input, expected 1",
+			input: &DeploymentConfigSpecMod{},
+			expectedOutput: &DeploymentConfigSpecMod{
+				ControllerFields: ControllerFields{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Labels: map[string]string{
+							appLabelKey: "",
+						},
+					},
+				},
+				DeploymentConfigSpec: os_deploy_v1.DeploymentConfigSpec{
+					Replicas: 1,
+				},
+				Replicas: getInt32Addr(1),
+			},
+		},
+		{
+			name: "replicas set to 0 by the end user, expected 0",
+			input: &DeploymentConfigSpecMod{
+				Replicas: getInt32Addr(0),
+			},
+			expectedOutput: &DeploymentConfigSpecMod{
+				ControllerFields: ControllerFields{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Labels: map[string]string{
+							appLabelKey: "",
+						},
+					},
+				},
+				DeploymentConfigSpec: os_deploy_v1.DeploymentConfigSpec{
+					Replicas: 0,
+				},
+				Replicas: getInt32Addr(0),
+			},
+		},
+		{
+			name: "replicas set to 2 by the end user, expected 2",
+			input: &DeploymentConfigSpecMod{
+				Replicas: getInt32Addr(2),
+			},
+			expectedOutput: &DeploymentConfigSpecMod{
+				ControllerFields: ControllerFields{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Labels: map[string]string{
+							appLabelKey: "",
+						},
+					},
+				},
+				DeploymentConfigSpec: os_deploy_v1.DeploymentConfigSpec{
+					Replicas: 2,
+				},
+				Replicas: getInt32Addr(2),
+			},
+		},
+	}
+
+	for _, test := range tests {
+
+		t.Run(test.name, func(t *testing.T) {
+			test.input.fixDeploymentConfig()
+			if !reflect.DeepEqual(test.input, test.expectedOutput) {
+				t.Errorf("Expected output to be:\n%v\nBut got:\n%v\n",
+					prettyPrintObjects(test.expectedOutput),
+					prettyPrintObjects(test.input))
+			}
+		})
+	}
+}
+
 func TestDeploymentConfigSpecMod_CreateOpenShiftController(t *testing.T) {
 	tests := []struct {
 		name                    string

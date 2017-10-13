@@ -201,4 +201,13 @@ type JobSpecMod struct {
 type DeploymentConfigSpecMod struct {
 	ControllerFields                  `json:",inline"`
 	os_deploy_v1.DeploymentConfigSpec `json:",inline"`
+
+	// Replicas is the number of desired replicas.
+	// We need to add this field here despite being in v1.DeploymentConfigSpec
+	// because the one in v1.DeploymentConfigSpec has the type as int32, which
+	// does not let us check if the set value is 0, is it set by the user or not
+	// since this field's value with default to 0. We need the default value as
+	// 1. Hence, we need to check if the user has set it or not.Making the type
+	// *int32 helps us do it, followed by substitution later on.
+	Replicas *int32 `json:"replicas,omitempty"`
 }
