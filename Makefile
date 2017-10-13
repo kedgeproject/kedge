@@ -86,7 +86,7 @@ endif
 
 # Run all tests
 .PHONY: test
-test: test-dep validate test-unit
+test: test-dep validate test-unit test-unit-cover
 
 # Tests that are run on travs-ci
 .PHONY: travis-tests
