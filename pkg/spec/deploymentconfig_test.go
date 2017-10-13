@@ -30,7 +30,7 @@ func TestDeploymentConfigSpecMod_CreateOpenShiftController(t *testing.T) {
 	tests := []struct {
 		name                    string
 		deploymentConfigSpecMod *DeploymentConfigSpecMod
-		kubernetesJob           *os_deploy_v1.DeploymentConfig
+		deployment              *os_deploy_v1.DeploymentConfig
 		success                 bool
 	}{
 		{
@@ -56,7 +56,7 @@ func TestDeploymentConfigSpecMod_CreateOpenShiftController(t *testing.T) {
 					Replicas: 2,
 				},
 			},
-			kubernetesJob: &os_deploy_v1.DeploymentConfig{
+			deployment: &os_deploy_v1.DeploymentConfig{
 				TypeMeta: meta_v1.TypeMeta{
 					Kind:       "DeploymentConfig",
 					APIVersion: "v1",
@@ -67,6 +67,9 @@ func TestDeploymentConfigSpecMod_CreateOpenShiftController(t *testing.T) {
 				Spec: os_deploy_v1.DeploymentConfigSpec{
 					Replicas: 2,
 					Template: &api_v1.PodTemplateSpec{
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name: "testJob",
+						},
 						Spec: api_v1.PodSpec{
 							Containers: []api_v1.Container{
 								{
@@ -106,7 +109,7 @@ func TestDeploymentConfigSpecMod_CreateOpenShiftController(t *testing.T) {
 					},
 				},
 			},
-			kubernetesJob: &os_deploy_v1.DeploymentConfig{
+			deployment: &os_deploy_v1.DeploymentConfig{
 				TypeMeta: meta_v1.TypeMeta{
 					Kind:       "DeploymentConfig",
 					APIVersion: "v1",
@@ -120,6 +123,9 @@ func TestDeploymentConfigSpecMod_CreateOpenShiftController(t *testing.T) {
 						Type: os_deploy_v1.DeploymentStrategyType("Rolling"),
 					},
 					Template: &api_v1.PodTemplateSpec{
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name: "testJob",
+						},
 						Spec: api_v1.PodSpec{
 							Containers: []api_v1.Container{
 								{
@@ -139,7 +145,7 @@ func TestDeploymentConfigSpecMod_CreateOpenShiftController(t *testing.T) {
 
 		t.Run(test.name, func(t *testing.T) {
 
-			kJob, err := test.deploymentConfigSpecMod.createOpenShiftController()
+			dc, err := test.deploymentConfigSpecMod.createOpenShiftController()
 
 			switch test.success {
 			case true:
@@ -152,9 +158,9 @@ func TestDeploymentConfigSpecMod_CreateOpenShiftController(t *testing.T) {
 				}
 			}
 
-			if !reflect.DeepEqual(test.kubernetesJob, kJob) {
+			if !reflect.DeepEqual(test.deployment, dc) {
 
-				t.Errorf("Expected OpenShift DeploymentConfig to be -\n%v\nBut got -\n%v", prettyPrintObjects(test.kubernetesJob), prettyPrintObjects(kJob))
+				t.Errorf("Expected OpenShift DeploymentConfig to be -\n%v\nBut got -\n%v", prettyPrintObjects(test.deployment), prettyPrintObjects(dc))
 			}
 		})
 	}

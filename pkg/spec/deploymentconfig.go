@@ -86,6 +86,10 @@ func (deploymentConfig *DeploymentConfigSpecMod) Fix() error {
 		return errors.Wrap(err, "unable to fix secrets")
 	}
 
+	deploymentConfig.ControllerFields.ObjectMeta.Labels = addKeyValueToMap(appLabelKey,
+		deploymentConfig.ControllerFields.Name,
+		deploymentConfig.ControllerFields.ObjectMeta.Labels)
+
 	return nil
 }
 
@@ -138,7 +142,8 @@ func (deploymentConfig *DeploymentConfigSpecMod) createOpenShiftController() (*o
 
 	dcSpec := deploymentConfig.DeploymentConfigSpec
 	dcSpec.Template = &kapi.PodTemplateSpec{
-		Spec: deploymentConfig.PodSpec,
+		Spec:       deploymentConfig.PodSpec,
+		ObjectMeta: deploymentConfig.ControllerFields.ObjectMeta,
 	}
 
 	return &os_deploy_v1.DeploymentConfig{

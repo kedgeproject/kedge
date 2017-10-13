@@ -138,11 +138,6 @@ type SecretMod struct {
 // ControllerFields are the common fields in every controller Kedge supports
 type ControllerFields struct {
 	Controller string `json:"controller,omitempty"`
-	// Map of string keys and values that can be used to organize and categorize
-	// (scope and select) objects. May match selectors of replication controllers
-	// and services. More info: http://kubernetes.io/docs/user-guide/labels
-	// +optional
-	Labels map[string]string `json:"labels,omitempty,conflicting"`
 	// List of volume that should be mounted on the pod.
 	// ref: io.kedge.VolumeClaim
 	// +optional
