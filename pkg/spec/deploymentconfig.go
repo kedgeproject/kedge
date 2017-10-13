@@ -115,7 +115,7 @@ func (deploymentConfig *DeploymentConfigSpecMod) Transform() ([]runtime.Object, 
 	// Create the DeploymentConfig controller!
 	deploy, err := deploymentConfig.createOpenShiftController()
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to create Kubernetes Deployment controller")
+		return nil, nil, errors.Wrap(err, "failed to create DeploymentConfig controller")
 	}
 
 	// adding controller objects
