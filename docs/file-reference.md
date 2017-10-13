@@ -71,6 +71,7 @@ defines.
 Supported controllers:
 - Deployment
 - Job
+- DeploymentConfig
 
 Default controller is **Deployment**
 
@@ -591,6 +592,21 @@ restartPolicy: Never
 parallelism: 3
 ```
 
+## Example (deploymentconfig)
+
+```yaml
+controller: deploymentconfig
+name: httpd
+replicas: 2
+containers:
+- image: centos/httpd
+services:
+- name: httpd
+  type: NodePort
+  ports:
+  - port: 8080
+    targetPort: 80
+```
 
 # Variables
 You can use variables anywhere in the Kedge file. Variable names are enclosed

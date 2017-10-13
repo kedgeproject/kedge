@@ -23,19 +23,19 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	api_v1 "k8s.io/client-go/pkg/api/v1"
-	ext_v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
+	api_v1 "k8s.io/kubernetes/pkg/api/v1"
+	ext_v1beta1 "k8s.io/kubernetes/pkg/apis/extensions/v1beta1"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/client-go/pkg/api"
+	"k8s.io/kubernetes/pkg/api"
 
 	// install api (register and add types to api.Schema)
-	_ "k8s.io/client-go/pkg/api/install"
-	_ "k8s.io/client-go/pkg/apis/extensions/install"
+	_ "k8s.io/kubernetes/pkg/api/install"
+	_ "k8s.io/kubernetes/pkg/apis/extensions/install"
 )
 
 // allLabelKey is the key that Kedge injects in every Kubernetes resource that

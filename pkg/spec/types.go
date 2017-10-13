@@ -17,10 +17,11 @@ limitations under the License.
 package spec
 
 import (
+	os_deploy_v1 "github.com/openshift/origin/pkg/deploy/apis/apps/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	api_v1 "k8s.io/client-go/pkg/api/v1"
-	batch_v1 "k8s.io/client-go/pkg/apis/batch/v1"
-	ext_v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
+	api_v1 "k8s.io/kubernetes/pkg/api/v1"
+	batch_v1 "k8s.io/kubernetes/pkg/apis/batch/v1"
+	ext_v1beta1 "k8s.io/kubernetes/pkg/apis/extensions/v1beta1"
 )
 
 // VolumeClaim is used to define Persistent Volumes for app
@@ -137,6 +138,11 @@ type SecretMod struct {
 // ControllerFields are the common fields in every controller Kedge supports
 type ControllerFields struct {
 	Controller string `json:"controller,omitempty"`
+	// Map of string keys and values that can be used to organize and categorize
+	// (scope and select) objects. May match selectors of replication controllers
+	// and services. More info: http://kubernetes.io/docs/user-guide/labels
+	// +optional
+	Labels map[string]string `json:"labels,omitempty,conflicting"`
 	// List of volume that should be mounted on the pod.
 	// ref: io.kedge.VolumeClaim
 	// +optional
@@ -166,6 +172,10 @@ type ControllerFields struct {
 	PodSpecMod         `json:",inline"`
 }
 
+type Controller struct {
+	Controller string `json:"controller,omitempty"`
+}
+
 // DeploymentSpecMod is Kedge's extension of Kubernetes DeploymentSpec and allows
 // defining a complete kedge application
 // kedgeSpec: io.kedge.DeploymentSpecMod
@@ -189,6 +199,11 @@ type JobSpecMod struct {
 	ActiveDeadlineSeconds *int64 `json:"activeDeadlineSeconds,conflicting,omitempty"`
 }
 
-type Controller struct {
-	Controller string `json:"controller,omitempty"`
+// Ochestrator: OpenShift
+// DeploymentConfigSpecMod is Kedge's extension of OpenShift DeploymentConfig in order to define and allow
+// a complete kedge app based on OpenShift
+// kedgeSpec: io.kedge.DeploymentConfigSpecMod
+type DeploymentConfigSpecMod struct {
+	ControllerFields                  `json:",inline"`
+	os_deploy_v1.DeploymentConfigSpec `json:",inline"`
 }

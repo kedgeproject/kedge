@@ -21,8 +21,8 @@ import (
 	"reflect"
 
 	log "github.com/Sirupsen/logrus"
-	api_v1 "k8s.io/client-go/pkg/api/v1"
-	ext_v1beta1 "k8s.io/client-go/pkg/apis/extensions/v1beta1"
+	api_v1 "k8s.io/kubernetes/pkg/api/v1"
+	ext_v1beta1 "k8s.io/kubernetes/pkg/apis/extensions/v1beta1"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/ghodss/yaml"
@@ -70,7 +70,7 @@ func (deployment *DeploymentSpecMod) Transform() ([]runtime.Object, []string, er
 		return nil, nil, errors.Wrap(err, "failed to create Kubernetes objects")
 	}
 
-	deploy, err := deployment.CreateK8sController()
+	deploy, err := deployment.createKubernetesController()
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "failed to create Kubernetes Deployment controller")
 	}
@@ -104,7 +104,7 @@ func (deployment *DeploymentSpecMod) Transform() ([]runtime.Object, []string, er
 
 // Creates a Deployment Kubernetes resource. The returned Deployment resource
 // will be nil if it could not be generated due to insufficient input data.
-func (deployment *DeploymentSpecMod) CreateK8sController() (*ext_v1beta1.Deployment, error) {
+func (deployment *DeploymentSpecMod) createKubernetesController() (*ext_v1beta1.Deployment, error) {
 
 	// We need to error out if both, deployment.PodSpec and deployment.DeploymentSpec are empty
 	if deployment.isDeploymentSpecPodSpecEmpty() {

@@ -1,0 +1,11 @@
+controller: deploymentconfig
+name: httpd
+replicas: 2
+containers:
+- image: centos/httpd
+services:
+- name: httpd
+  type: NodePort
+  ports:
+  - port: 8080
+    targetPort: 80
