@@ -269,18 +269,6 @@ func Test_Integration(t *testing.T) {
 			},
 		},
 		{
-			TestName:  "Testing envFrom",
-			Namespace: "envfrom",
-			InputFiles: []string{
-				ProjectPath + "docs/examples/envFrom/db.yaml",
-				ProjectPath + "docs/examples/envFrom/web.yaml",
-			},
-			PodStarted: []string{"web"},
-			NodePortServices: []ServicePort{
-				{Name: "wordpress", Port: 8080},
-			},
-		},
-		{
 			TestName:  "Testing includeResources",
 			Namespace: "include-resources",
 			InputFiles: []string{
