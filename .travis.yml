@@ -16,11 +16,9 @@ env:
 
 matrix:
   include:
-    - go: 1.6
     - go: 1.7
     - go: 1.8
-  allow_failures:
-    - go: 1.6
+    - go: 1.9
 
 install:
   - true
