@@ -1,6 +1,5 @@
 controller: deploymentconfig
 name: httpd
-replicas: 2
 containers:
 - image: centos/httpd
 services:

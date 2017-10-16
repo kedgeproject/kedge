@@ -86,11 +86,26 @@ func (deploymentConfig *DeploymentConfigSpecMod) Fix() error {
 		return errors.Wrap(err, "unable to fix secrets")
 	}
 
+	// Fix DeploymentConfig
+	deploymentConfig.fixDeploymentConfig()
+
+	return nil
+}
+
+func (deploymentConfig *DeploymentConfigSpecMod) fixDeploymentConfig() {
 	deploymentConfig.ControllerFields.ObjectMeta.Labels = addKeyValueToMap(appLabelKey,
 		deploymentConfig.ControllerFields.Name,
 		deploymentConfig.ControllerFields.ObjectMeta.Labels)
 
-	return nil
+	// If the replicas are not specified at all, we need to set the value as 1
+	if deploymentConfig.Replicas == nil {
+		deploymentConfig.Replicas = getInt32Addr(1)
+	}
+
+	// Since we have unmarshalled replicas in a custom defined field, we need
+	// to substitute the unmarshalled (and fixed) value in the internal
+	// DeploymentConfigSpec struct
+	deploymentConfig.DeploymentConfigSpec.Replicas = *deploymentConfig.Replicas
 }
 
 func (deploymentConfig *DeploymentConfigSpecMod) Transform() ([]runtime.Object, []string, error) {
