@@ -19,7 +19,7 @@ run_command="go test"
 while getopts ":p:t:" opt; do
     case $opt in
 	p ) PARALLEL=$OPTARG;;
-	r ) TIMEOUT=$OPTARG;;
+	t ) TIMEOUT=$OPTARG;;
     esac
 done
 
@@ -42,4 +42,10 @@ kubectl get po --all-namespaces -w &
 KUBE_PID=$!
 
 # Kill processes once done
-(while kill -0 $TEST_PID; do sleep 5; done) && kill $KUBE_PID
+(while ps -p $TEST_PID > /dev/null; do sleep 5; done) && kill $KUBE_PID
+
+# Get the exit status of the test run
+wait $TEST_PID
+TEST_STATUS=$?
+
+exit $TEST_STATUS
