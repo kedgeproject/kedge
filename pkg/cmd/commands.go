@@ -30,10 +30,9 @@ import (
 	"github.com/pkg/errors"
 )
 
-// Generate Kubernetes Artifacts and either writes to file
-// or uses kubectl to deploy.
+// GenerateArtifacts either writes to file or uses kubectl/oc to deploy.
 // TODO: Refactor into two separate functions (remove `generate bool`).
-func CreateKubernetesArtifacts(paths []string, generate bool, args ...string) error {
+func CreateArtifacts(paths []string, generate bool, args ...string) error {
 
 	files, err := GetAllYAMLFiles(paths)
 	if err != nil {
@@ -50,14 +49,25 @@ func CreateKubernetesArtifacts(paths []string, generate bool, args ...string) er
 		// Substitute variables
 		// We do this on raw Kedge file before unmarshalling, because it would be
 		// complicated to go through all different go structs.
-		data, err := SubstituteVariables(input.data)
+		kedgeData, err := SubstituteVariables(input.data)
 		if err != nil {
 			return errors.Wrap(err, "failed to replace variables")
 		}
 
-		ros, includeResources, err := spec.CoreOperations(data)
+		ros, includeResources, err := spec.CoreOperations(kedgeData)
 		if err != nil {
 			return errors.Wrap(err, "unable to perform controller operations")
+		}
+
+		// decide between kubectl and oc
+		useOC := false
+		for _, runtimeObject := range ros {
+			switch runtimeObject.GetObjectKind().GroupVersionKind().Kind {
+			// If there is at least one OpenShift resource use oc
+			case "DeploymentConfig", "Route":
+				useOC = true
+				break
+			}
 		}
 
 		for _, runtimeObject := range ros {
@@ -80,9 +90,9 @@ func CreateKubernetesArtifacts(paths []string, generate bool, args ...string) er
 				// e.g. If the command and arguments are "apply --namespace staging", then the
 				// final command becomes "kubectl apply --namespace staging -f -"
 				arguments := append(args, "-f", "-")
-				err = runKubectl(arguments, data)
+				err = runClusterCommand(arguments, data, useOC)
 				if err != nil {
-					return errors.Wrap(err, "kubectl error")
+					return errors.Wrap(err, "failed to execute command")
 				}
 			}
 
@@ -108,9 +118,9 @@ func CreateKubernetesArtifacts(paths []string, generate bool, args ...string) er
 				// e.g. If the command and arguments are "apply --namespace staging", then the
 				// final command becomes "kubectl apply --namespace staging -f absolute-filename"
 				arguments := append(args, "-f", file)
-				err = runKubectl(arguments, nil)
+				err = runClusterCommand(arguments, nil, useOC)
 				if err != nil {
-					return errors.Wrap(err, "kubectl error")
+					return errors.Wrap(err, "failed to execute command")
 				}
 			}
 		}
@@ -118,8 +128,14 @@ func CreateKubernetesArtifacts(paths []string, generate bool, args ...string) er
 	return nil
 }
 
-func runKubectl(args []string, data []byte) error {
-	cmd := exec.Command("kubectl", args...)
+// runClusterCommand calls kubectl or oc binary.
+// Boolean flag useOC controls if oc or kubectl will be used
+func runClusterCommand(args []string, data []byte, useOC bool) error {
+	executable := "kubectl"
+	if useOC {
+		executable = "oc"
+	}
+	cmd := exec.Command(executable, args...)
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {

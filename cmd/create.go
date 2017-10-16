@@ -34,15 +34,15 @@ var createCmd = &cobra.Command{
 			os.Exit(-1)
 		}
 
-		kubectlCommand := []string{"create", "--save-config"}
+		command := []string{"create", "--save-config"}
 
 		// Only setting the namespace flag to kubectl when --namespace is passed
 		// explicitly by the user
 		if cmd.Flags().Lookup("namespace").Changed {
-			kubectlCommand = append(kubectlCommand, "--namespace", Namespace)
+			command = append(command, "--namespace", Namespace)
 		}
 
-		if err := pkgcmd.CreateKubernetesArtifacts(InputFiles, false, kubectlCommand...); err != nil {
+		if err := pkgcmd.CreateArtifacts(InputFiles, false, command...); err != nil {
 			fmt.Println(err)
 			os.Exit(-1)
 		}
@@ -52,7 +52,7 @@ var createCmd = &cobra.Command{
 func init() {
 	createCmd.Flags().StringArrayVarP(&InputFiles, "files", "f", []string{}, "Specify files")
 	createCmd.MarkFlagRequired("files")
-	createCmd.Flags().StringVarP(&Namespace, "namespace", "n", "", "Kubernetes namespace to deploy your application to")
+	createCmd.Flags().StringVarP(&Namespace, "namespace", "n", "", "Namespace or project to deploy your application to")
 
 	RootCmd.AddCommand(createCmd)
 }

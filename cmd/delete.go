@@ -34,15 +34,15 @@ var deleteCmd = &cobra.Command{
 			os.Exit(-1)
 		}
 
-		kubectlCommand := []string{"delete"}
+		command := []string{"delete"}
 
 		// Only setting the namespace flag to kubectl when --namespace is passed
 		// explicitly by the user
 		if cmd.Flags().Lookup("namespace").Changed {
-			kubectlCommand = append(kubectlCommand, "--namespace", Namespace)
+			command = append(command, "--namespace", Namespace)
 		}
 
-		if err := pkgcmd.CreateKubernetesArtifacts(InputFiles, false, kubectlCommand...); err != nil {
+		if err := pkgcmd.CreateArtifacts(InputFiles, false, command...); err != nil {
 			fmt.Println(err)
 			os.Exit(-1)
 		}
@@ -52,6 +52,6 @@ var deleteCmd = &cobra.Command{
 func init() {
 	deleteCmd.Flags().StringArrayVarP(&InputFiles, "files", "f", []string{}, "Specify files")
 	deleteCmd.MarkFlagRequired("files")
-	deleteCmd.Flags().StringVarP(&Namespace, "namespace", "n", "", "Kubernetes namespace to delete your application from")
+	deleteCmd.Flags().StringVarP(&Namespace, "namespace", "n", "", "Namespace or project to delete your application from")
 	RootCmd.AddCommand(deleteCmd)
 }
