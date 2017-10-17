@@ -28,6 +28,7 @@ import (
 	"k8s.io/kubernetes/pkg/api"
 	api_v1 "k8s.io/kubernetes/pkg/api/v1"
 	//kapi "k8s.io/kubernetes/pkg/api/v1"
+	os_deploy_v1 "github.com/openshift/origin/pkg/deploy/apis/apps/v1"
 	os_route_v1 "github.com/openshift/origin/pkg/route/apis/route/v1"
 	batch_v1 "k8s.io/kubernetes/pkg/apis/batch/v1"
 )
@@ -69,6 +70,11 @@ func GetScheme() (*runtime.Scheme, error) {
 	// TODO: find a way where we don't have to add all the subsequent schemes
 	// to the v1 scheme, instead we should be able to have different scheme for
 	// different controllers
+
+	// Adding the apps scheme to support DeploymentConfig
+	if err := os_deploy_v1.AddToScheme(scheme); err != nil {
+		return nil, errors.Wrap(err, "unable to add 'apps' (OpenShift) to scheme")
+	}
 
 	// Adding the batch scheme to support Jobs
 	if err := batch_v1.AddToScheme(scheme); err != nil {

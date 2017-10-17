@@ -133,10 +133,6 @@ func TestDeploymentConfigSpecMod_CreateOpenShiftController(t *testing.T) {
 				},
 			},
 			deployment: &os_deploy_v1.DeploymentConfig{
-				TypeMeta: meta_v1.TypeMeta{
-					Kind:       "DeploymentConfig",
-					APIVersion: "v1",
-				},
 				ObjectMeta: meta_v1.ObjectMeta{
 					Name: "testJob",
 				},
@@ -186,10 +182,6 @@ func TestDeploymentConfigSpecMod_CreateOpenShiftController(t *testing.T) {
 				},
 			},
 			deployment: &os_deploy_v1.DeploymentConfig{
-				TypeMeta: meta_v1.TypeMeta{
-					Kind:       "DeploymentConfig",
-					APIVersion: "v1",
-				},
 				ObjectMeta: meta_v1.ObjectMeta{
 					Name: "testJob",
 				},

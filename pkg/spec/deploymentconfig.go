@@ -22,7 +22,6 @@ import (
 	"github.com/ghodss/yaml"
 	os_deploy_v1 "github.com/openshift/origin/pkg/deploy/apis/apps/v1"
 	"github.com/pkg/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	kapi "k8s.io/kubernetes/pkg/api/v1"
 )
@@ -86,21 +85,7 @@ func (deploymentConfig *DeploymentConfigSpecMod) Transform() ([]runtime.Object, 
 		return nil, nil, errors.Wrap(err, "failed to create Kubernetes objects")
 	}
 
-	// Set appropriate GVK BEFORE adding DeploymentConfig controller
-	// as OpenShift controllers are not available in the Kubernetes controller / setGVK check
-	scheme, err := GetScheme()
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "unable to get scheme")
-	}
-
-	// Set's the appropriate GVK
-	for _, runtimeObject := range runtimeObjects {
-		if err := SetGVK(runtimeObject, scheme); err != nil {
-			return nil, nil, errors.Wrap(err, "unable to set Group, Version and Kind for generated Kubernetes resources")
-		}
-	}
-
-	// Create the DeploymentConfig controller!
+	// Create the DeploymentConfig controller
 	deploy, err := deploymentConfig.createOpenShiftController()
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "failed to create DeploymentConfig controller")
@@ -118,6 +103,18 @@ func (deploymentConfig *DeploymentConfigSpecMod) Transform() ([]runtime.Object, 
 		return nil, nil, errors.New("No runtime objects created, possibly because not enough input data was passed")
 	}
 
+	scheme, err := GetScheme()
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "unable to get scheme")
+	}
+
+	// Set's the appropriate GVK
+	for _, runtimeObject := range runtimeObjects {
+		if err := SetGVK(runtimeObject, scheme); err != nil {
+			return nil, nil, errors.Wrap(err, "unable to set Group, Version and Kind for generated resources")
+		}
+	}
+
 	return runtimeObjects, extraResources, nil
 }
 
@@ -131,10 +128,6 @@ func (deploymentConfig *DeploymentConfigSpecMod) createOpenShiftController() (*o
 	}
 
 	return &os_deploy_v1.DeploymentConfig{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "DeploymentConfig",
-			APIVersion: "v1",
-		},
 		ObjectMeta: deploymentConfig.ObjectMeta,
 		Spec:       dcSpec,
 	}, nil
