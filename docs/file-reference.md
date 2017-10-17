@@ -423,6 +423,38 @@ More info about Probe: https://kubernetes.io/docs/api-reference/v1.6/#probe-v1-c
 
 The name of the Ingress.
 
+## routes
+
+```yaml
+routes:
+- <routeObject>
+- <routeObject>
+```
+
+| **Type**                                  | **Required** |
+|-------------------------------------------|--------------|
+| array of [route object](#routeObject) | no           |
+
+
+### routeObject
+
+```yaml
+routes:
+- name: <string>
+  <Route Spec>
+```
+
+Example:
+```yaml
+name: webroute
+to:
+  kind: Service
+  name: httpd
+```
+
+Each `route` object is OpenShift's `RouteSpec` and `ObjectMeta` field.
+More info: https://docs.openshift.org/latest/rest_api/apis-route.openshift.io/v1.Route.html#object-schema
+
 ## secrets
 
 ```yaml

@@ -18,6 +18,7 @@ package spec
 
 import (
 	os_deploy_v1 "github.com/openshift/origin/pkg/deploy/apis/apps/v1"
+	os_route_v1 "github.com/openshift/origin/pkg/route/apis/route/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	api_v1 "k8s.io/kubernetes/pkg/api/v1"
 	batch_v1 "k8s.io/kubernetes/pkg/apis/batch/v1"
@@ -70,6 +71,12 @@ type ServiceSpecMod struct {
 type IngressSpecMod struct {
 	// k8s: io.k8s.kubernetes.pkg.apis.extensions.v1beta1.IngressSpec
 	ext_v1beta1.IngressSpec `json:",inline"`
+	// k8s: io.k8s.kubernetes.pkg.apis.meta.v1.ObjectMeta
+	meta_v1.ObjectMeta `json:",inline"`
+}
+
+type RouteSpecMod struct {
+	os_route_v1.RouteSpec `json:",inline"`
 	// k8s: io.k8s.kubernetes.pkg.apis.meta.v1.ObjectMeta
 	meta_v1.ObjectMeta `json:",inline"`
 }
@@ -154,6 +161,10 @@ type ControllerFields struct {
 	// ref: io.kedge.IngressSpec
 	// +optional
 	Ingresses []IngressSpecMod `json:"ingresses,omitempty"`
+	// List of OpenShift Routes
+	// ref: io.kedge.RouteSpec
+	// +optional
+	Routes []RouteSpecMod `json:"routes,omitempty"`
 	// List of Kubernetes Secrets
 	// ref: io.kedge.SecretSpec
 	// +optional
