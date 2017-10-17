@@ -143,3 +143,97 @@ volumeClaims:
 		})
 	}
 }
+
+func TestGetController(t *testing.T) {
+	tests := []struct {
+		Data               []byte
+		ExpectedController interface{}
+		ExpectError        bool
+	}{
+		{
+
+			Data: []byte(`
+name: test
+containers:
+ - image: nginx
+services:
+  - ports:
+	- port: 8080
+`),
+			ExpectedController: &DeploymentSpecMod{},
+			ExpectError:        false,
+		}, {
+
+			Data: []byte(`
+name: test
+controller: Deployment
+`),
+			ExpectedController: &DeploymentSpecMod{},
+			ExpectError:        false,
+		}, {
+
+			Data: []byte(`
+name: test
+controller: deployment
+`),
+			ExpectedController: &DeploymentSpecMod{},
+			ExpectError:        false,
+		}, {
+
+			Data: []byte(`
+name: test
+controller: Job
+`),
+			ExpectedController: &JobSpecMod{},
+			ExpectError:        false,
+		}, {
+
+			Data: []byte(`
+name: test
+controller: job
+`),
+			ExpectedController: &JobSpecMod{},
+			ExpectError:        false,
+		}, {
+
+			Data: []byte(`
+name: test
+controller: deploymentconfig
+`),
+			ExpectedController: &DeploymentConfigSpecMod{},
+			ExpectError:        false,
+		}, {
+
+			Data: []byte(`
+name: test
+controller: Deploymentconfig
+`),
+			ExpectedController: &DeploymentConfigSpecMod{},
+			ExpectError:        false,
+		}, {
+
+			Data: []byte(`
+name: test
+controller: INVALID
+`),
+			ExpectedController: nil,
+			ExpectError:        true,
+		},
+	}
+	for _, test := range tests {
+
+		kController, err := GetController(test.Data)
+
+		if err != nil {
+			if !test.ExpectError {
+				t.Errorf("unable to get Kubernetes controller information from Kedge definition - %v", err)
+			}
+			continue
+		}
+
+		if reflect.TypeOf(kController) != reflect.TypeOf(test.ExpectedController) {
+			t.Errorf("Got wrong controller %#v. Expected: %#v. For data:\n%s\n", reflect.TypeOf(kController).String(), reflect.TypeOf(test.ExpectedController).String(), string(test.Data))
+		}
+
+	}
+}
