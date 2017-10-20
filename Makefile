@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-GITCOMMIT := $(shell git rev-parse --short HEAD)
+GITCOMMIT := $(shell git rev-parse --short HEAD 2>/dev/null)
 BUILD_FLAGS := -ldflags="-w -X github.com/kedgeproject/kedge/cmd.GITCOMMIT=$(GITCOMMIT)"
 PKGS = $(shell glide novendor)
 UNITPKGS = $(shell glide novendor | grep -v tests)
