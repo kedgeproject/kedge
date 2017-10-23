@@ -217,7 +217,6 @@ func TestPopulateServicePortNames(t *testing.T) {
 			},
 			outputServicePorts: []api_v1.ServicePort{
 				{
-					Name: fmt.Sprintf("%v-%v", serviceName, 8080),
 					Port: 8080,
 				},
 			},

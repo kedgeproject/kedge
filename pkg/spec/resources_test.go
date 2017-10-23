@@ -609,7 +609,7 @@ func TestCreateServices(t *testing.T) {
 			},
 			append(make([]runtime.Object, 0), &api_v1.Service{
 				ObjectMeta: meta_v1.ObjectMeta{Name: "test"},
-				Spec:       api_v1.ServiceSpec{Ports: []api_v1.ServicePort{{Port: 8080, Name: "test-8080"}}},
+				Spec:       api_v1.ServiceSpec{Ports: []api_v1.ServicePort{{Port: 8080}}},
 			}),
 		},
 	}
