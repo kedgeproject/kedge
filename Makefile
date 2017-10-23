@@ -122,5 +122,5 @@ vendor-update:
 # Test if the changed spec.go is valid and JSONSchema can be generated out of it
 .PHONY: test-jsonschema-generation
 test-jsonschema-generation:
-	docker run -v `pwd`/pkg/spec/spec.go:/data/spec.go:ro,Z surajd/kedgeschema
+	docker run -v `pwd`/pkg/spec/types.go:/data/types.go:ro,Z surajd/kedgeschema
 
