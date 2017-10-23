@@ -29,10 +29,12 @@ import (
 
 func populateServicePortNames(serviceName string, servicePorts []api_v1.ServicePort) {
 	// auto populate port names if more than 1 port specified
-	for i := range servicePorts {
-		// Only populate if the port name is not already specified
-		if len(servicePorts[i].Name) == 0 {
-			servicePorts[i].Name = serviceName + "-" + strconv.FormatInt(int64(servicePorts[i].Port), 10)
+	if len(servicePorts) > 1 {
+		for i := range servicePorts {
+			// Only populate if the port name is not already specified
+			if len(servicePorts[i].Name) == 0 {
+				servicePorts[i].Name = serviceName + "-" + strconv.FormatInt(int64(servicePorts[i].Port), 10)
+			}
 		}
 	}
 }
