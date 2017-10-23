@@ -71,15 +71,15 @@ test-unit:
 test-e2e:
 
 ifneq ($(and $(PARALLEL),$(TIMEOUT)),)
-	./tests/e2e/run_e2e.sh -p $(PARALLEL) -t $(TIMEOUT)
+	./scripts/run_e2e.sh -p $(PARALLEL) -t $(TIMEOUT)
 else
 ifdef PARALLEL
-	./tests/e2e/run_e2e.sh -p $(PARALLEL)
+	./scripts/run_e2e.sh -p $(PARALLEL)
 else
 ifdef TIMEOUT
-	./tests/e2e/run_e2e.sh -t $(TIMEOUT)
+	./scripts/run_e2e.sh -t $(TIMEOUT)
 else
-	./tests/e2e/run_e2e.sh
+	./scripts/run_e2e.sh
 endif
 endif
 endif
