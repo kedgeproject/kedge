@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	log "github.com/Sirupsen/logrus"
+	os_route_v1 "github.com/openshift/origin/pkg/route/apis/route/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	api_v1 "k8s.io/kubernetes/pkg/api/v1"
 	ext_v1beta1 "k8s.io/kubernetes/pkg/apis/extensions/v1beta1"
@@ -144,6 +145,26 @@ func fixIngresses(ingresses []IngressSpecMod, appName string) ([]IngressSpecMod,
 	return ingresses, nil
 }
 
+func fixRoutes(routes []RouteSpecMod, appName string) ([]RouteSpecMod, error) {
+
+	// auto populate name only if one route is specified without any name
+	if len(routes) == 1 && routes[0].Name == "" {
+		routes[0].ObjectMeta.Name = appName
+	}
+
+	for i, route := range routes {
+		if route.Name == "" {
+			return nil, fmt.Errorf("please specify name for app.routes[%d]", i)
+		}
+
+		route.ObjectMeta.Labels = addKeyValueToMap(appLabelKey, appName, route.ObjectMeta.Labels)
+
+		// this should be the last statement in this for loop
+		routes[i] = route
+	}
+	return routes, nil
+}
+
 func fixContainers(containers []Container, appName string) ([]Container, error) {
 
 	// auto populate name only if one ingress is specified without any name
@@ -202,6 +223,12 @@ func (cf *ControllerFields) fixControllerFields() error {
 		return errors.Wrap(err, "unable to fix ingresses")
 	}
 
+	// fix routes
+	cf.Routes, err = fixRoutes(cf.Routes, cf.Name)
+	if err != nil {
+		return errors.Wrap(err, "unable to fix routes")
+	}
+
 	return nil
 }
 
@@ -223,6 +250,19 @@ func (app *ControllerFields) createIngresses() ([]runtime.Object, error) {
 		ings = append(ings, ing)
 	}
 	return ings, nil
+}
+
+func (app *ControllerFields) createRoutes() ([]runtime.Object, error) {
+	var routes []runtime.Object
+
+	for _, r := range app.Routes {
+		route := &os_route_v1.Route{
+			ObjectMeta: r.ObjectMeta,
+			Spec:       r.RouteSpec,
+		}
+		routes = append(routes, route)
+	}
+	return routes, nil
 }
 
 func (app *ControllerFields) createServices() ([]runtime.Object, error) {
@@ -381,6 +421,11 @@ func (app *ControllerFields) CreateK8sObjects() ([]runtime.Object, []string, err
 		return nil, nil, errors.Wrap(err, "Unable to create Kubernetes Ingresses")
 	}
 
+	routes, err := app.createRoutes()
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "unable to create OpenShift Routes")
+	}
+
 	secs, err := app.createSecrets()
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "Unable to create Kubernetes Secrets")
@@ -434,6 +479,9 @@ func (app *ControllerFields) CreateK8sObjects() ([]runtime.Object, []string, err
 
 	objects = append(objects, ings...)
 	log.Debugf("app: %s, ingress: %s\n", app.Name, spew.Sprint(ings))
+
+	objects = append(objects, routes...)
+	log.Debugf("app: %s, routes: %s\n", app.Name, spew.Sprint(routes))
 
 	objects = append(objects, secs...)
 	log.Debugf("app: %s, secret: %s\n", app.Name, spew.Sprint(secs))

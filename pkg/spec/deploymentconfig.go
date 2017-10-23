@@ -51,39 +51,8 @@ func (deploymentConfig *DeploymentConfigSpecMod) Validate() error {
 // TODO: abstract out this code when more controllers are added
 func (deploymentConfig *DeploymentConfigSpecMod) Fix() error {
 
-	var err error
-
-	// fix deploymentConfig.Services
-	deploymentConfig.Services, err = fixServices(deploymentConfig.Services, deploymentConfig.Name)
-	if err != nil {
-		return errors.Wrap(err, "Unable to fix services")
-	}
-
-	// fix deploymentConfig.VolumeClaims
-	deploymentConfig.VolumeClaims, err = fixVolumeClaims(deploymentConfig.VolumeClaims, deploymentConfig.Name)
-	if err != nil {
-		return errors.Wrap(err, "Unable to fix persistentVolume")
-	}
-
-	// fix deploymentConfig.configMaps
-	deploymentConfig.ConfigMaps, err = fixConfigMaps(deploymentConfig.ConfigMaps, deploymentConfig.Name)
-	if err != nil {
-		return errors.Wrap(err, "unable to fix configMaps")
-	}
-
-	deploymentConfig.Containers, err = fixContainers(deploymentConfig.Containers, deploymentConfig.Name)
-	if err != nil {
-		return errors.Wrap(err, "unable to fix containers")
-	}
-
-	deploymentConfig.InitContainers, err = fixContainers(deploymentConfig.InitContainers, deploymentConfig.Name)
-	if err != nil {
-		return errors.Wrap(err, "unable to fix init-containers")
-	}
-
-	deploymentConfig.Secrets, err = fixSecrets(deploymentConfig.Secrets, deploymentConfig.Name)
-	if err != nil {
-		return errors.Wrap(err, "unable to fix secrets")
+	if err := deploymentConfig.ControllerFields.fixControllerFields(); err != nil {
+		return errors.Wrap(err, "unable to fix ControllerFields")
 	}
 
 	// Fix DeploymentConfig

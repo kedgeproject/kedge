@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
+	os_route_v1 "github.com/openshift/origin/pkg/route/apis/route/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -356,6 +357,85 @@ func TestFixIngresses(t *testing.T) {
 
 }
 
+func TestFixRoutes(t *testing.T) {
+	appName := "testAppName"
+	tests := []struct {
+		name    string
+		input   []RouteSpecMod
+		output  []RouteSpecMod
+		success bool
+	}{
+		{
+			name: "passing one route without name",
+			input: []RouteSpecMod{
+				{},
+			},
+			output: []RouteSpecMod{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: appName,
+						Labels: map[string]string{
+							appLabelKey: appName,
+						},
+					},
+				},
+			},
+			success: true,
+		},
+		{
+			name: "passing one route with name",
+			input: []RouteSpecMod{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "routeName",
+					},
+				},
+			},
+			output: []RouteSpecMod{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "routeName",
+						Labels: map[string]string{
+							appLabelKey: appName,
+						},
+					},
+				},
+			},
+			success: true,
+		},
+		{
+			name: "passing multiple ingresses without names",
+			input: []RouteSpecMod{
+				{},
+				{},
+			},
+			output:  nil,
+			success: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fixedRoutes, err := fixRoutes(test.input, appName)
+
+			switch test.success {
+			case true:
+				if err != nil {
+					t.Errorf("Expected test to pass but got an error -\n%v", err)
+				}
+			case false:
+				if err == nil {
+					t.Errorf("For the input -\n%v\nexpected test to fail, but test passed", prettyPrintObjects(test.input))
+				}
+			}
+
+			if !reflect.DeepEqual(fixedRoutes, test.output) {
+				t.Errorf("Expected fixed routes to be -\n%v\nBut got -\n%v\n", prettyPrintObjects(test.output), prettyPrintObjects(fixedRoutes))
+			}
+		})
+	}
+}
+
 func TestFixContainers(t *testing.T) {
 	failingTest := []Container{{}, {}}
 	_, err := fixContainers(failingTest, "")
@@ -405,6 +485,99 @@ func TestValidateVolumeClaims(t *testing.T) {
 		t.Errorf("should have failed but passed for input: %+v", failingTest)
 	} else {
 		t.Logf("failed with error: %v", err)
+	}
+
+}
+
+func TestCreateRoutes(t *testing.T) {
+	tests := []struct {
+		name   string
+		input  *ControllerFields
+		output []runtime.Object
+	}{
+		{
+			name:   "no routes passed",
+			input:  &ControllerFields{},
+			output: nil,
+		},
+		{
+			name: "passing 1 route definition",
+			input: &ControllerFields{
+				Routes: []RouteSpecMod{
+					{
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name: "testRoute",
+						},
+						RouteSpec: os_route_v1.RouteSpec{
+							Host: "testHost",
+						},
+					},
+				},
+			},
+			output: []runtime.Object{
+				&os_route_v1.Route{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "testRoute",
+					},
+					Spec: os_route_v1.RouteSpec{
+						Host: "testHost",
+					},
+				},
+			},
+		},
+		{
+			name: "passing 2 route definitions",
+			input: &ControllerFields{
+				Routes: []RouteSpecMod{
+					{
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name: "testRoute",
+						},
+						RouteSpec: os_route_v1.RouteSpec{
+							Host: "testHost",
+						},
+					},
+					{
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name: "testRoute2",
+						},
+						RouteSpec: os_route_v1.RouteSpec{
+							Host: "testHost2",
+						},
+					},
+				},
+			},
+			output: []runtime.Object{
+				&os_route_v1.Route{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "testRoute",
+					},
+					Spec: os_route_v1.RouteSpec{
+						Host: "testHost",
+					},
+				},
+				&os_route_v1.Route{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "testRoute2",
+					},
+					Spec: os_route_v1.RouteSpec{
+						Host: "testHost2",
+					},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			objects, err := test.input.createRoutes()
+			if err != nil {
+				t.Errorf("Creating routes failed: %v", err)
+			}
+			if !reflect.DeepEqual(test.output, objects) {
+				t.Fatalf("Expected:\n%v\nGot:\n%v", prettyPrintObjects(test.output), prettyPrintObjects(objects))
+			}
+		})
 	}
 
 }
