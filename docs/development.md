@@ -177,9 +177,9 @@ You may also add a timeout which will increase the overall timeout period for th
 make test-e2e TIMEOUT=15m
 ```
 
-### spec.go conventions
+### types.go conventions
 
-- Add explanation on top of each struct and struct field in `spec.go` to explain what it does,
+- Add explanation on top of each struct and struct field in `types.go` to explain what it does,
 so that when OpenAPI spec is auto-generated it will show up there.
 
 - Structs that are referred in any other struct in the form of an array should have a comment

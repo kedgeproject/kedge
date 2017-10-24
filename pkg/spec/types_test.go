@@ -31,7 +31,7 @@ const (
 )
 
 func TestConflictingFields(t *testing.T) {
-	// This array should ideally go away and every struct in spec.go should
+	// This array should ideally go away and every struct in types.go should
 	// get tested automatically, but for now, let's pass in all the structs
 	// https://stackoverflow.com/questions/20803758/how-to-get-all-defined-struct-in-golang
 	structsToTest := []interface{}{
@@ -146,9 +146,9 @@ func getEmbeddedStructs(inputStruct reflect.Value) ([]reflect.Value, error) {
 // This function returns an array of all the JSON tags used for unmarshalling
 // (which are the first ones specified) which have a JSON tag "conflicting", in
 // all of the input structs.
-// It's made sure that only the tags in spec.go are checked and all other
+// It's made sure that only the tags in types.go are checked and all other
 // packages are ignored. This is done because we are expecting the structs to
-// be handled, i.e. marked as "conflicting" only in spec.go, and we do not want
+// be handled, i.e. marked as "conflicting" only in types.go, and we do not want
 // to populate the list with JSON tags from some other package which had the
 // "conflicting" JSON tag for some other reason
 func getMarkedAsConflictingJSONUnmarshalTags(inputStructs []reflect.Value) ([]string, error) {
@@ -221,7 +221,7 @@ func findConflictingJSONTags(inputStruct reflect.Value) (map[string][]string, er
 
 	// Step 2: Get blacklisted tags.
 	// Get the fields which have already been handled and were previously
-	// conflicting. This needs to be done only for the structs in spec.go,
+	// conflicting. This needs to be done only for the structs in types.go,
 	// and with fields marked as "conflicting" using a JSON tag
 
 	blacklistedTags, err := getMarkedAsConflictingJSONUnmarshalTags(targetStructs)

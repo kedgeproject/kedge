@@ -119,7 +119,7 @@ vendor-update:
 	# Vendors OpenShift and its dependencies
 	./scripts/vendor-openshift.sh
 
-# Test if the changed spec.go is valid and JSONSchema can be generated out of it
+# Test if the changed types.go is valid and JSONSchema can be generated out of it
 .PHONY: test-jsonschema-generation
 test-jsonschema-generation:
 	docker run -v `pwd`/pkg/spec/types.go:/data/types.go:ro,Z surajd/kedgeschema
