@@ -29,6 +29,7 @@ script:
 before_deploy:
   - make cross
   - ./scripts/generate-bintray-json.sh
+  - ./scripts/generate-kedge-json-schema.sh
 
 deploy:
   provider: bintray
