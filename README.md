@@ -4,6 +4,8 @@
 
 ## What is Kedge?
 
+![logo](/docs/images/logo.png)
+
 Kedge is a simple, easy and declarative way to define and deploy applications to Kubernetes by writing very concise application definitions.
 
 Key features and goals include:
