@@ -17,7 +17,7 @@ ENC_KEY=$encrypted_91569b511922_key
 ENC_IV=$encrypted_91569b511922_iv
 
 # decrypt the private key
-openssl aes-256-cbc -K $ENC_KEY -iv $ENC_IV -in "$DOCS_KEY.enc" -out "$DOCS_KEY" -d
+openssl aes-256-cbc -K $ENC_KEY -iv $ENC_IV -in "$DOCS_KEY" -out "$DOCS_KEY" -d
 chmod 600 "$DOCS_KEY"
 eval `ssh-agent -s`
 ssh-add "$DOCS_KEY"
