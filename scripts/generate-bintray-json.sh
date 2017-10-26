@@ -3,6 +3,36 @@
 DATE=`date --iso-8601=date`
 TIME=`date --iso-8601=seconds`
 
+
+# generate ./bin/info.txt
+# this file contains information about what files were build and whan
+
+commit_id=$(git rev-parse HEAD)
+origin=$(git config --get remote.origin.url)
+
+cat > "./bin/info.txt" <<EOF
+date: ${TIME}
+build_from: ${origin}
+commit_id: ${commit_id}
+files:
+EOF
+
+for f in $(ls -1 ./bin/* | grep -v info.txt); do
+  sha256sum=$(sha256sum $f | cut -d ' ' -f 1);
+  name=$(basename $f)
+  updated_on=$(stat -c %y $f)
+  cat >> "./bin/info.txt" <<EOF
+  - name: ${name}"
+    sha256sum: ${sha256sum}"
+    updated_on: ${updated_on}
+EOF
+done
+
+
+
+# generate .bintray.json
+# this file contains all information on what will be upload to bintray
+# for mor info: https://docs.travis-ci.com/user/deployment/bintray/
 cat > "./.bintray.json" <<EOF
 {
     "package": {
