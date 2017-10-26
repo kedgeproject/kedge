@@ -38,7 +38,7 @@ deploy:
   key: "${BINTRAY_KEY}"
   skip_cleanup: true
   on:
-    branch: "**"
+    branch: "master"
     go: 1.8
 
 after_success:
