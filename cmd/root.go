@@ -19,7 +19,6 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -27,8 +26,7 @@ import (
 
 // Global variables
 var (
-	GlobalVerbose  bool
-	GlobalProvider string
+	GlobalVerbose bool
 )
 
 // RootCmd represents the base command when called without any subcommands
@@ -40,12 +38,6 @@ var RootCmd = &cobra.Command{
 		// Add extra logging when verbosity is passed
 		if GlobalVerbose {
 			log.SetLevel(log.DebugLevel)
-		}
-
-		// Error out of the user has not chosen Kubernetes or OpenShift
-		provider := strings.ToLower(GlobalProvider)
-		if provider != "kubernetes" && provider != "openshift" {
-			log.Fatalf("%s is an unsupported provider. Supported providers are: 'kubernetes', 'openshift'.", GlobalProvider)
 		}
 
 	},
@@ -61,5 +53,4 @@ func Execute() {
 // Initialize all flags
 func init() {
 	RootCmd.PersistentFlags().BoolVarP(&GlobalVerbose, "verbose", "v", false, "verbose output")
-	RootCmd.PersistentFlags().StringVar(&GlobalProvider, "provider", "kubernetes", "Specify a provider. Kubernetes or OpenShift.")
 }
