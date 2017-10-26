@@ -101,10 +101,32 @@ kedge version
 
 ## `kedge init`
 
-Initialize kedge file
+### Getting started
 
-```sh
-kedge init --file kedge.yml --name web --image centos/httpd --port 80
+```bash
+kedge init --name web --image centos/httpd --ports 80
+```
+This will create a `kedge.yml` file for an `httpd` web server with container
+image `centos/httpd` exposed on port 80.
+
+### Create a different file
+
+```bash
+kedge init --out myapp.yml --name web --image centos/httpd --ports 80
+```
+
+This will create a different file named `myapp.yml` as opposed to the default
+`kedge.yml`.
+
+### Create a different controller type
+
+By default the controller type that is created is [Kubernetes Deployments](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/),
+which is meant for long running processes. But if you want to create a controller
+type which is [Kubernetes Job](https://kubernetes.io/docs/concepts/workloads/controllers/jobs-run-to-completion/),
+you can do that using the flag `--controller`.
+
+```bash
+kedge init --name myjob --image jobimage --controller Job
 ```
 
 ## `kedge build`

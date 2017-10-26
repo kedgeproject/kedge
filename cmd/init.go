@@ -19,67 +19,89 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 
-	"text/template"
-
+	"github.com/ghodss/yaml"
 	"github.com/spf13/cobra"
 )
 
-type templateData struct {
-	Name  string
-	Image string
-	Ports []int
-}
-
 var (
 	fileName, image, name string
-	port                  []int
+	controller            string
+	ports                 []int
 )
 
-const (
-	boilerplate = `name: {{.Name}}
-containers:
-- image: {{.Image}}
-{{if .Ports}}services:
-- ports:{{block "list" .Ports}}
-{{range .}}{{print "  - port: " .}}
-{{end}}{{end}}{{end}}`
-)
+type Container struct {
+	Image string `json:"image,omitempty"`
+}
+
+type Service struct {
+	PortMappings []int `json:"portMappings,omitempty"`
+}
+
+type App struct {
+	Name       string      `json:"name,omitempty"`
+	Controller string      `json:"controller,omitempty"`
+	Containers []Container `json:"containers,omitempty"`
+	Services   []Service   `json:"services,omitempty"`
+}
 
 // initCmd represents the version command
 var initCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Initialize a Kedge file",
 	Run: func(cmd *cobra.Command, args []string) {
-		data := templateData{Name: name, Image: image, Ports: port}
-		if name != "" && image != "" {
-			masterTmpl, err := template.New("master").Parse(boilerplate)
-			if err != nil {
-				fmt.Println("failed to create template")
-				os.Exit(-1)
-			}
-			_, err = os.Stat(fileName)
-			if err != nil {
-				f, err := os.Create(fileName)
-				if err != nil {
-					fmt.Println(err, "failed to create file")
-					os.Exit(-1)
-				}
-				err = masterTmpl.Execute(f, data)
-				if err != nil {
-					fmt.Println(err, "failed to write file")
-					os.Exit(-1)
-				}
-				defer f.Close()
-				fmt.Println("file", fileName, "created")
-			} else {
-				fmt.Println(fileName, "is already present")
-				os.Exit(-1)
-			}
-		} else {
+
+		// check if the file already exists
+		_, err := os.Stat(fileName)
+		if err == nil {
+			fmt.Println(fileName, "is already present")
+			os.Exit(-1)
+		}
+
+		// mandatory fields check
+		if name == "" || image == "" {
 			fmt.Println("--name and --image are mandatory flags, Please provide these flags")
 			os.Exit(-1)
 		}
+		obj := App{
+			Name:       name,
+			Containers: []Container{{Image: image}},
+		}
+
+		if len(ports) > 0 {
+			obj.Services = []Service{{PortMappings: ports}}
+		}
+
+		// this switch is to check if user is not giving any wrong values
+		switch strings.ToLower(controller) {
+		case "deployment", "job", "deploymentconfig", "":
+			obj.Controller = controller
+		default:
+			fmt.Println("'--controller' can only have values [Deployment, Job, DeploymentConfig].")
+			os.Exit(-1)
+		}
+
+		// convert the internal form to yaml
+		data, err := yaml.Marshal(obj)
+		if err != nil {
+			os.Exit(1)
+		}
+
+		f, err := os.Create(fileName)
+		if err != nil {
+			fmt.Println(err, "failed to create file")
+			os.Exit(-1)
+		}
+		defer f.Close()
+
+		// dump all the converted data into file
+		_, err = f.Write(data)
+		if err != nil {
+			os.Exit(1)
+		}
+		fmt.Println("file", fileName, "created")
+
 	},
 }
 
@@ -87,6 +109,7 @@ func init() {
 	initCmd.Flags().StringVarP(&fileName, "out", "o", "kedge.yml", "Output filename")
 	initCmd.Flags().StringVarP(&name, "name", "n", "", "The name of service")
 	initCmd.Flags().StringVarP(&image, "image", "i", "", "The image for the container to run")
-	initCmd.Flags().IntSliceVarP(&port, "port", "p", []int{}, "The ports that this container exposes")
+	initCmd.Flags().IntSliceVarP(&ports, "ports", "p", []int{}, "The ports that this container exposes")
+	initCmd.Flags().StringVarP(&controller, "controller", "c", "", "The type of controller this application is. Legal values [Deployment, Job, DeploymentConfig]. Default 'Deployment'.")
 	RootCmd.AddCommand(initCmd)
 }
