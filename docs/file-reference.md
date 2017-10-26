@@ -1,7 +1,8 @@
 ---
 layout: default
 permalink: /file-reference/
-redirect_from: "/docs/file-reference.md"
+redirect_from: 
+  - /docs/file-reference.md/
 ---
 
 # Kedge file reference
@@ -77,6 +78,7 @@ defines.
 Supported controllers:
 - Deployment
 - Job
+- DeploymentConfig
 
 Default controller is **Deployment**
 
@@ -135,27 +137,6 @@ This is `probe` spec. Rather than defining `livenessProbe` and `readinessProbe`,
 define only `health`. And then it gets copied in both in the resultant spec.
 But if `health` and `livenessProbe` or `readinessProbe` are defined
 simultaneously then the tool will error out.
-
-#### envFrom
-
-```yaml
-envFrom:
-- configMapRef:
-    name: <string>
-- secretRef:
-    name: <string>
-```
-
-This is similar to the envFrom field in container which is added since Kubernetes
-1.6. All the data from the ConfigMaps and Secrets referred here will be populated
-as `env` inside the container.
-
-The restriction is that the ConfigMaps and Secrets also have to be defined in the
-file since there is no way to get the data to be populated.
-
-To read more about this field from the Kubernetes upstream docs see this:
-https://kubernetes.io/docs/api-reference/v1.6/#envfromsource-v1-core
-
 
 ## volumeClaims
 
@@ -449,6 +430,38 @@ More info about Probe: https://kubernetes.io/docs/api-reference/v1.6/#probe-v1-c
 
 The name of the Ingress.
 
+## routes
+
+```yaml
+routes:
+- <routeObject>
+- <routeObject>
+```
+
+| **Type**                                  | **Required** |
+|-------------------------------------------|--------------|
+| array of [route object](#routeObject) | no           |
+
+
+### routeObject
+
+```yaml
+routes:
+- name: <string>
+  <Route Spec>
+```
+
+Example:
+```yaml
+name: webroute
+to:
+  kind: Service
+  name: httpd
+```
+
+Each `route` object is OpenShift's `RouteSpec` and `ObjectMeta` field.
+More info: https://docs.openshift.org/latest/rest_api/apis-route.openshift.io/v1.Route.html#object-schema
+
 ## secrets
 
 ```yaml
@@ -504,10 +517,10 @@ secrets:
 
 The name of the secret.
 
-## extraResources
+## includeResources
 
 ```yaml
-extraResources:
+includeResources:
 - <string>
 - <string>
 ```
@@ -515,7 +528,7 @@ extraResources:
 e.g.
 
 ```yaml
-extraResources:
+includeResources:
 - ./kubernetes/cron-job.yaml
 - secrets.yaml
 ```
@@ -595,4 +608,57 @@ containers:
   command: ["perl",  "-Mbignum=bpi", "-wle", "print bpi(2000)"]
 restartPolicy: Never
 parallelism: 3
+```
+
+## Example (deploymentconfig)
+
+```yaml
+controller: deploymentconfig
+name: httpd
+replicas: 2
+containers:
+- image: centos/httpd
+services:
+- name: httpd
+  type: NodePort
+  ports:
+  - port: 8080
+    targetPort: 80
+```
+
+# Variables
+You can use variables anywhere in the Kedge file. Variable names are enclosed
+in double square brackets (`[[ variable_name ]]`).
+For example `[[ IMAGE_NAME ]]` will be replaced with value of environment variable `$IMAGE_NAME`
+
+## Example
+```yaml
+# nginx.yaml
+
+name: nginx
+containers:
+- image: nginx:[[ NGINX_VERSION ]]
+services:
+- name: nginx
+  ports:
+  - port: 8080
+    targetPort: 80
+```
+
+Now you can call Kedge and define `NGINX_VERSION` variable.
+```
+NGINX_VERSION=1.13 kedge apply -f nginx.yaml
+```
+The string `[[ NGINX_VERSION ]]` will be replaced with `1.13`.
+Effecting Kedge file will look as following:
+```
+name: nginx
+containers:
+- image: nginx:1.13
+services:
+- name: nginx
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 80
 ```

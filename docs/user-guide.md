@@ -1,7 +1,8 @@
 ---
 layout: default
 permalink: /user-guide/
-redirect_from: "/docs/user-guide.md"
+redirect_from: 
+  - /docs/user-guide.md/
 ---
 
 # User Guide
@@ -107,8 +108,89 @@ kedge version
 
 ## `kedge init`
 
-Initialize kedge file
+### Getting started
 
-```sh
-kedge init --file kedge.yml --name web --image centos/httpd --port 80
+```bash
+kedge init --name web --image centos/httpd --ports 80
+```
+This will create a `kedge.yml` file for an `httpd` web server with container
+image `centos/httpd` exposed on port 80.
+
+### Create a different file
+
+```bash
+kedge init --out myapp.yml --name web --image centos/httpd --ports 80
+```
+
+This will create a different file named `myapp.yml` as opposed to the default
+`kedge.yml`.
+
+### Create a different controller type
+
+By default the controller type that is created is [Kubernetes Deployments](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/),
+which is meant for long running processes. But if you want to create a controller
+type which is [Kubernetes Job](https://kubernetes.io/docs/concepts/workloads/controllers/jobs-run-to-completion/),
+you can do that using the flag `--controller`.
+
+```bash
+kedge init --name myjob --image jobimage --controller Job
+```
+
+## `kedge build`
+
+### Build
+
+Build container image with image name `username/myapp:version`
+
+```console
+kedge build -i username/myapp:version
+``` 
+
+Here you might wanna replace the `username` with container image registry URL and then
+`username`.
+
+
+### Build & Push
+
+```console
+kedge build -i username/myapp:version -p
+``` 
+
+If you want to build image and also push it to the registry then use the flag `-p`.
+
+**Note**: You should have access to push image to that container registry. Read more about
+`docker login` on official [docs](https://docs.docker.com/engine/reference/commandline/login/).
+
+### Dockerfile and context are different
+
+If you have a file structure like this, where your `Dockerfile` resides in a directory and
+your code context is different.
+
+```console
+$ tree
+.
+├── main.go
+├── parsego.go
+├── scripts
+│   ├── Dockerfile
+│   ├── entrypoint.sh
+│   └── k8s-release
+...
+```
+
+To do builds in environment like above, run following command:
+
+```console
+$ kedge build -i surajd/json-schema -c . -f scripts/Dockerfile 
+INFO[0000] Building image 'surajd/json-schema' from directory 'json-schema-generator' 
+INFO[0001] Image 'surajd/json-schema' from directory 'json-schema-generator' built successfully
+```
+
+### Build in minikube/minishift
+
+If you are running Kubernetes in a environment like minikube or minishift run following
+command before running this build command:
+
+```console
+eval $(minikube docker-env)
 ```

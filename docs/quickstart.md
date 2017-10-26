@@ -1,7 +1,8 @@
 ---
 layout: default
 permalink: /quickstart/
-redirect_from: "/docs/quickstart.md"
+redirect_from: 
+  - /docs/quickstart.md/
 ---
 
 # Kedge - Concise Application Definitions for Kubernetes
