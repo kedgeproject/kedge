@@ -1,8 +1,6 @@
 # Kedge : Simple, Concise & Declarative Kubernetes Applications
 
-[![Build Status Widget]][Build Status] [![Coverage Status Widget]][Coverage Status] [![GoDoc Widget]][GoDoc] [![GoReportCard Widget]][GoReportCardResult] [![Slack Widget]][Slack] 
-
-
+[![Semaphore Build Status Widget]][Semaphore Build Status] [![Travis Build Status Widget]][Travis Build Status] [![Coverage Status Widget]][Coverage Status] [![GoDoc Widget]][GoDoc] [![GoReportCard Widget]][GoReportCardResult] [![Slack Widget]][Slack] 
 
 ## What is Kedge?
 
@@ -128,8 +126,10 @@ __Chat (Slack):__ We're fairly active on [Slack](https://kedgeproject.slack.com#
 
 Unless otherwise stated (ex. `/vendor` files), all code is licensed under the [Apache 2.0 License](LICENSE). Portions of the project use libraries and code from other projects, the appropriate license can be found within the code (header of the file) or root directory within the `vendor` folder.
 
-[Build Status]: https://travis-ci.org/kedgeproject/kedge
-[Build Status Widget]: https://travis-ci.org/kedgeproject/kedge.svg?branch=master
+[Sempahore Build Status]: https://semaphoreci.com/cdrage/kedge
+[Semaphore Build Status Widget]: https://semaphoreci.com/api/v1/cdrage/kedge/branches/master/badge.svg
+[Travis Build Status]: https://travis-ci.org/kedgeproject/kedge
+[Travis Build Status Widget]: https://travis-ci.org/kedgeproject/kedge.svg?branch=master
 [Coverage Status Widget]: https://coveralls.io/repos/github/kedgeproject/kedge/badge.svg?branch=master
 [Coverage Status]: https://coveralls.io/github/kedgeproject/kedge?branch=master
 [GoDoc]: https://godoc.org/github.com/kedgeproject/kedge
