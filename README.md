@@ -126,7 +126,7 @@ __Chat (Slack):__ We're fairly active on [Slack](https://kedgeproject.slack.com#
 
 Unless otherwise stated (ex. `/vendor` files), all code is licensed under the [Apache 2.0 License](LICENSE). Portions of the project use libraries and code from other projects, the appropriate license can be found within the code (header of the file) or root directory within the `vendor` folder.
 
-[Sempahore Build Status]: https://semaphoreci.com/cdrage/kedge
+[Semaphore Build Status]: https://semaphoreci.com/cdrage/kedge
 [Semaphore Build Status Widget]: https://semaphoreci.com/api/v1/cdrage/kedge/branches/master/badge.svg
 [Travis Build Status]: https://travis-ci.org/kedgeproject/kedge
 [Travis Build Status Widget]: https://travis-ci.org/kedgeproject/kedge.svg?branch=master
