@@ -30,7 +30,7 @@ bin:
 install:
 	go install ${BUILD_FLAGS}
 
-# kompile kedge for multiple platforms
+# compile kedge for multiple platforms
 .PHONY: cross
 cross:
 	go get github.com/mitchellh/gox
