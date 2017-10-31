@@ -1,5 +1,66 @@
 # Change Log
 
+## [v0.4.0](https://github.com/kedgeproject/kedge/tree/v0.4.0) (2017-10-31)
+[Full Changelog](https://github.com/kedgeproject/kedge/compare/v0.3.0...v0.4.0)
+
+**Closed issues:**
+
+- kedge init generates invalid  kedge file [\#396](https://github.com/kedgeproject/kedge/issues/396)
+- All e2e tests are broken - semaphore is showing false positives [\#371](https://github.com/kedgeproject/kedge/issues/371)
+- Reduce size of repository [\#362](https://github.com/kedgeproject/kedge/issues/362)
+- DeploymentConfig defaults to 0 replicas, should be 1 [\#359](https://github.com/kedgeproject/kedge/issues/359)
+- replicas set to 0 if not specified [\#357](https://github.com/kedgeproject/kedge/issues/357)
+- generated  DeploymnetConfig is invalid! [\#352](https://github.com/kedgeproject/kedge/issues/352)
+- Figure out GVK mechanism for OpenShift [\#349](https://github.com/kedgeproject/kedge/issues/349)
+- e2e test invocation script passes even if test fails [\#348](https://github.com/kedgeproject/kedge/issues/348)
+- use oc insetad of kubectl for OpenShift artifacts [\#341](https://github.com/kedgeproject/kedge/issues/341)
+- some tests don't run when you do `make test` [\#333](https://github.com/kedgeproject/kedge/issues/333)
+- create job using kedge init [\#325](https://github.com/kedgeproject/kedge/issues/325)
+- name service ports to make it work with openshift routes [\#323](https://github.com/kedgeproject/kedge/issues/323)
+- add flag `--save-config` to `kubectl create` [\#322](https://github.com/kedgeproject/kedge/issues/322)
+- General UX/UI/Website update tracking card [\#268](https://github.com/kedgeproject/kedge/issues/268)
+- stop emulating envFrom and start using it directly [\#248](https://github.com/kedgeproject/kedge/issues/248)
+- Support OpenShift Routes [\#238](https://github.com/kedgeproject/kedge/issues/238)
+
+**Merged pull requests:**
+
+- Update release script for introduction.md [\#400](https://github.com/kedgeproject/kedge/pull/400) ([cdrage](https://github.com/cdrage))
+- kedge init: fix wrong type for ports [\#399](https://github.com/kedgeproject/kedge/pull/399) ([kadel](https://github.com/kadel))
+- Update Makefile [\#398](https://github.com/kedgeproject/kedge/pull/398) ([bs34](https://github.com/bs34))
+- fix broken semaphore badge [\#395](https://github.com/kedgeproject/kedge/pull/395) ([containscafeine](https://github.com/containscafeine))
+- Update encrypted deploy key [\#393](https://github.com/kedgeproject/kedge/pull/393) ([cdrage](https://github.com/cdrage))
+- Update the docs to reflect 0.3.0 [\#392](https://github.com/kedgeproject/kedge/pull/392) ([cdrage](https://github.com/cdrage))
+- Add semaphore badge to README [\#391](https://github.com/kedgeproject/kedge/pull/391) ([cdrage](https://github.com/cdrage))
+- Remove .enc extension from release script [\#389](https://github.com/kedgeproject/kedge/pull/389) ([cdrage](https://github.com/cdrage))
+- Sync docs with gh-pages [\#387](https://github.com/kedgeproject/kedge/pull/387) ([cdrage](https://github.com/cdrage))
+- few small updates to travis.yml [\#386](https://github.com/kedgeproject/kedge/pull/386) ([kadel](https://github.com/kadel))
+- always populate service port name [\#384](https://github.com/kedgeproject/kedge/pull/384) ([surajssd](https://github.com/surajssd))
+- Replace all occurrences of spec.go with types.go [\#382](https://github.com/kedgeproject/kedge/pull/382) ([surajssd](https://github.com/surajssd))
+- Revert "always populate service port name" [\#380](https://github.com/kedgeproject/kedge/pull/380) ([containscafeine](https://github.com/containscafeine))
+- Change the json schema testing from spec.go to types.go [\#378](https://github.com/kedgeproject/kedge/pull/378) ([surajssd](https://github.com/surajssd))
+- move e2e test invocation script to scripts [\#374](https://github.com/kedgeproject/kedge/pull/374) ([surajssd](https://github.com/surajssd))
+- fix\(e2e tests\): make test compile [\#372](https://github.com/kedgeproject/kedge/pull/372) ([surajssd](https://github.com/surajssd))
+- don't show error when building from tarball [\#370](https://github.com/kedgeproject/kedge/pull/370) ([kadel](https://github.com/kadel))
+- Divide ingress example to 2 parts [\#369](https://github.com/kedgeproject/kedge/pull/369) ([containscafeine](https://github.com/containscafeine))
+- add OpenShift Apps scheme for DeploymentConfig [\#368](https://github.com/kedgeproject/kedge/pull/368) ([containscafeine](https://github.com/containscafeine))
+- add support for OpenShift Routes [\#366](https://github.com/kedgeproject/kedge/pull/366) ([containscafeine](https://github.com/containscafeine))
+- use oc instead of kubectl for OpenShift artefacts [\#365](https://github.com/kedgeproject/kedge/pull/365) ([kadel](https://github.com/kadel))
+- Fix e2e wrapper script to return exit status of e2e tests [\#364](https://github.com/kedgeproject/kedge/pull/364) ([ashetty1](https://github.com/ashetty1))
+- set default replicas as 1 in DeploymentConfig [\#361](https://github.com/kedgeproject/kedge/pull/361) ([containscafeine](https://github.com/containscafeine))
+- Remove --distribution flag [\#360](https://github.com/kedgeproject/kedge/pull/360) ([cdrage](https://github.com/cdrage))
+- fix\(dc\): populate labels rightfully [\#355](https://github.com/kedgeproject/kedge/pull/355) ([surajssd](https://github.com/surajssd))
+- \(kedge init\): add flag --controller [\#353](https://github.com/kedgeproject/kedge/pull/353) ([surajssd](https://github.com/surajssd))
+- fix error message for creating DeploymentConfig [\#351](https://github.com/kedgeproject/kedge/pull/351) ([containscafeine](https://github.com/containscafeine))
+- always populate service port name [\#346](https://github.com/kedgeproject/kedge/pull/346) ([surajssd](https://github.com/surajssd))
+- remove envFrom expansion support [\#345](https://github.com/kedgeproject/kedge/pull/345) ([surajssd](https://github.com/surajssd))
+- fix\(kedge create\): add flag `--save-config` [\#344](https://github.com/kedgeproject/kedge/pull/344) ([surajssd](https://github.com/surajssd))
+- fix\(travis\): don't test on go1.6 [\#342](https://github.com/kedgeproject/kedge/pull/342) ([surajssd](https://github.com/surajssd))
+- Change vendoring script to bash from sh [\#338](https://github.com/kedgeproject/kedge/pull/338) ([cdrage](https://github.com/cdrage))
+- add coverage test to normal test runs [\#336](https://github.com/kedgeproject/kedge/pull/336) ([surajssd](https://github.com/surajssd))
+- Remove changes.txt [\#330](https://github.com/kedgeproject/kedge/pull/330) ([cdrage](https://github.com/cdrage))
+- add local testing of json schema generation [\#316](https://github.com/kedgeproject/kedge/pull/316) ([surajssd](https://github.com/surajssd))
+- Add DeploymentConfig support [\#315](https://github.com/kedgeproject/kedge/pull/315) ([cdrage](https://github.com/cdrage))
+
 ## [v0.3.0](https://github.com/kedgeproject/kedge/tree/v0.3.0) (2017-10-10)
 [Full Changelog](https://github.com/kedgeproject/kedge/compare/v0.2.0...v0.3.0)
 
@@ -29,6 +90,7 @@
 
 **Merged pull requests:**
 
+- 0.3.0 Release [\#329](https://github.com/kedgeproject/kedge/pull/329) ([cdrage](https://github.com/cdrage))
 - fix\(spec\): add optional tag in struct fields [\#311](https://github.com/kedgeproject/kedge/pull/311) ([surajssd](https://github.com/surajssd))
 - auto populate ingress name [\#310](https://github.com/kedgeproject/kedge/pull/310) ([containscafeine](https://github.com/containscafeine))
 - pin down apimachinery with a git commit [\#303](https://github.com/kedgeproject/kedge/pull/303) ([surajssd](https://github.com/surajssd))
