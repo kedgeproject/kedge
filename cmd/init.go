@@ -28,7 +28,7 @@ import (
 var (
 	fileName, image, name string
 	controller            string
-	ports                 []int
+	ports                 []string
 )
 
 type Container struct {
@@ -36,7 +36,7 @@ type Container struct {
 }
 
 type Service struct {
-	PortMappings []int `json:"portMappings,omitempty"`
+	PortMappings []string `json:"portMappings,omitempty"`
 }
 
 type App struct {
@@ -109,7 +109,7 @@ func init() {
 	initCmd.Flags().StringVarP(&fileName, "out", "o", "kedge.yml", "Output filename")
 	initCmd.Flags().StringVarP(&name, "name", "n", "", "The name of service")
 	initCmd.Flags().StringVarP(&image, "image", "i", "", "The image for the container to run")
-	initCmd.Flags().IntSliceVarP(&ports, "ports", "p", []int{}, "The ports that this container exposes")
+	initCmd.Flags().StringSliceVarP(&ports, "ports", "p", []string{}, "The ports that this container exposes")
 	initCmd.Flags().StringVarP(&controller, "controller", "c", "", "The type of controller this application is. Legal values [Deployment, Job, DeploymentConfig]. Default 'Deployment'.")
 	RootCmd.AddCommand(initCmd)
 }
