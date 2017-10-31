@@ -45,16 +45,16 @@ Install Kedge with our simple binary!
 
 ```sh
 # Linux
-curl -L https://github.com/kedgeproject/kedge/releases/download/v0.3.0/kedge-linux-amd64 -o kedge
+curl -L https://github.com/kedgeproject/kedge/releases/download/v0.4.0/kedge-linux-amd64 -o kedge
 
 # macOS
-curl -L https://github.com/kedgeproject/kedge/releases/download/v0.3.0/kedge-darwin-amd64 -o kedge
+curl -L https://github.com/kedgeproject/kedge/releases/download/v0.4.0/kedge-darwin-amd64 -o kedge
 
 chmod +x kedge
 sudo mv ./kedge /usr/local/bin/kedge
 ```
 
-For Windows users, download from the [GitHub release](https://github.com/kedgeproject/kedge/releases/download/v0.3.0/kedge-windows-amd64.exe) and add the binary to your PATH.
+For Windows users, download from the [GitHub release](https://github.com/kedgeproject/kedge/releases/download/v0.4.0/kedge-windows-amd64.exe) and add the binary to your PATH.
 
 ### Pick from an example and see what Kedge is all about
 
