@@ -1,9 +1,24 @@
 body {
   background-color: white;
-  font: 12px;
+  font-size: 16px;
   font-family: 'Ubuntu', sans-serif;
   color:#595959;
   font-weight:300;
+}
+
+#markdown-toc ul {
+  padding: 0px 5px 0px 10px;
+  margin:0 !important;
+}
+
+#markdown-toc li {
+  padding:5px 0px 0px 0px;
+}
+
+#markdown-toc {
+  font-size:14px;
+  font-weight:400;
+  padding: 0 0 0 10px;
 }
 
 strong, b {
@@ -299,10 +314,6 @@ footer p {
 .misc {
   margin-bottom:0px;
 font-size:10px;
-}
-
-li {
-  margin-bottom:5px;
 }
 
 .demo-code {
