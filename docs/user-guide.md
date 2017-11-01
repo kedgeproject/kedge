@@ -7,7 +7,7 @@
   - [`version`](#kedge-version)  
   - [`init`](#kedge-init)
 
-## `kedge create`
+## Kedge Create
 
 Deploy directly to Kubernetes without creating the artifacts. Internally, Kedge will generate the artifacts and then create it using the `kubectl` command.
 
@@ -19,7 +19,7 @@ deployment "httpd" created
 service "httpd" created
 ```
 
-## `kedge generate`
+## Kedge Generate
 
 Generate Kubernetes artifacts based upon your Kedge YAML file, see our [examples](/examples) or the [file reference](/docs/file-reference.md) on how to create said file.
 
@@ -80,7 +80,7 @@ deployment "httpd" created
 service "httpd" created
 ```
 
-## `kedge delete`
+## Kedge Delete
 
 Deletes Kubernetes artifacts
 
@@ -89,22 +89,22 @@ $ kedge delete -f httpd.yaml
 deployment "httpd" deleted
 service "httpd" deleted
 ```
-## `kedge version`
+## Kedge Version
 
 Outputs the current Kedge version
 
 ### Version
 
 ```sh
-kedge version
+$ kedge version
 ```
 
-## `kedge init`
+## Kedge Init
 
 ### Getting started
 
 ```bash
-kedge init --name web --image centos/httpd --ports 80
+$ kedge init --name web --image centos/httpd --ports 80
 ```
 This will create a `kedge.yml` file for an `httpd` web server with container
 image `centos/httpd` exposed on port 80.
@@ -112,7 +112,7 @@ image `centos/httpd` exposed on port 80.
 ### Create a different file
 
 ```bash
-kedge init --out myapp.yml --name web --image centos/httpd --ports 80
+$ kedge init --out myapp.yml --name web --image centos/httpd --ports 80
 ```
 
 This will create a different file named `myapp.yml` as opposed to the default
@@ -126,17 +126,17 @@ type which is [Kubernetes Job](https://kubernetes.io/docs/concepts/workloads/con
 you can do that using the flag `--controller`.
 
 ```bash
-kedge init --name myjob --image jobimage --controller Job
+$ kedge init --name myjob --image jobimage --controller Job
 ```
 
-## `kedge build`
+## Kedge Build
 
 ### Build
 
 Build container image with image name `username/myapp:version`
 
 ```console
-kedge build -i username/myapp:version
+$ kedge build -i username/myapp:version
 ``` 
 
 Here you might wanna replace the `username` with container image registry URL and then
@@ -146,7 +146,7 @@ Here you might wanna replace the `username` with container image registry URL an
 ### Build & Push
 
 ```console
-kedge build -i username/myapp:version -p
+$ kedge build -i username/myapp:version -p
 ``` 
 
 If you want to build image and also push it to the registry then use the flag `-p`.
@@ -185,5 +185,5 @@ If you are running Kubernetes in a environment like minikube or minishift run fo
 command before running this build command:
 
 ```console
-eval $(minikube docker-env)
+$ eval $(minikube docker-env)
 ```
