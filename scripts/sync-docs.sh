@@ -36,6 +36,7 @@ rm docs/README.md
 # Use introduction.md instead as the main index page
 mv docs/introduction.md index.md
 
+
 # Check that index.md has the appropriate Jekyll format
 index="index.md"
 if cat $index | head -n 1 | grep "\-\-\-";
@@ -74,6 +75,28 @@ redirect_from:
 done
 cd ..
 
+# Build slate / file-reference
+cp mv docs/file-reference.md slate/source/index.html.md
+slate="---
+title: Kedge File Reference
+
+language_tabs:
+  - yaml
+
+toc_footers:
+  - <a href='http://kedgeproject.org'>kedgeproject.org</a>
+  - <a href='https://github.com/kedgeproject/kedge'>Kedge on GitHub</a>
+
+search: true
+---
+"
+echo -e "$slate"\n$(cat slate/source/index.html.md)" >  slate/source/index.html.md
+cd slate
+docker run --rm -v $PWD:/usr/src/app/source -w /usr/src/app/source cdrage/slate bundle exec middleman build --clean
+rm _site/file-reference
+mv build _site/file-reference
+cd ..
+
 # add relevant user information
 git config user.name "$DOCS_USER"
 
@@ -88,3 +111,4 @@ fi
 
 # cd back to the original root folder
 cd ..
+
