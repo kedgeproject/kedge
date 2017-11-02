@@ -36,6 +36,8 @@ rm docs/README.md
 # Use introduction.md instead as the main index page
 mv docs/introduction.md index.md
 
+# File reference is going to be built with "Slate"
+mv docs/file-reference.md slate/source/index.html.md
 
 # Check that index.md has the appropriate Jekyll format
 index="index.md"
@@ -75,8 +77,7 @@ redirect_from:
 done
 cd ..
 
-# Build slate / file-reference
-mv docs/file-reference.md slate/source/index.html.md
+# This builds "slate" our file reference documentation.
 slate="---
 title: Kedge File Reference
 
@@ -89,13 +90,15 @@ toc_footers:
 
 search: true
 ---
+
 "
 echo -e "$slate\n$(cat slate/source/index.html.md)" >  slate/source/index.html.md
 cd slate
 docker run --rm -v $PWD:/usr/src/app/source -w /usr/src/app/source cdrage/slate bundle exec middleman build --clean
-rm _site/file-reference
-mv slate/build _site/file-reference
 cd ..
+# Weird file permissions when building slate (since it's in a docker container)
+sudo chown -R $USER:$USER slate
+mv slate/build file-reference
 
 # add relevant user information
 git config user.name "$DOCS_USER"
