@@ -93,9 +93,9 @@ search: true
 echo -e "$slate\n$(cat slate/source/index.html.md)" >  slate/source/index.html.md
 cd slate
 docker run --rm -v $PWD:/usr/src/app/source -w /usr/src/app/source cdrage/slate bundle exec middleman build --clean
+cd ..
 rm _site/file-reference
 mv slate/build _site/file-reference
-cd ..
 
 # add relevant user information
 git config user.name "$DOCS_USER"
