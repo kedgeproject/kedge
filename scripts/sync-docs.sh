@@ -90,7 +90,6 @@ toc_footers:
 
 search: true
 ---
-
 "
 echo -e "$slate\n$(cat slate/source/index.html.md)" >  slate/source/index.html.md
 cd slate
@@ -98,6 +97,8 @@ docker run --rm -v $PWD:/usr/src/app/source -w /usr/src/app/source cdrage/slate 
 cd ..
 # Weird file permissions when building slate (since it's in a docker container)
 sudo chown -R $USER:$USER slate
+# remove the old file-reference
+rm -rf file-reference 
 mv slate/build file-reference
 
 # add relevant user information
