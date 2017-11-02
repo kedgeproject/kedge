@@ -904,8 +904,6 @@ services:
 
 # Examples
 
-Examples of different controllers being deployed.
-
 ## Example file
 
 > An example of using all possible Kedge-specific keys.
