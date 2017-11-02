@@ -11,7 +11,6 @@ toc_footers:
 search: true
 ---
 
-
 # Introduction
 
 > Using an example [httpd.yaml](https://raw.githubusercontent.com/kedgeproject/kedge/master/examples/simplest/httpd.yaml) file.
