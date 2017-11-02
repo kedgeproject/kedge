@@ -11,12 +11,6 @@ toc_footers:
 search: true
 ---
 
----
-layout: default
-permalink: /file-reference/
-redirect_from: 
-  - /docs/file-reference.md/
----
 
 # Introduction
 
