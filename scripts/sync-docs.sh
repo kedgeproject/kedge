@@ -76,7 +76,7 @@ done
 cd ..
 
 # Build slate / file-reference
-cp mv docs/file-reference.md slate/source/index.html.md
+mv docs/file-reference.md slate/source/index.html.md
 slate="---
 title: Kedge File Reference
 
@@ -90,11 +90,11 @@ toc_footers:
 search: true
 ---
 "
-echo -e "$slate"\n$(cat slate/source/index.html.md)" >  slate/source/index.html.md
+echo -e "$slate\n$(cat slate/source/index.html.md)" >  slate/source/index.html.md
 cd slate
 docker run --rm -v $PWD:/usr/src/app/source -w /usr/src/app/source cdrage/slate bundle exec middleman build --clean
 rm _site/file-reference
-mv build _site/file-reference
+mv slate/build _site/file-reference
 cd ..
 
 # add relevant user information
