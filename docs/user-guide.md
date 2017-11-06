@@ -1,11 +1,7 @@
 # User Guide
 
-- CLI
-  - [`create`](#kedge-create)
-  - [`generate`](#kedge-generate)
-  - [`delete`](#kedge-delete)
-  - [`version`](#kedge-version)  
-  - [`init`](#kedge-init)
+* TOC
+{:toc}
 
 ## Kedge Create
 
