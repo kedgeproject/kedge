@@ -7,6 +7,9 @@ redirect_from:
 
 # Development Guide
 
+* TOC
+{:toc}
+
 ## Building Kedge
 
 Read about building kedge [here](https://github.com/kedgeproject/kedge#building).
