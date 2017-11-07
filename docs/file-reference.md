@@ -161,30 +161,55 @@ name: mariadb
 controller: deployment
 ```
 
+> Example using DeploymentConfig for OpenShift
+
+```yaml
+controller: deploymentconfig
+name: httpd
+replicas: 2
+containers:
+- image: bitnami/nginx
+services:
+- name: httpd
+  type: NodePort
+  ports:
+  - port: 8080
+    targetPort: 8080
+```
+
+> Example using Job
+
+```yaml
+controller: job
+name: pival
+containers:
+- image: perl
+  command: ["perl",  "-Mbignum=bpi", "-wle", "print bpi(2000)"]
+restartPolicy: Never
+parallelism: 3
+```
+
+Specify the type of controller that Kedge expects to use.
+
 | Type     | Required     | Description |
 |----------|--------------|-------------|
-| string   | no           | The Kubernetes controller of the app or micro-service this particular file (default: "deployment") |
-
-defines.
+| string   | no           | The Kubernetes controller of the app or micro-service this particular file defines (default: "deployment") |
 
 Supported controllers:
 
-- Deployment
-- Job
-- DeploymentConfig
+- Deployment (Kubernetes) (Default)
+- Job (Kubernetes)
+- DeploymentConfig (OpenShift)
 
-Default controller is Deployment
+__Note on conflicting fields:__
 
-__Note:__
-`activeDeadlineSeconds` is a conflicting field which exists in both, v1.PodSpec
-and batch/v1.JobSpec, and both of these fields exist at the top level of the
-Kedge spec.
-So, whenever `activeDeadlineSeconds` field is set, only JobSpec is populated,
-which means that `activeDeadlineSeconds` is set only for the job and not for the
-pod.
-To populate a pod's `activeDeadlineSeconds`, the user will have to pass this
-field the long way by defining the pod exclusively under
-`job.spec.template.spec.activeDeadlineSeconds`.
+`activeDeadlineSeconds` is a conflicting field which exists in both, v1.PodSpec and batch/v1.JobSpec, and both of these fields exist at the top level of the Kedge spec.
+
+
+So, whenever `activeDeadlineSeconds` field is set, only JobSpec is populated, which means that `activeDeadlineSeconds` is set only for the job and not for the pod.
+
+
+To populate a pod's `activeDeadlineSeconds`, the user will have to pass this field the long way by defining the pod exclusively under `job.spec.template.spec.activeDeadlineSeconds`.
 
 
 ## labels
@@ -888,46 +913,15 @@ NGINX_VERSION=1.13 kedge apply -f nginx.yaml
 
 You can use variables anywhere in the Kedge file. Variable names are enclosed in double square brackets (`[[ variable_name ]]`). For example `[[ IMAGE_NAME ]]` will be replaced with value of environment variable `$IMAGE_NAME`.
 
-# Examples
+# Controllers
 
-## Example file
+There are three defineable controllers within Kedge:
 
-> An example of using all possible Kedge-specific keys.
+- Deployment (Kubernetes) (Default)
+- Job (Kubernetes)
+- DeploymentConfig (OpenShift)
 
-```yaml
-name: database
-controller: deployment
-containers:
-- image: mariadb:10
-  envFrom:
-  - configMapRef:
-      name: database
-  - secretRef:
-      name: wordpress
-  volumeMounts:
-  - name: database
-    mountPath: /var/lib/mysql
-  health:
-    httpGet:
-      path: /
-      port: 3306
-services:
-- name: wordpress
-  ports:
-  - port: 8080
-    targetPort: 80
-    endpoint: minikube.external/foo
-volumeClaims:
-- name: database
-  size: 500Mi
-configMaps:
-- data:
-    MYSQL_DATABASE: wordpress
-secrets:
-- name: wordpress
-  data:
-    MYSQL_ROOT_PASSWORD: YWRtaW4=
-```
+Some controllers such as DeploymentConfig are only usable with OpenShift.
 
 ## Deployment
 
