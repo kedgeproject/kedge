@@ -6,7 +6,7 @@
     <meta content="IE=edge,chrome=1" http-equiv="X-UA-Compatible">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
     <title>Kedge File Reference</title>
-    <link href="images/img/favicon.ico" rel="icon" type="image/ico" />
+    <link href="img/favicon.ico" rel="icon" type="image/ico" />
 
     <style>
       .highlight table td { padding: 5px; }
@@ -296,11 +296,6 @@
           </li>
           <li>
             <a href="#variables" class="toc-h1 toc-link" data-title="Variables">Variables</a>
-              <ul class="toc-list-h2">
-                  <li>
-                    <a href="#example" class="toc-h2 toc-link" data-title="Example">Example</a>
-                  </li>
-              </ul>
           </li>
           <li>
             <a href="#examples" class="toc-h1 toc-link" data-title="Examples">Examples</a>
@@ -1384,10 +1379,10 @@ Each "secret" is a Kubernetes <a target="_blank" href="https://kubernetes.io/doc
 </tr>
 </tbody></table>
 <h1 id='variables'>Variables</h1>
-<p>You can use variables anywhere in the Kedge file. Variable names are enclosed in double square brackets (<code>[[ variable_name ]]</code>). For example <code>[[ IMAGE_NAME ]]</code> will be replaced with value of environment variable <code>$IMAGE_NAME</code></p>
-<h2 id='example'>Example</h2><pre class="highlight yaml tab-yaml"><code><span class="c1"># nginx.yaml</span>
-
-<span class="na">name</span><span class="pi">:</span> <span class="s">nginx</span>
+<blockquote>
+<p>Example using local environment variables</p>
+</blockquote>
+<pre class="highlight yaml tab-yaml"><code><span class="na">name</span><span class="pi">:</span> <span class="s">nginx</span>
 <span class="na">containers</span><span class="pi">:</span>
 <span class="pi">-</span> <span class="na">image</span><span class="pi">:</span> <span class="s">nginx:[[ NGINX_VERSION ]]</span>
 <span class="na">services</span><span class="pi">:</span>
@@ -1396,23 +1391,12 @@ Each "secret" is a Kubernetes <a target="_blank" href="https://kubernetes.io/doc
   <span class="pi">-</span> <span class="na">port</span><span class="pi">:</span> <span class="s">8080</span>
     <span class="na">targetPort</span><span class="pi">:</span> <span class="s">80</span>
 </code></pre>
-<p>Now you can call Kedge and define <code>NGINX_VERSION</code> variable.
-<code>
-NGINX_VERSION=1.13 kedge apply -f nginx.yaml
-</code>
-The string <code>[[ NGINX_VERSION ]]</code> will be replaced with <code>1.13</code>.
-Effecting Kedge file will look as following:
-<code>
-name: nginx
-containers:
-- image: nginx:1.13
-services:
-- name: nginx
-  type: ClusterIP
-  ports:
-  - port: 8080
-    targetPort: 80
-</code></p>
+<blockquote>
+<p>Using the variables on the command line</p>
+</blockquote>
+<pre class="highlight sh tab-shell"><code><span class="nv">NGINX_VERSION</span><span class="o">=</span>1.13 kedge apply -f nginx.yaml
+</code></pre>
+<p>You can use variables anywhere in the Kedge file. Variable names are enclosed in double square brackets (<code>[[ variable_name ]]</code>). For example <code>[[ IMAGE_NAME ]]</code> will be replaced with value of environment variable <code>$IMAGE_NAME</code>.</p>
 <h1 id='examples'>Examples</h1><h2 id='example-file'>Example file</h2>
 <blockquote>
 <p>An example of using all possible Kedge-specific keys.</p>
