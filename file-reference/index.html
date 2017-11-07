@@ -298,11 +298,8 @@
             <a href="#variables" class="toc-h1 toc-link" data-title="Variables">Variables</a>
           </li>
           <li>
-            <a href="#examples" class="toc-h1 toc-link" data-title="Examples">Examples</a>
+            <a href="#controllers" class="toc-h1 toc-link" data-title="Controllers">Controllers</a>
               <ul class="toc-list-h2">
-                  <li>
-                    <a href="#example-file" class="toc-h2 toc-link" data-title="Example file">Example file</a>
-                  </li>
                   <li>
                     <a href="#deployment" class="toc-h2 toc-link" data-title="Deployment">Deployment</a>
                   </li>
@@ -532,6 +529,34 @@ Each "app" (Kedge file) is a Kubernetes <a target="_blank" href="https://kuberne
 </tbody></table>
 <h2 id='controller'>controller</h2><pre class="highlight yaml tab-yaml"><code><span class="na">controller</span><span class="pi">:</span> <span class="s">deployment</span>
 </code></pre>
+<blockquote>
+<p>Example using DeploymentConfig for OpenShift</p>
+</blockquote>
+<pre class="highlight yaml tab-yaml"><code><span class="na">controller</span><span class="pi">:</span> <span class="s">deploymentconfig</span>
+<span class="na">name</span><span class="pi">:</span> <span class="s">httpd</span>
+<span class="na">replicas</span><span class="pi">:</span> <span class="s">2</span>
+<span class="na">containers</span><span class="pi">:</span>
+<span class="pi">-</span> <span class="na">image</span><span class="pi">:</span> <span class="s">bitnami/nginx</span>
+<span class="na">services</span><span class="pi">:</span>
+<span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">httpd</span>
+  <span class="na">type</span><span class="pi">:</span> <span class="s">NodePort</span>
+  <span class="na">ports</span><span class="pi">:</span>
+  <span class="pi">-</span> <span class="na">port</span><span class="pi">:</span> <span class="s">8080</span>
+    <span class="na">targetPort</span><span class="pi">:</span> <span class="s">8080</span>
+</code></pre>
+<blockquote>
+<p>Example using Job</p>
+</blockquote>
+<pre class="highlight yaml tab-yaml"><code><span class="na">controller</span><span class="pi">:</span> <span class="s">job</span>
+<span class="na">name</span><span class="pi">:</span> <span class="s">pival</span>
+<span class="na">containers</span><span class="pi">:</span>
+<span class="pi">-</span> <span class="na">image</span><span class="pi">:</span> <span class="s">perl</span>
+  <span class="na">command</span><span class="pi">:</span> <span class="pi">[</span><span class="s2">"</span><span class="s">perl"</span><span class="pi">,</span>  <span class="s2">"</span><span class="s">-Mbignum=bpi"</span><span class="pi">,</span> <span class="s2">"</span><span class="s">-wle"</span><span class="pi">,</span> <span class="s2">"</span><span class="s">print</span><span class="nv"> </span><span class="s">bpi(2000)"</span><span class="pi">]</span>
+<span class="na">restartPolicy</span><span class="pi">:</span> <span class="s">Never</span>
+<span class="na">parallelism</span><span class="pi">:</span> <span class="s">3</span>
+</code></pre>
+<p>Specify the type of controller that Kedge expects to use.</p>
+
 <table><thead>
 <tr>
 <th>Type</th>
@@ -542,32 +567,25 @@ Each "app" (Kedge file) is a Kubernetes <a target="_blank" href="https://kuberne
 <tr>
 <td>string</td>
 <td>no</td>
-<td>The Kubernetes controller of the app or micro-service this particular file (default: &quot;deployment&quot;)</td>
+<td>The Kubernetes controller of the app or micro-service this particular file defines (default: &quot;deployment&quot;)</td>
 </tr>
 </tbody></table>
-
-<p>defines.</p>
 
 <p>Supported controllers:</p>
 
 <ul>
-<li>Deployment</li>
-<li>Job</li>
-<li>DeploymentConfig</li>
+<li>Deployment (Kubernetes) (Default)</li>
+<li>Job (Kubernetes)</li>
+<li>DeploymentConfig (OpenShift)</li>
 </ul>
 
-<p>Default controller is Deployment</p>
+<p><strong>Note on conflicting fields:</strong></p>
 
-<p><strong>Note:</strong>
-<code>activeDeadlineSeconds</code> is a conflicting field which exists in both, v1.PodSpec
-and batch/v1.JobSpec, and both of these fields exist at the top level of the
-Kedge spec.
-So, whenever <code>activeDeadlineSeconds</code> field is set, only JobSpec is populated,
-which means that <code>activeDeadlineSeconds</code> is set only for the job and not for the
-pod.
-To populate a pod&#39;s <code>activeDeadlineSeconds</code>, the user will have to pass this
-field the long way by defining the pod exclusively under
-<code>job.spec.template.spec.activeDeadlineSeconds</code>.</p>
+<p><code>activeDeadlineSeconds</code> is a conflicting field which exists in both, v1.PodSpec and batch/v1.JobSpec, and both of these fields exist at the top level of the Kedge spec.</p>
+
+<p>So, whenever <code>activeDeadlineSeconds</code> field is set, only JobSpec is populated, which means that <code>activeDeadlineSeconds</code> is set only for the job and not for the pod.</p>
+
+<p>To populate a pod&#39;s <code>activeDeadlineSeconds</code>, the user will have to pass this field the long way by defining the pod exclusively under <code>job.spec.template.spec.activeDeadlineSeconds</code>.</p>
 <h2 id='labels'>labels</h2><pre class="highlight yaml tab-yaml"><code><span class="na">labels</span><span class="pi">:</span>
   <span class="na">env</span><span class="pi">:</span> <span class="s">dev</span>
   <span class="na">department</span><span class="pi">:</span> <span class="s">middle-tier</span>
@@ -1397,43 +1415,17 @@ Each "secret" is a Kubernetes <a target="_blank" href="https://kubernetes.io/doc
 <pre class="highlight sh tab-shell"><code><span class="nv">NGINX_VERSION</span><span class="o">=</span>1.13 kedge apply -f nginx.yaml
 </code></pre>
 <p>You can use variables anywhere in the Kedge file. Variable names are enclosed in double square brackets (<code>[[ variable_name ]]</code>). For example <code>[[ IMAGE_NAME ]]</code> will be replaced with value of environment variable <code>$IMAGE_NAME</code>.</p>
-<h1 id='examples'>Examples</h1><h2 id='example-file'>Example file</h2>
-<blockquote>
-<p>An example of using all possible Kedge-specific keys.</p>
-</blockquote>
-<pre class="highlight yaml tab-yaml"><code><span class="na">name</span><span class="pi">:</span> <span class="s">database</span>
-<span class="na">controller</span><span class="pi">:</span> <span class="s">deployment</span>
-<span class="na">containers</span><span class="pi">:</span>
-<span class="pi">-</span> <span class="na">image</span><span class="pi">:</span> <span class="s">mariadb:10</span>
-  <span class="na">envFrom</span><span class="pi">:</span>
-  <span class="pi">-</span> <span class="na">configMapRef</span><span class="pi">:</span>
-      <span class="na">name</span><span class="pi">:</span> <span class="s">database</span>
-  <span class="pi">-</span> <span class="na">secretRef</span><span class="pi">:</span>
-      <span class="na">name</span><span class="pi">:</span> <span class="s">wordpress</span>
-  <span class="na">volumeMounts</span><span class="pi">:</span>
-  <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">database</span>
-    <span class="na">mountPath</span><span class="pi">:</span> <span class="s">/var/lib/mysql</span>
-  <span class="na">health</span><span class="pi">:</span>
-    <span class="na">httpGet</span><span class="pi">:</span>
-      <span class="na">path</span><span class="pi">:</span> <span class="s">/</span>
-      <span class="na">port</span><span class="pi">:</span> <span class="s">3306</span>
-<span class="na">services</span><span class="pi">:</span>
-<span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">wordpress</span>
-  <span class="na">ports</span><span class="pi">:</span>
-  <span class="pi">-</span> <span class="na">port</span><span class="pi">:</span> <span class="s">8080</span>
-    <span class="na">targetPort</span><span class="pi">:</span> <span class="s">80</span>
-    <span class="na">endpoint</span><span class="pi">:</span> <span class="s">minikube.external/foo</span>
-<span class="na">volumeClaims</span><span class="pi">:</span>
-<span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">database</span>
-  <span class="na">size</span><span class="pi">:</span> <span class="s">500Mi</span>
-<span class="na">configMaps</span><span class="pi">:</span>
-<span class="pi">-</span> <span class="na">data</span><span class="pi">:</span>
-    <span class="na">MYSQL_DATABASE</span><span class="pi">:</span> <span class="s">wordpress</span>
-<span class="na">secrets</span><span class="pi">:</span>
-<span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">wordpress</span>
-  <span class="na">data</span><span class="pi">:</span>
-    <span class="na">MYSQL_ROOT_PASSWORD</span><span class="pi">:</span> <span class="s">YWRtaW4=</span>
-</code></pre><h2 id='deployment'>Deployment</h2><pre class="highlight yaml tab-yaml"><code><span class="na">name</span><span class="pi">:</span> <span class="s">database</span>
+<h1 id='controllers'>Controllers</h1>
+<p>There are three defineable controllers within Kedge:</p>
+
+<ul>
+<li>Deployment (Kubernetes) (Default)</li>
+<li>Job (Kubernetes)</li>
+<li>DeploymentConfig (OpenShift)</li>
+</ul>
+
+<p>Some controllers such as DeploymentConfig are only usable with OpenShift.</p>
+<h2 id='deployment'>Deployment</h2><pre class="highlight yaml tab-yaml"><code><span class="na">name</span><span class="pi">:</span> <span class="s">database</span>
 <span class="na">containers</span><span class="pi">:</span>
 <span class="pi">-</span> <span class="na">image</span><span class="pi">:</span> <span class="s">mariadb:10</span>
   <span class="na">envFrom</span><span class="pi">:</span>
