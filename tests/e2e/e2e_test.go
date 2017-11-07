@@ -115,7 +115,7 @@ func PodsStarted(t *testing.T, clientset *kubernetes.Clientset, namespace string
 	for {
 		select {
 		case <-timeout:
-			return fmt.Errorf("pods did not come up in given time: 5 minutes")
+			return fmt.Errorf("pods did not come up in given time: 8 minutes")
 		case <-tick:
 			t.Logf("pods not started yet: %q", strings.Join(mapkeys(podUp), " "))
 
@@ -177,16 +177,16 @@ func getEndPoints(t *testing.T, clientset *kubernetes.Clientset, namespace strin
 
 // Ping all endpoints
 func pingEndPoints(t *testing.T, ep map[string]string) error {
-	timeout := time.After(5 * time.Minute)
+	timeout := time.After(8 * time.Minute)
 	tick := time.Tick(time.Second)
 
 	for {
 		select {
 		case <-timeout:
-			return fmt.Errorf("could not ping the specific service in given time: 5 minutes")
+			return fmt.Errorf("could not ping the specific service in given time: 8 minutes")
 		case <-tick:
 			for e, u := range ep {
-				timeout := time.Duration(5 * time.Second)
+				timeout := time.Duration(8 * time.Second)
 				client := http.Client{
 					Timeout: timeout,
 				}
