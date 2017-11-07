@@ -58,4 +58,4 @@ No events.
 
 __Next steps__
 
-That's it! There's more examples in our [repository](https://github.com/kedgeproject/kedge/tree/master/examples). Check out the further documentation such as the [user guide](/docs/user_guide.md) or our [file reference](/docs/file_reference.md).
+That's it! There's more examples in our [repository](https://github.com/kedgeproject/kedge/tree/master/examples). Check out the further documentation such as the [user guide](/docs/user_guide.md) or our [file reference](/docs/file-reference.md).
