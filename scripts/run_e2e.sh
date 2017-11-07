@@ -31,18 +31,36 @@ if [ -n "$TIMEOUT" ]; then
     run_command+=" -timeout=$TIMEOUT"
 fi
 
-run_command+=" -v github.com/kedgeproject/kedge/tests/e2e"
+if [ -n "$VERBOSE" ]; then
+    run_command+=" -v"
+fi
+
+run_command+=" github.com/kedgeproject/kedge/tests/e2e"
 
 # Run e2e tests
 eval $run_command &
 TEST_PID=$!
 
-# Watch the pods being generated
-kubectl get po --all-namespaces -w &
-KUBE_PID=$!
+echo "======================================"
+echo "| Running end-to-end cluster tests.  |"
+echo "| Tests will be ran against a k8s    |"
+echo "| cluster in separate namespaces     |"
+echo "|                                    |"
+echo "| Use command:                       |"
+echo -e "| \e[1;34mVERBOSE=yes make test-e2e\e[0m          |"
+echo "| for verbosity.                     |"
+echo "======================================"
+echo ""
 
+# Watch the pods being generated
 # Kill processes once done
-(while ps -p $TEST_PID > /dev/null; do sleep 5; done) && kill $KUBE_PID
+if [ -n "$VERBOSE" ]; then
+  kubectl get po --all-namespaces -w &
+  KUBE_PID=$!
+  (while ps -p $TEST_PID > /dev/null; do sleep 5; done) && kill $KUBE_PID
+else
+  (while ps -p $TEST_PID > /dev/null; do sleep 5; done)
+fi
 
 # Get the exit status of the test run
 wait $TEST_PID
