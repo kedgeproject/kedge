@@ -28,6 +28,13 @@ deployment "httpd" created
 service "httpd" created
 ```
 
+__2.1. Alternatively, you can generate the raw Kubernetes artifact files and deploy it with `kubectl`.__
+
+```sh
+$ kedge generate -f httpd.yaml > output.yaml
+$ kubectl create -f output.yaml
+```
+
 __View the deployed service__
 
 Now that your service has been deployed, let's access it.

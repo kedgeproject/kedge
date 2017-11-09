@@ -8,14 +8,12 @@
 
 Kedge is a simple, easy and declarative way to define and deploy applications to Kubernetes by writing very concise application definitions.
 
-Key features and goals include:
+Why do people love Kedge?
 
-  - __An extension of Kubernetes:__ Use pre-existing definitions such as Pod or Container within your artifact file.
-  - __Declarative:__ Declarative definitions specifying developer's intent.
-  - __Simplicity:__ Using a simple and concise specification that is easy to understand and define.
-  - __Concise:__ Define just the necessary bits and Kedge will do the rest. Kedge will interprolate and pick the best defaults for your application to run on Kubernetes.
-  - __Multi-container environments:__ Define your containers, services and applications in one simple file, or split them into multiple files.
-  - __Familiar structure:__ Using a familiar YAML structure as Kubernetes, it's easy to pick-up and understand Kedge.
+  - __An extension of Kubernetes definitions:__ Use pre-existing definitions such as Pod or Container within your artifact file.
+  - __Shortcuts:__ Reduce your file-size and definitions by using intuitive Kedge shortcuts.
+  - __Concise:__ Define just the necessary bits, Kedge will interpolate and pick the best defaults for your application to run on Kubernetes.
+  - __Define all your containers in one place:__ Define your containers, services and applications in one simple file, or split them into multiple files.
 
 ----
 
