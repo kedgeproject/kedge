@@ -353,3 +353,137 @@ pkgcmd "github.com/kedgeproject/kedge/pkg/cmd"
 ```
 
 Once arranged, let `gofmt` sort the sequence of imports.
+
+
+
+
+##  Issue labeling
+
+Most of the issues should have at least `size` and `priority` and `kind` label.
+
+- Default size is [size/M](#sizeM).
+- Default priority is [priority/medium](#priority/medium).
+
+### size/*
+size/* labels are for estimating size.
+It should estimation how complicated it is going to be to solve given problem.
+
+#### [size/S](https://github.com/kedgeproject/kedge/labels/size%2FS)
+Simple change, just few lines (no more than 1 day of work).
+
+#### [size/M](https://github.com/kedgeproject/kedge/labels/size%2FM) 
+Considerable change but fair straightforward problem statement.
+This is the default size. If you are not sure about the sizes of the task, you can start with marking it as `size/M` and adjust size later on.
+
+#### [size/L](https://github.com/kedgeproject/kedge/labels/size%2FL)
+A bit more complicated to solve, maybe requiring small refactoring of existing code.
+
+#### [size/XL](https://github.com/kedgeproject/kedge/labels/size%2FL)
+Complex change, new big feature, requiring big refactoring, perhaps is an epic and should be broken into smaller tasks.
+
+
+### priority/*
+
+#### [priority/low](https://github.com/kedgeproject/kedge/labels/priority%2Flow)
+The lowest priority, the issue is not affecting any functionality or it is nice to have feature.
+
+#### [priority/medium](https://github.com/kedgeproject/kedge/labels/priority%2Fmedium)
+Medium should be a default priority. If you are not sure about priority of the issue mark it as `priority/medium`. 
+
+#### [priority/high](https://github.com/kedgeproject/kedge/labels/priority%2Fhigh)
+High priority means that this is important feature that will help someone start using Kedge, or it is a bug that is affecting existing users.  
+
+#### [priority/urgent](https://github.com/kedgeproject/kedge/labels/priority%2Furgent)
+If issue is marked as urgent it means that it should be solved before everything else (Drop everything and work on this). Bug marked as `priority/urget` completely breaks important Kedge functionality.
+Usually it doesn't make sense to new features as `priority/urgent`.
+
+
+### kind/*
+
+#### [kind/blocker](https://github.com/kedgeproject/kedge/labels/kind%2Fblocker)
+This issue is blocking some other issue. There should be a commend that is explaining what issue is blocked and why.
+
+Related labels: [status/blocked](#statusblocked)
+
+#### [kind/bug](https://github.com/kedgeproject/kedge/labels/kind%2Fbug)
+This is a bug. Something that should be working is broken.
+
+#### [kind/CI-CD](https://github.com/kedgeproject/kedge/labels/kind%2CI-CD)
+Issue is touching CI/CD area.
+
+#### [kind/discussion](https://github.com/kedgeproject/kedge/labels/kind%2Fdiscussion)
+This issue is discussion. The discussion can be about new features or changes or anything that is related to the project.
+
+Related labels: [status/decided](#statusdecided), [status/undecided](#statusundecided)
+
+#### [kind/documentation](https://github.com/kedgeproject/kedge/labels/kind%2Fdocumentation)
+Issues related to documentation.
+
+#### [kind/enhancement](https://github.com/kedgeproject/kedge/labels/kind%2Fenhancement)
+This issue is improving already existing functionality.
+
+### [kind/epic](https://github.com/kedgeproject/kedge/labels/kind%2Fepic)
+Issues marked as `kind/epic` are usually description of a larger goal or feature. 
+Before any actual coding work can be started on this it should be broken down to smaller smaller features ([kind/feature](#kindfeature)) or tasks ([kind/task](#kindtask))
+
+#### [kind/feature](https://github.com/kedgeproject/kedge/labels/kind%2Ffeature)
+This is a description or definition of a new feature. 
+
+#### [kind/question](https://github.com/kedgeproject/kedge/labels/kind%2Ffeature)
+Someone is asking a question. Once the question is answered the issue should be closed.
+
+#### [kind/refactor](https://github.com/kedgeproject/kedge/labels/kind%2Frefactor)
+This is work on definition of some kind of refactoring effort.
+
+#### [kind/task](https://github.com/kedgeproject/kedge/labels/kind%2Ftask)
+This is clear definition of a task that can be assigned and work on this can start.
+
+#### [kind/tests](https://github.com/kedgeproject/kedge/labels/kind%2Ftests)
+Issue related to test and testing.
+
+#### [kind/user-experience](https://github.com/kedgeproject/kedge/labels/kind%2Fuser-experience)
+This issue is touching user experience.
+
+### status/*
+
+#### [status/blocked](https://github.com/kedgeproject/kedge/labels/status%2Fblocked)
+This issue is blocked by some other issue. There should be a commend explaining why this issue is blocked 
+and what is blocking it. Issue that is blocking it should be marked as `kind/blocker`.
+
+Related labels: [kind/blocker](#kindblocker)
+
+#### [status/decided](https://github.com/kedgeproject/kedge/labels/status%2Fdecided)
+This usually goes together with `kind/discussion`. Once a discussion ended and decision was made issue should be labeled `status/decided`.
+
+Related labels: [kind/discussion](#kinddiscussion)
+
+#### [status/discussion-ongoing](https://github.com/kedgeproject/kedge/labels/status%2Fdiscussion-ongoing)
+
+#### [status/do-not-review](https://github.com/kedgeproject/kedge/labels/status%2Fdo-not-review)
+Used for PRs. It means that PR is Work In Progress and it will change a lot. Currently it is not worth to do any reviews on it.
+
+#### [status/needs-rebase](https://github.com/kedgeproject/kedge/labels/status%2Fneeds-rebase)
+Used for PRs. There are conflicts and branch needs rebase and resolving conflicts.
+
+#### [status/needs-review](https://github.com/kedgeproject/kedge/labels/status%2Fneeds-review)
+Used for PRs. All work is done, and PR just need review.
+
+#### [status/undecided](https://github.com/kedgeproject/kedge/labels/status%2Fundecided)
+This usually goes together with `kind/discussion`. This means that conclusion was not yet made.
+
+Related labels: [kind/discussion](#kinddiscussion)
+
+#### [status/work-in-progress](https://github.com/kedgeproject/kedge/labels/status%2Fwork-in-progress)
+Used for PRs. It means that PR is Work In Progress. Some preliminary reviews can be done, but it can't be merged yet, as something is still missing.
+
+
+### other
+
+#### [duplicate](https://github.com/kedgeproject/kedge/labels/duplicate)
+Issue is a duplicate of other already existing issue.
+
+#### [help wanted](https://github.com/kedgeproject/kedge/labels/help%20wanted)
+
+#### [invalid](https://github.com/kedgeproject/kedge/labels/invalid)
+
+#### [wontfix](https://github.com/kedgeproject/kedge/labels/wontfix)
