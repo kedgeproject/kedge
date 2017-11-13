@@ -17,6 +17,7 @@ limitations under the License.
 package spec
 
 import (
+	build_v1 "github.com/openshift/origin/pkg/build/apis/build/v1"
 	os_deploy_v1 "github.com/openshift/origin/pkg/deploy/apis/apps/v1"
 	os_route_v1 "github.com/openshift/origin/pkg/route/apis/route/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -142,6 +143,14 @@ type SecretMod struct {
 	meta_v1.ObjectMeta `json:",inline"`
 }
 
+// BuildConfigSpecMod defines OpenShift BuildConfig object
+// kedgeSpec: io.kedge.BuildConfigSpec
+type BuildConfigSpecMod struct {
+	build_v1.BuildConfigSpec `json:",inline"`
+	// k8s: io.k8s.kubernetes.pkg.apis.meta.v1.ObjectMeta
+	meta_v1.ObjectMeta `json:",inline"`
+}
+
 // ControllerFields are the common fields in every controller Kedge supports
 type ControllerFields struct {
 	Controller string `json:"controller,omitempty"`
@@ -169,6 +178,10 @@ type ControllerFields struct {
 	// ref: io.kedge.SecretSpec
 	// +optional
 	Secrets []SecretMod `json:"secrets,omitempty"`
+	// List of OpenShift BuildConfigs
+	// ref: io.kedge.BuildConfigSpec
+	// +optional
+	BuildConfigs []BuildConfigSpecMod `json:"buildConfigs,omitempty"`
 	// List of Kubernetes resource files, that can be directly given to Kubernetes
 	// +optional
 	IncludeResources []string `json:"includeResources,omitempty"`

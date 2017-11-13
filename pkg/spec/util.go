@@ -28,6 +28,7 @@ import (
 	"k8s.io/kubernetes/pkg/api"
 	api_v1 "k8s.io/kubernetes/pkg/api/v1"
 	//kapi "k8s.io/kubernetes/pkg/api/v1"
+	build_v1 "github.com/openshift/origin/pkg/build/apis/build/v1"
 	os_deploy_v1 "github.com/openshift/origin/pkg/deploy/apis/apps/v1"
 	os_route_v1 "github.com/openshift/origin/pkg/route/apis/route/v1"
 	batch_v1 "k8s.io/kubernetes/pkg/apis/batch/v1"
@@ -84,6 +85,11 @@ func GetScheme() (*runtime.Scheme, error) {
 	// Adding the route scheme to support OpenShift routes
 	if err := os_route_v1.AddToScheme(scheme); err != nil {
 		return nil, errors.Wrap(err, "unable to add 'routes' to scheme")
+	}
+
+	// Adding the build scheme to support OpenShift buildConfigs
+	if err := build_v1.AddToScheme(scheme); err != nil {
+		return nil, errors.Wrap(err, "unable to add 'build' to scheme")
 	}
 
 	return scheme, nil

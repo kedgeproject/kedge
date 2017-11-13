@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	log "github.com/Sirupsen/logrus"
+	build_v1 "github.com/openshift/origin/pkg/build/apis/build/v1"
 	os_route_v1 "github.com/openshift/origin/pkg/route/apis/route/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	api_v1 "k8s.io/kubernetes/pkg/api/v1"
@@ -125,6 +126,26 @@ func fixSecrets(secrets []SecretMod, appName string) ([]SecretMod, error) {
 	return secrets, nil
 }
 
+func fixBuildConfigs(buildConfigs []BuildConfigSpecMod, appName string) ([]BuildConfigSpecMod, error) {
+
+	// auto populate name only if one buildConfig is specified without any name
+	if len(buildConfigs) == 1 && buildConfigs[0].Name == "" {
+		buildConfigs[0].ObjectMeta.Name = appName
+	}
+
+	for i, bc := range buildConfigs {
+		if bc.Name == "" {
+			return nil, fmt.Errorf("please specify name for app.buildConfigs[%d]", i)
+		}
+
+		bc.ObjectMeta.Labels = addKeyValueToMap(appLabelKey, appName, bc.ObjectMeta.Labels)
+
+		// this should be the last statement in this for loop
+		buildConfigs[i] = bc
+	}
+	return buildConfigs, nil
+}
+
 func fixIngresses(ingresses []IngressSpecMod, appName string) ([]IngressSpecMod, error) {
 
 	// auto populate name only if one ingress is specified without any name
@@ -215,6 +236,12 @@ func (cf *ControllerFields) fixControllerFields() error {
 	cf.Secrets, err = fixSecrets(cf.Secrets, cf.Name)
 	if err != nil {
 		return errors.Wrap(err, "unable to fix secrets")
+	}
+
+	// fix buildConfigs
+	cf.BuildConfigs, err = fixBuildConfigs(cf.BuildConfigs, cf.Name)
+	if err != nil {
+		return errors.Wrap(err, "unable to fix buildConfigs")
 	}
 
 	// fix ingresses
@@ -400,6 +427,19 @@ func (app *ControllerFields) createSecrets() ([]runtime.Object, error) {
 	return secrets, nil
 }
 
+func (app *ControllerFields) createBuildConfigs() ([]runtime.Object, error) {
+	var buildConfigs []runtime.Object
+
+	for _, b := range app.BuildConfigs {
+		buildConfig := &build_v1.BuildConfig{
+			ObjectMeta: b.ObjectMeta,
+			Spec:       b.BuildConfigSpec,
+		}
+		buildConfigs = append(buildConfigs, buildConfig)
+	}
+	return buildConfigs, nil
+}
+
 // CreateK8sObjects, if given object DeploymentSpecMod, this function reads
 // them and returns kubernetes objects as list of runtime.Object
 // If the deployment is using field 'includeResources' then it will
@@ -429,6 +469,11 @@ func (app *ControllerFields) CreateK8sObjects() ([]runtime.Object, []string, err
 	secs, err := app.createSecrets()
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "Unable to create Kubernetes Secrets")
+	}
+
+	bcs, err := app.createBuildConfigs()
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "Unable to create OpenShift BuildConfigs")
 	}
 
 	app.PodSpec.Containers, err = populateContainers(app.Containers, app.ConfigMaps, app.Secrets)
@@ -485,6 +530,9 @@ func (app *ControllerFields) CreateK8sObjects() ([]runtime.Object, []string, err
 
 	objects = append(objects, secs...)
 	log.Debugf("app: %s, secret: %s\n", app.Name, spew.Sprint(secs))
+
+	objects = append(objects, bcs...)
+	log.Debugf("app: %s, buildConfig: %s\n", app.Name, spew.Sprint(bcs))
 
 	objects = append(objects, configMap...)
 	log.Debugf("app: %s, configMap: %s\n", app.Name, spew.Sprint(configMap))
