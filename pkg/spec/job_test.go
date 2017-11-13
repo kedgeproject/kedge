@@ -208,7 +208,8 @@ func TestJobFix(t *testing.T) {
 			output: &JobSpecMod{
 				ControllerFields: ControllerFields{
 					ObjectMeta: meta_v1.ObjectMeta{
-						Name: "testJob",
+						Name:   "testJob",
+						Labels: map[string]string{"app": "testJob"},
 					},
 					Controller: "job",
 					PodSpecMod: PodSpecMod{
@@ -219,32 +220,59 @@ func TestJobFix(t *testing.T) {
 									Image: "testImage",
 								},
 							},
+							RestartPolicy: "OnFailure",
 						},
 					},
 				},
 			},
 			success: true,
 		},
+		{
+			name: "fail condition on two containers without name given",
+			input: &JobSpecMod{
+				ControllerFields: ControllerFields{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "testJob",
+					},
+					Controller: "job",
+					PodSpecMod: PodSpecMod{
+						Containers: []Container{
+							{
+								Container: api_v1.Container{
+									Image: "testImage",
+								},
+							},
+							{
+								Container: api_v1.Container{
+									Image: "testSideCarImage",
+								},
+							},
+						},
+					},
+				},
+			},
+			success: false,
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 
-			err := test.input.Validate()
+			err := test.input.Fix()
 
 			switch test.success {
 			case true:
 				if err != nil {
 					t.Fatalf("Expected test to pass but got an error: %v", err)
 				} else {
-					//t.Logf("test passed for input: %s", prettyPrintObjects(test.input))
-					t.Logf("test passed for input: %#v", test.input)
+					t.Logf("test passed for input: %s", prettyPrintObjects(test.input))
 				}
 			case false:
 				if err == nil {
-					t.Fatalf("For the input -\n%v\nexpected test to fail, but test passed", spew.Sprint(test.input))
+					t.Fatalf("For the input -\n%v\nexpected test to fail, but test passed", prettyPrintObjects(test.input))
 				} else {
 					t.Logf("failed with error: %v", err)
+					return
 				}
 			}
 
