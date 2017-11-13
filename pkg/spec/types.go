@@ -18,6 +18,7 @@ package spec
 
 import (
 	os_deploy_v1 "github.com/openshift/origin/pkg/deploy/apis/apps/v1"
+	image_v1 "github.com/openshift/origin/pkg/image/apis/image/v1"
 	os_route_v1 "github.com/openshift/origin/pkg/route/apis/route/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	api_v1 "k8s.io/kubernetes/pkg/api/v1"
@@ -142,6 +143,14 @@ type SecretMod struct {
 	meta_v1.ObjectMeta `json:",inline"`
 }
 
+// ImageStreamSpec defines OpenShift ImageStream Object
+// kedgeSpec: io.kedge.ImageStreamSpec
+type ImageStreamSpecMod struct {
+	image_v1.ImageStreamSpec `json:",inline"`
+	// k8s: io.k8s.kubernetes.pkg.apis.meta.v1.ObjectMeta
+	meta_v1.ObjectMeta `json:",inline"`
+}
+
 // ControllerFields are the common fields in every controller Kedge supports
 type ControllerFields struct {
 	Controller string `json:"controller,omitempty"`
@@ -169,6 +178,10 @@ type ControllerFields struct {
 	// ref: io.kedge.SecretSpec
 	// +optional
 	Secrets []SecretMod `json:"secrets,omitempty"`
+	// List of OpenShift ImageStreams
+	// ref: io.kedge.ImageStreamSpec
+	// +optional
+	ImageStreams []ImageStreamSpecMod `json:"imageStreams,omitempty"`
 	// List of Kubernetes resource files, that can be directly given to Kubernetes
 	// +optional
 	IncludeResources []string `json:"includeResources,omitempty"`
