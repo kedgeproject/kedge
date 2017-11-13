@@ -41,7 +41,7 @@ import:
 # We have to ignore them here so they are not downloaded by glide.
 # We have to use modified version of those packages from github.com/openshift/origin/vendor,
 # otherwise OpenShift won't build.
-# OpenShift vendoring with all its dependecies is handled by ./scripts/openshift-vendor.sh 
+# OpenShift vendoring with all its dependencies is handled by ./scripts/openshift-vendor.sh
 ignore:
   - github.com/openshift/origin
   - k8s.io/kubernetes
