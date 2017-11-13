@@ -174,7 +174,7 @@ func fixContainers(containers []Container, appName string) ([]Container, error) 
 
 	for i, c := range containers {
 		if c.Name == "" {
-			return nil, fmt.Errorf("please specify name for app.ingresses[%d]", i)
+			return nil, fmt.Errorf("please specify name for app.containers[%d]", i)
 		}
 	}
 	return containers, nil
