@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
+	build_v1 "github.com/openshift/origin/pkg/build/apis/build/v1"
 	image_v1 "github.com/openshift/origin/pkg/image/apis/image/v1"
 	os_route_v1 "github.com/openshift/origin/pkg/route/apis/route/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -137,6 +138,85 @@ func TestFixConfigMaps(t *testing.T) {
 	if !reflect.DeepEqual(got, expected) {
 		t.Errorf("expected: %s, got: %s", prettyPrintObjects(expected),
 			prettyPrintObjects(got))
+	}
+}
+
+func TestFixBuildConfigs(t *testing.T) {
+	appName := "testAppName"
+	tests := []struct {
+		name    string
+		input   []BuildConfigSpecMod
+		output  []BuildConfigSpecMod
+		success bool
+	}{
+		{
+			name: "passing one BuildConfig without name",
+			input: []BuildConfigSpecMod{
+				{},
+			},
+			output: []BuildConfigSpecMod{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: appName,
+						Labels: map[string]string{
+							appLabelKey: appName,
+						},
+					},
+				},
+			},
+			success: true,
+		},
+		{
+			name: "passing one BuildConfig with name",
+			input: []BuildConfigSpecMod{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "bcName",
+					},
+				},
+			},
+			output: []BuildConfigSpecMod{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "bcName",
+						Labels: map[string]string{
+							appLabelKey: appName,
+						},
+					},
+				},
+			},
+			success: true,
+		},
+		{
+			name: "passing multiple BuildConfigs without names",
+			input: []BuildConfigSpecMod{
+				{},
+				{},
+			},
+			output:  nil,
+			success: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fixedBuildConfigs, err := fixBuildConfigs(test.input, appName)
+
+			switch test.success {
+			case true:
+				if err != nil {
+					t.Errorf("Expected test to pass but got an error -\n%v", err)
+				}
+			case false:
+				if err == nil {
+					t.Errorf("For the input -\n%v\nexpected test to fail, but test passed", prettyPrintObjects(test.input))
+				}
+			}
+
+			if !reflect.DeepEqual(fixedBuildConfigs, test.output) {
+				t.Errorf("Expected fixed BuildConfigs to be -\n%v\nBut got -\n%v\n", prettyPrintObjects(test.output), prettyPrintObjects(fixedBuildConfigs))
+			}
+		})
 	}
 }
 
@@ -788,6 +868,98 @@ func TestCreateImageStreams(t *testing.T) {
 			objects, err := test.input.createImageStreams()
 			if err != nil {
 				t.Errorf("Creating imageStreams failed: %v", err)
+			}
+			if !reflect.DeepEqual(test.output, objects) {
+				t.Fatalf("Expected:\n%v\nGot:\n%v", prettyPrintObjects(test.output), prettyPrintObjects(objects))
+			}
+		})
+	}
+}
+
+func TestCreateBuildConfigs(t *testing.T) {
+	tests := []struct {
+		name   string
+		input  *ControllerFields
+		output []runtime.Object
+	}{
+		{
+			name:   "no buildConfig passed",
+			input:  &ControllerFields{},
+			output: nil,
+		},
+		{
+			name: "passing 1 buildConfig definition",
+			input: &ControllerFields{
+				BuildConfigs: []BuildConfigSpecMod{
+					{
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name: "testBC",
+						},
+						BuildConfigSpec: build_v1.BuildConfigSpec{
+							RunPolicy: "Serial",
+						},
+					},
+				},
+			},
+			output: []runtime.Object{
+				&build_v1.BuildConfig{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "testBC",
+					},
+					Spec: build_v1.BuildConfigSpec{
+						RunPolicy: "Serial",
+					},
+				},
+			},
+		},
+		{
+			name: "passing 2 buildConfig definitions",
+			input: &ControllerFields{
+				BuildConfigs: []BuildConfigSpecMod{
+					{
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name: "testBC1",
+						},
+						BuildConfigSpec: build_v1.BuildConfigSpec{
+							RunPolicy: "Serial",
+						},
+					},
+					{
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name: "testBC2",
+						},
+						BuildConfigSpec: build_v1.BuildConfigSpec{
+							RunPolicy: "Serial",
+						},
+					},
+				},
+			},
+			output: []runtime.Object{
+				&build_v1.BuildConfig{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "testBC1",
+					},
+					Spec: build_v1.BuildConfigSpec{
+						RunPolicy: "Serial",
+					},
+				},
+				&build_v1.BuildConfig{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "testBC2",
+					},
+					Spec: build_v1.BuildConfigSpec{
+						RunPolicy: "Serial",
+					},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			objects, err := test.input.createBuildConfigs()
+			if err != nil {
+				t.Errorf("Creating buildConfigs failed: %v", err)
 			}
 			if !reflect.DeepEqual(test.output, objects) {
 				t.Fatalf("Expected:\n%v\nGot:\n%v", prettyPrintObjects(test.output), prettyPrintObjects(objects))

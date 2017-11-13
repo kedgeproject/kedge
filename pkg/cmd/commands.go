@@ -64,7 +64,7 @@ func CreateArtifacts(paths []string, generate bool, args ...string) error {
 		for _, runtimeObject := range ros {
 			switch runtimeObject.GetObjectKind().GroupVersionKind().Kind {
 			// If there is at least one OpenShift resource use oc
-			case "DeploymentConfig", "Route", "ImageStream":
+			case "DeploymentConfig", "Route", "ImageStream", "BuildConfig":
 				useOC = true
 				break
 			}
