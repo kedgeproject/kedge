@@ -31,6 +31,19 @@ var (
 	ports                 []string
 )
 
+/*
+**NOTE** to kedge devs:
+
+The structs are re-defined here because, if we use the structs defined in `types.go`
+it will clutter the output. Lot of upstream structs from OpenShift don't have
+json tag `omitempty` defined on it's fields which causes lot of extra fields in yaml
+output with zero values.
+
+So redefining it here which helps us control how the output looks like. This can cause the
+`types.go` and the structs defined here going out of sync if any major changes are done
+to spec in types.go.
+*/
+
 type Container struct {
 	Image string `json:"image,omitempty"`
 }
