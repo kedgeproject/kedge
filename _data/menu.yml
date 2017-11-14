@@ -5,3 +5,8 @@ items:
   "User Guide": "/user-guide/"
   "File Reference": "/file-reference/"
   "Development": "/development/"
+
+footer:
+  "Chat about Kedge on Slack": "http://slack.kedgeproject.org"
+  "Releases": "https://github.com/kedgeproject/kedge/releases"
+  "Kedge on GitHub": "https://github.com/kedgeproject/kedge"

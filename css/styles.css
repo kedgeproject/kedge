@@ -371,3 +371,7 @@ font-size:10px;
 .center-text {
   text-align:center;
 }
+
+.active {
+  font-weight:400;
+}

@@ -1,15 +1,9 @@
 <footer>
   <div class="menubar">
     <ul>
-      <li>
-        <a href="http://slack.kedgeproject.org/">Chat about Kedge on Slack</a>
-      </li>
-      <li>
-        <a href="https://github.com/kedgeproject/kedge/releases">Releases</a>
-      </li>
-      <li>
-        <a href="https://github.com/kedgeproject/kedge">Kedge on GitHub</a>
-      </li>
+    {% for item in site.data.menu.footer %}
+        <li><a href="{{ item[1] | prepend: site.baseurl }}">{{ item[0] }}</a></li>
+    {% endfor %}
     </ul>
   </div>
   <p>Brought to you by the same team that develops Kompose</p>
