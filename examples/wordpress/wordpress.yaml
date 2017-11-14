@@ -2,6 +2,13 @@ name: wordpress
 
 containers:
   - image: wordpress:4
+    health:
+      httpGet:
+        path: /
+        port: 80
+      initialDelaySeconds: 20
+      timeoutSeconds: 5
+
     env:
       - name: WORDPRESS_DB_NAME
         valueFrom:
@@ -21,15 +28,9 @@ containers:
       - name: WORDPRESS_DB_HOST
         value: database:3306
 
-    health:
-      httpGet:
-        path: /
-        port: 80
-      initialDelaySeconds: 20
-      timeoutSeconds: 5
 
 services:
   - name: wordpress
     type: LoadBalancer
-    ports:
-      - port: 80
+    portMappings:
+      - 80
