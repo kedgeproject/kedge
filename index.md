@@ -21,14 +21,15 @@ Why do people love Kedge?
 
 ```yaml
 name: httpd
+
 containers:
 - image: centos/httpd
+
 services:
 - name: httpd
-type: NodePort
-ports:
-- port: 8080
-targetPort: 80
+  type: LoadBalancer
+  portMappings: 
+    - 8080:80
 ```
 {: .demo-code }
 
