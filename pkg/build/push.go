@@ -33,7 +33,17 @@ as input.
 func PushImage(fullImageName string) error {
 	log.Infof("Pushing image %q", fullImageName)
 
-	cmd := exec.Command("docker", "push", fullImageName)
+	command := []string{"docker", "push", fullImageName}
+	if err := RunCommand(command); err != nil {
+		return err
+	}
+	log.Infof("Successfully pushed image %q", fullImageName)
+
+	return nil
+}
+
+func RunCommand(command []string) error {
+	cmd := exec.Command(command[0], command[1:]...)
 	cmdReader, err := cmd.StdoutPipe()
 	if err != nil {
 		return err
@@ -58,7 +68,6 @@ func PushImage(fullImageName string) error {
 	if err != nil {
 		return fmt.Errorf("%s, %s", strings.TrimSpace(stderr.String()), err)
 	}
-	log.Infof("Successfully pushed image %q", fullImageName)
 
 	return nil
 }

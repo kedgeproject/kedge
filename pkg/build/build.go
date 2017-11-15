@@ -28,7 +28,16 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	dockerlib "github.com/fsouza/go-dockerclient"
+	"github.com/ghodss/yaml"
+	os_build_v1 "github.com/openshift/origin/pkg/build/apis/build/v1"
+	os_image_v1 "github.com/openshift/origin/pkg/image/apis/image/v1"
 	"github.com/pkg/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	_ "k8s.io/kubernetes/pkg/api/install"
+	kapi "k8s.io/kubernetes/pkg/api/v1"
+
+	"github.com/kedgeproject/kedge/pkg/cmd"
+	"github.com/kedgeproject/kedge/pkg/spec"
 )
 
 func BuildPushDockerImage(dockerfile, image, context string, push bool) error {
@@ -173,4 +182,149 @@ func CreateTarball(source, target string) error {
 			_, err = io.Copy(tarball, file)
 			return err
 		})
+}
+
+// getImageTag get tag name from image name
+// if no tag is specified return 'latest'
+func GetImageTag(image string) string {
+	// format:      registry_host:registry_port/repo_name/image_name:image_tag
+	// example:
+	// 1)     myregistryhost:5000/fedora/httpd:version1.0
+	// 2)     myregistryhost:5000/fedora/httpd
+	// 3)     myregistryhost/fedora/httpd:version1.0
+	// 4)     myregistryhost/fedora/httpd
+	// 5)     fedora/httpd
+	// 6)     httpd
+	imageAndTag := image
+
+	imageTagSplit := strings.Split(image, "/")
+	if len(imageTagSplit) >= 2 {
+		imageAndTag = imageTagSplit[len(imageTagSplit)-1]
+	}
+
+	p := strings.Split(imageAndTag, ":")
+	if len(p) == 2 {
+		return p[1]
+	}
+	return "latest"
+}
+
+func GetImageName(image string) string {
+	imageAndTag := image
+
+	imageTagSplit := strings.Split(image, "/")
+	if len(imageTagSplit) >= 2 {
+		imageAndTag = imageTagSplit[len(imageTagSplit)-1]
+	}
+	p := strings.Split(imageAndTag, ":")
+	if len(p) <= 2 {
+		return p[0]
+	}
+
+	return image
+}
+
+func BuildS2I(image, context, builderImage string) error {
+
+	name := GetImageName(image)
+	labels := map[string]string{
+		spec.BuildLabelKey: name,
+	}
+	annotations := map[string]string{
+		"openshift.io/generated-by": "KedgeBuildS2I",
+	}
+
+	is := os_image_v1.ImageStream{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ImageStream",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        name,
+			Labels:      labels,
+			Annotations: annotations,
+		},
+		Spec: os_image_v1.ImageStreamSpec{
+			Tags: []os_image_v1.TagReference{
+				{Name: GetImageTag(image)},
+			},
+		},
+	}
+
+	bc := os_build_v1.BuildConfig{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "BuildConfig",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        name,
+			Labels:      labels,
+			Annotations: annotations,
+		},
+		Spec: os_build_v1.BuildConfigSpec{
+			CommonSpec: os_build_v1.CommonSpec{
+				Strategy: os_build_v1.BuildStrategy{
+					Type: "Binary",
+					SourceStrategy: &os_build_v1.SourceBuildStrategy{
+						From: kapi.ObjectReference{
+							Kind: "DockerImage",
+							Name: builderImage,
+						},
+					},
+				},
+				Output: os_build_v1.BuildOutput{
+					To: &kapi.ObjectReference{
+						Kind: "ImageStreamTag",
+						Name: name + ":" + GetImageTag(image),
+					},
+				},
+			},
+		},
+	}
+
+	isyaml, err := yaml.Marshal(is)
+	if err != nil {
+		return err
+	}
+
+	bcyaml, err := yaml.Marshal(bc)
+	if err != nil {
+		return err
+	}
+
+	log.Debugf("ImageStream for output image: \n%s\n", string(isyaml))
+	log.Debugf("BuildConfig: \n%s\n", string(bcyaml))
+
+	args := []string{"apply", "-f", "-"}
+	err = cmd.RunClusterCommand(args, isyaml, true)
+	if err != nil {
+		return err
+	}
+	err = cmd.RunClusterCommand(args, bcyaml, true)
+	if err != nil {
+		cleanup(name)
+		return err
+	}
+
+	log.Infof("Starting build for %q", image)
+	cmd := []string{"oc", "start-build", image, "--from-dir=" + context, "-F"}
+	if err := RunCommand(cmd); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func cleanup(name string) {
+	log.Infof("Cleaning up build since error occurred while building")
+
+	delBc := []string{"oc", "delete", "buildconfig", name}
+	if err := RunCommand(delBc); err != nil {
+		log.Debugf("error while deleting buildconfig: %v", err)
+	}
+
+	delIs := []string{"oc", "delete", "imagestream", name}
+	if err := RunCommand(delIs); err != nil {
+		log.Debugf("error while deleting imagestream: %v", err)
+	}
 }
