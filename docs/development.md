@@ -130,6 +130,30 @@ git add glide.yaml glide.lock vendor
 git commit
 ```
 
+#### Updating OpenShift
+
+1. Update OPENSHIFT_VERSION within [`scripts/vendor-openshift.sh`](https://github.com/kedgeproject/kedge/blob/c64b0fd7a69edc4db5ef9aab0c52c97a0c9cf10e/scripts/vendor-openshift.sh#L15)
+
+
+2. Clear the cache to prevent glide from using previous data
+
+```bash
+glide cc
+```
+
+3. Retrieve new and updated dependencies
+
+```bash
+make vendor-update
+```
+
+4. Commit updated glide files and vendor
+
+```bash
+git add glide.yaml glide.lock vendor
+git commit
+```
+
 ### PR review guidelines
 
 - To merge a PR at least two LGTMs are needed to merge it
