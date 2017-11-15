@@ -34,15 +34,25 @@ type inputData struct {
 
 func getApplicationsFromFiles(files []string) ([]inputData, error) {
 	var appData []inputData
-
+	var data []byte
+	var err error
 	for _, file := range files {
-		data, err := ioutil.ReadFile(file)
-		if err != nil {
-			return nil, errors.Wrap(err, "file reading failed")
-		}
-		file, err := filepath.Abs(file)
-		if err != nil {
-			return nil, errors.Wrapf(err, "cannot determine the absolute file path of %q", file)
+
+		if file == "-" {
+			data, err = ioutil.ReadAll(os.Stdin)
+			if err != nil {
+				return nil, errors.Wrap(err, "standard input reading failed")
+			}
+
+		} else {
+			data, err = ioutil.ReadFile(file)
+			if err != nil {
+				return nil, errors.Wrap(err, "file reading failed")
+			}
+			file, err := filepath.Abs(file)
+			if err != nil {
+				return nil, errors.Wrapf(err, "cannot determine the absolute file path of %q", file)
+			}
 		}
 
 		// The regular expression takes care of when triple dashes are in the
@@ -82,23 +92,27 @@ func getApplicationsFromFiles(files []string) ([]inputData, error) {
 func GetAllYAMLFiles(paths []string) ([]string, error) {
 	var files []string
 	for _, path := range paths {
-		fileInfo, err := os.Stat(path)
-		if err != nil {
-			return nil, errors.Wrapf(err, "can't get file info about %s", path)
-		}
-		if fileInfo.IsDir() {
-			ymlFiles, err := filepath.Glob(filepath.Join(path, "*.yml"))
+		if path != "-" {
+			fileInfo, err := os.Stat(path)
 			if err != nil {
-				return nil, errors.Wrapf(err, "can't list *.yml files in %s", path)
+				return nil, errors.Wrapf(err, "can't retrieve file information about %s", path)
 			}
-			files = append(files, ymlFiles...)
-			yamlFiles, err := filepath.Glob(filepath.Join(path, "*.yaml"))
-			if err != nil {
-				return nil, errors.Wrapf(err, "can't list *.yaml files in %s", path)
+			if fileInfo.IsDir() {
+				ymlFiles, err := filepath.Glob(filepath.Join(path, "*.yml"))
+				if err != nil {
+					return nil, errors.Wrapf(err, "can't list *.yml files in %s", path)
+				}
+				files = append(files, ymlFiles...)
+				yamlFiles, err := filepath.Glob(filepath.Join(path, "*.yaml"))
+				if err != nil {
+					return nil, errors.Wrapf(err, "can't list *.yaml files in %s", path)
+				}
+				files = append(files, yamlFiles...)
+			} else {
+				// path is regular file, do nothing and just add it to list of files
+				files = append(files, path)
 			}
-			files = append(files, yamlFiles...)
 		} else {
-			// path is regular file, do nothing and just add it to list of files
 			files = append(files, path)
 		}
 	}
