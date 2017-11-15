@@ -163,6 +163,10 @@ type BuildConfigSpecMod struct {
 
 // ControllerFields are the common fields in every controller Kedge supports
 type ControllerFields struct {
+	// Field to specify the version of application
+	// +optional
+	Appversion string `json:"appversion,omitempty"`
+
 	Controller string `json:"controller,omitempty"`
 	// List of volume that should be mounted on the pod.
 	// ref: io.kedge.VolumeClaim

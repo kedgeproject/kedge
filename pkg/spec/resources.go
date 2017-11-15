@@ -31,6 +31,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -44,6 +45,7 @@ import (
 // allLabelKey is the key that Kedge injects in every Kubernetes resource that
 // it generates as an ObjectMeta label
 const appLabelKey = "app"
+const appVersion = "appversion"
 
 // Fix
 
@@ -584,6 +586,23 @@ func (app *ControllerFields) CreateK8sObjects() ([]runtime.Object, []string, err
 
 	objects = append(objects, configMap...)
 	log.Debugf("app: %s, configMap: %s\n", app.Name, spew.Sprint(configMap))
+
+	//Adding annotations to all the resources
+	//Objects are runtimeobjects, so accessing them using meta library
+	if app.Appversion != "" {
+		accessor := meta.NewAccessor()
+		for _, object := range objects {
+			annotations, err := accessor.Annotations(object)
+			if err != nil {
+				return nil, nil, errors.Wrap(err, "cannot get annotations")
+			}
+			annotations = addKeyValueToMap(appVersion, app.Appversion, annotations)
+			err = accessor.SetAnnotations(object, annotations)
+			if err != nil {
+				return nil, nil, errors.Wrap(err, "cannot set annotations")
+			}
+		}
+	}
 
 	return objects, app.IncludeResources, nil
 }
