@@ -1,0 +1,10 @@
+name: httpd
+
+containers:
+- image: centos/httpd
+
+services:
+- name: httpd
+  type: LoadBalancer
+  portMappings: 
+    - 8080:80
