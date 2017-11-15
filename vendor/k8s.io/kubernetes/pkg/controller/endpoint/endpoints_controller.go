@@ -22,6 +22,7 @@ import (
 	"strconv"
 	"time"
 
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -30,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
+	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/api/v1"
 	"k8s.io/kubernetes/pkg/api/v1/endpoints"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
@@ -43,11 +45,6 @@ import (
 )
 
 const (
-	// We'll attempt to recompute EVERY service's endpoints at least this
-	// often. Higher numbers = lower CPU/network load; lower numbers =
-	// shorter amount of time before a mistaken endpoint is corrected.
-	FullServiceResyncPeriod = 30 * time.Second
-
 	// An annotation on the Service denoting if the endpoints controller should
 	// go ahead and create endpoints for unready pods. This annotation is
 	// currently only used by StatefulSets, where we need the pod to be DNS
@@ -66,26 +63,24 @@ var (
 )
 
 // NewEndpointController returns a new *EndpointController.
-func NewEndpointController(podInformer coreinformers.PodInformer, serviceInformer coreinformers.ServiceInformer, client clientset.Interface) *EndpointController {
+func NewEndpointController(podInformer coreinformers.PodInformer, serviceInformer coreinformers.ServiceInformer,
+	endpointsInformer coreinformers.EndpointsInformer, client clientset.Interface) *EndpointController {
 	if client != nil && client.Core().RESTClient().GetRateLimiter() != nil {
 		metrics.RegisterMetricAndTrackRateLimiterUsage("endpoint_controller", client.Core().RESTClient().GetRateLimiter())
 	}
 	e := &EndpointController{
-		client: client,
-		queue:  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "endpoint"),
+		client:           client,
+		queue:            workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "endpoint"),
+		workerLoopPeriod: time.Second,
 	}
 
-	serviceInformer.Informer().AddEventHandlerWithResyncPeriod(
-		cache.ResourceEventHandlerFuncs{
-			AddFunc: e.enqueueService,
-			UpdateFunc: func(old, cur interface{}) {
-				e.enqueueService(cur)
-			},
-			DeleteFunc: e.enqueueService,
+	serviceInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: e.enqueueService,
+		UpdateFunc: func(old, cur interface{}) {
+			e.enqueueService(cur)
 		},
-		// TODO: Can we have much longer period here?
-		FullServiceResyncPeriod,
-	)
+		DeleteFunc: e.enqueueService,
+	})
 	e.serviceLister = serviceInformer.Lister()
 	e.servicesSynced = serviceInformer.Informer().HasSynced
 
@@ -96,6 +91,9 @@ func NewEndpointController(podInformer coreinformers.PodInformer, serviceInforme
 	})
 	e.podLister = podInformer.Lister()
 	e.podsSynced = podInformer.Informer().HasSynced
+
+	e.endpointsLister = endpointsInformer.Lister()
+	e.endpointsSynced = endpointsInformer.Informer().HasSynced
 
 	return e
 }
@@ -118,12 +116,22 @@ type EndpointController struct {
 	// Added as a member to the struct to allow injection for testing.
 	podsSynced cache.InformerSynced
 
+	// endpointsLister is able to list/get endpoints and is populated by the shared informer passed to
+	// NewEndpointController.
+	endpointsLister corelisters.EndpointsLister
+	// endpointsSynced returns true if the endpoints shared informer has been synced at least once.
+	// Added as a member to the struct to allow injection for testing.
+	endpointsSynced cache.InformerSynced
+
 	// Services that need to be updated. A channel is inappropriate here,
 	// because it allows services with lots of pods to be serviced much
 	// more often than services with few pods; it also would cause a
 	// service that's inserted multiple times to be processed more than
 	// necessary.
 	queue workqueue.RateLimitingInterface
+
+	// workerLoopPeriod is the time between worker runs. The workers process the queue of service and pod changes.
+	workerLoopPeriod time.Duration
 }
 
 // Runs e; will not return until stopCh is closed. workers determines how many
@@ -132,13 +140,13 @@ func (e *EndpointController) Run(workers int, stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer e.queue.ShutDown()
 
-	if !cache.WaitForCacheSync(stopCh, e.podsSynced, e.servicesSynced) {
+	if !cache.WaitForCacheSync(stopCh, e.podsSynced, e.servicesSynced, e.endpointsSynced) {
 		utilruntime.HandleError(fmt.Errorf("timed out waiting for caches to sync"))
 		return
 	}
 
 	for i := 0; i < workers; i++ {
-		go wait.Until(e.worker, time.Second, stopCh)
+		go wait.Until(e.worker, e.workerLoopPeriod, stopCh)
 	}
 	go func() {
 		defer utilruntime.HandleCrash()
@@ -181,6 +189,56 @@ func (e *EndpointController) addPod(obj interface{}) {
 	}
 }
 
+func podToEndpointAddress(pod *v1.Pod) *v1.EndpointAddress {
+	return &v1.EndpointAddress{
+		IP:       pod.Status.PodIP,
+		NodeName: &pod.Spec.NodeName,
+		TargetRef: &v1.ObjectReference{
+			Kind:            "Pod",
+			Namespace:       pod.ObjectMeta.Namespace,
+			Name:            pod.ObjectMeta.Name,
+			UID:             pod.ObjectMeta.UID,
+			ResourceVersion: pod.ObjectMeta.ResourceVersion,
+		}}
+}
+
+func podChanged(oldPod, newPod *v1.Pod) bool {
+	// If the pod's readiness has changed, the associated endpoint address
+	// will move from the unready endpoints set to the ready endpoints.
+	// So for the purposes of an endpoint, a readiness change on a pod
+	// means we have a changed pod.
+	if v1.IsPodReady(oldPod) != v1.IsPodReady(newPod) {
+		return true
+	}
+	// Convert the pod to an EndpointAddress, clear inert fields,
+	// and see if they are the same.
+	newEndpointAddress := podToEndpointAddress(newPod)
+	oldEndpointAddress := podToEndpointAddress(oldPod)
+	// Ignore the ResourceVersion because it changes
+	// with every pod update. This allows the comparison to
+	// show equality if all other relevant fields match.
+	newEndpointAddress.TargetRef.ResourceVersion = ""
+	oldEndpointAddress.TargetRef.ResourceVersion = ""
+	if reflect.DeepEqual(newEndpointAddress, oldEndpointAddress) {
+		// The pod has not changed in any way that impacts the endpoints
+		return false
+	}
+	return true
+}
+
+func determineNeededServiceUpdates(oldServices, services sets.String, podChanged bool) sets.String {
+	if podChanged {
+		// if the labels and pod changed, all services need to be updated
+		services = services.Union(oldServices)
+	} else {
+		// if only the labels changed, services not common to
+		// both the new and old service set (i.e the disjunctive union)
+		// need to be updated
+		services = services.Difference(oldServices).Union(oldServices.Difference(services))
+	}
+	return services
+}
+
 // When a pod is updated, figure out what services it used to be a member of
 // and what services it will be a member of, and enqueue the union of these.
 // old and cur must be *v1.Pod types.
@@ -192,22 +250,37 @@ func (e *EndpointController) updatePod(old, cur interface{}) {
 		// Two different versions of the same pod will always have different RVs.
 		return
 	}
+
+	podChangedFlag := podChanged(oldPod, newPod)
+
+	// Check if the pod labels have changed, indicating a possibe
+	// change in the service membership
+	labelsChanged := false
+	if !reflect.DeepEqual(newPod.Labels, oldPod.Labels) ||
+		!hostNameAndDomainAreEqual(newPod, oldPod) {
+		labelsChanged = true
+	}
+
+	// If both the pod and labels are unchanged, no update is needed
+	if !podChangedFlag && !labelsChanged {
+		return
+	}
+
 	services, err := e.getPodServiceMemberships(newPod)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("Unable to get pod %v/%v's service memberships: %v", newPod.Namespace, newPod.Name, err))
 		return
 	}
 
-	// Only need to get the old services if the labels changed.
-	if !reflect.DeepEqual(newPod.Labels, oldPod.Labels) ||
-		!hostNameAndDomainAreEqual(newPod, oldPod) {
+	if labelsChanged {
 		oldServices, err := e.getPodServiceMemberships(oldPod)
 		if err != nil {
 			utilruntime.HandleError(fmt.Errorf("Unable to get pod %v/%v's service memberships: %v", oldPod.Namespace, oldPod.Name, err))
 			return
 		}
-		services = services.Union(oldServices)
+		services = determineNeededServiceUpdates(oldServices, services, podChangedFlag)
 	}
+
 	for key := range services {
 		e.queue.Add(key)
 	}
@@ -248,14 +321,19 @@ func (e *EndpointController) deletePod(obj interface{}) {
 		e.addPod(obj)
 		return
 	}
-	podKey, err := keyFunc(obj)
-	if err != nil {
-		utilruntime.HandleError(fmt.Errorf("Couldn't get key for object %#v: %v", obj, err))
+	// If we reached here it means the pod was deleted but its final state is unrecorded.
+	tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
+	if !ok {
+		utilruntime.HandleError(fmt.Errorf("Couldn't get object from tombstone %#v", obj))
 		return
 	}
-	glog.V(4).Infof("Pod %q was deleted but we don't have a record of its final state, so it will take up to %v before it will be removed from all endpoint records.", podKey, FullServiceResyncPeriod)
-
-	// TODO: keep a map of pods to services to handle this condition.
+	pod, ok := tombstone.Obj.(*v1.Pod)
+	if !ok {
+		utilruntime.HandleError(fmt.Errorf("Tombstone contained object that is not a Pod: %#v", obj))
+		return
+	}
+	glog.V(4).Infof("Enqueuing services of deleted pod %s having final state unrecorded", pod.Name)
+	e.addPod(pod)
 }
 
 // obj could be an *v1.Service, or a DeletionFinalStateUnknown marker item.
@@ -379,16 +457,7 @@ func (e *EndpointController) syncService(key string) error {
 			}
 
 			epp := v1.EndpointPort{Name: portName, Port: int32(portNum), Protocol: portProto}
-			epa := v1.EndpointAddress{
-				IP:       pod.Status.PodIP,
-				NodeName: &pod.Spec.NodeName,
-				TargetRef: &v1.ObjectReference{
-					Kind:            "Pod",
-					Namespace:       pod.ObjectMeta.Namespace,
-					Name:            pod.ObjectMeta.Name,
-					UID:             pod.ObjectMeta.UID,
-					ResourceVersion: pod.ObjectMeta.ResourceVersion,
-				}}
+			epa := *podToEndpointAddress(pod)
 
 			hostname := getHostname(pod)
 			if len(hostname) > 0 &&
@@ -416,7 +485,7 @@ func (e *EndpointController) syncService(key string) error {
 	subsets = endpoints.RepackSubsets(subsets)
 
 	// See if there's actually an update here.
-	currentEndpoints, err := e.client.Core().Endpoints(service.Namespace).Get(service.Name, metav1.GetOptions{})
+	currentEndpoints, err := e.endpointsLister.Endpoints(service.Namespace).Get(service.Name)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			currentEndpoints = &v1.Endpoints{
@@ -430,12 +499,19 @@ func (e *EndpointController) syncService(key string) error {
 		}
 	}
 
-	if reflect.DeepEqual(currentEndpoints.Subsets, subsets) &&
-		reflect.DeepEqual(currentEndpoints.Labels, service.Labels) {
+	createEndpoints := len(currentEndpoints.ResourceVersion) == 0
+
+	if !createEndpoints &&
+		apiequality.Semantic.DeepEqual(currentEndpoints.Subsets, subsets) &&
+		apiequality.Semantic.DeepEqual(currentEndpoints.Labels, service.Labels) {
 		glog.V(5).Infof("endpoints are equal for %s/%s, skipping update", service.Namespace, service.Name)
 		return nil
 	}
-	newEndpoints := currentEndpoints
+	copy, err := api.Scheme.DeepCopy(currentEndpoints)
+	if err != nil {
+		return err
+	}
+	newEndpoints := copy.(*v1.Endpoints)
 	newEndpoints.Subsets = subsets
 	newEndpoints.Labels = service.Labels
 	if newEndpoints.Annotations == nil {
@@ -443,7 +519,6 @@ func (e *EndpointController) syncService(key string) error {
 	}
 
 	glog.V(4).Infof("Update endpoints for %v/%v, ready: %d not ready: %d", service.Namespace, service.Name, readyEps, notReadyEps)
-	createEndpoints := len(currentEndpoints.ResourceVersion) == 0
 	if createEndpoints {
 		// No previous endpoints, create them
 		_, err = e.client.Core().Endpoints(service.Namespace).Create(newEndpoints)
@@ -471,13 +546,12 @@ func (e *EndpointController) syncService(key string) error {
 // some stragglers could have been left behind if the endpoint controller
 // reboots).
 func (e *EndpointController) checkLeftoverEndpoints() {
-	list, err := e.client.Core().Endpoints(metav1.NamespaceAll).List(metav1.ListOptions{})
+	list, err := e.endpointsLister.List(labels.Everything())
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("Unable to list endpoints (%v); orphaned endpoints will not be cleaned up. (They're pretty harmless, but you can restart this component if you want another attempt made.)", err))
 		return
 	}
-	for i := range list.Items {
-		ep := &list.Items[i]
+	for _, ep := range list {
 		key, err := keyFunc(ep)
 		if err != nil {
 			utilruntime.HandleError(fmt.Errorf("Unable to get key for endpoint %#v", ep))

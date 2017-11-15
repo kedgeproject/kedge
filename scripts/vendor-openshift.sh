@@ -12,7 +12,7 @@
 
 
 OPENSHIFT_REPO="https://github.com/openshift/origin"
-OPENSHIFT_VERSION="v3.6.0"
+OPENSHIFT_VERSION="v3.6.1"
 
 PROJECT_VENDOR="./vendor"
 

@@ -1,5 +1,5 @@
 hash: f3e767e8346d32c0a86b9c441a9f5a580a4da1e4e9b201cffc7e2b313149bc5d
-updated: 2017-10-04T22:45:37.982127629+05:30
+updated: 2017-11-14T15:40:02.556527845+05:30
 imports:
 - name: github.com/davecgh/go-spew
   version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
@@ -31,10 +31,6 @@ imports:
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
 - name: github.com/novln/docker-parser
   version: 6030251119d652af8ead44ac7907444227b64d56
-  subpackages:
-  - distribution/digest
-  - distribution/reference
-  - docker
 - name: github.com/pkg/errors
   version: 01fa4104b9c248c8945d14d9f128454d5b28d595
 - name: github.com/Sirupsen/logrus
@@ -50,5 +46,5 @@ imports:
   subpackages:
   - unix
 - name: gopkg.in/yaml.v2
-  version: 53feefa2559fb8dfa8d81baad31be332c97d6c77
+  version: eb3733d160e74a9c7e442f435eb3bea458e1d19f
 testImports: []
