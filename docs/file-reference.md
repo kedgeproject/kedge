@@ -991,6 +991,8 @@ restartPolicy: Never
 parallelism: 3
 ```
 
+**Note**: If no `restartPolicy` is provided it defaults to `OnFailure`.
+
 ## Deployment Config
 
 ```yaml

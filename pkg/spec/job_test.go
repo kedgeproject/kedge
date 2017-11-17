@@ -127,3 +127,158 @@ func TestJobSpecMod_CreateKubernetesController(t *testing.T) {
 		})
 	}
 }
+
+func TestJobValidate(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   *JobSpecMod
+		success bool
+	}{
+		{
+			name: "Set restart policy as failure",
+			input: &JobSpecMod{
+				ControllerFields: ControllerFields{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "testJob",
+					},
+					Controller: "job",
+					PodSpecMod: PodSpecMod{
+						PodSpec: api_v1.PodSpec{
+							Containers: []api_v1.Container{
+								{
+									Name:  "testContainer",
+									Image: "testImage",
+								},
+							},
+							RestartPolicy: api_v1.RestartPolicyAlways,
+						},
+					},
+				},
+			},
+			success: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if err := test.input.Validate(); err != nil && test.success == true {
+				// test failing condition
+				t.Fatalf("test expected to pass, but failed with error: %v", err)
+			} else if err != nil && test.success == false {
+				// test passing condition
+				t.Logf("test expected to fail, failed with error: %v", err)
+			} else if err == nil && test.success == true {
+				// test passing condition
+				t.Logf("test passed")
+			} else if err == nil && test.success == false {
+				// test failing condition
+				t.Fatalf("test expected to fail, but passed with error")
+			}
+		})
+	}
+}
+
+func TestJobFix(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   *JobSpecMod
+		output  *JobSpecMod
+		success bool
+	}{
+		{
+			name: "no restartPolicy given",
+			input: &JobSpecMod{
+				ControllerFields: ControllerFields{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "testJob",
+					},
+					Controller: "job",
+					PodSpecMod: PodSpecMod{
+						PodSpec: api_v1.PodSpec{
+							Containers: []api_v1.Container{
+								{
+									Name:  "testContainer",
+									Image: "testImage",
+								},
+							},
+						},
+					},
+				},
+			},
+			output: &JobSpecMod{
+				ControllerFields: ControllerFields{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:   "testJob",
+						Labels: map[string]string{"app": "testJob"},
+					},
+					Controller: "job",
+					PodSpecMod: PodSpecMod{
+						PodSpec: api_v1.PodSpec{
+							Containers: []api_v1.Container{
+								{
+									Name:  "testContainer",
+									Image: "testImage",
+								},
+							},
+							RestartPolicy: "OnFailure",
+						},
+					},
+				},
+			},
+			success: true,
+		},
+		{
+			name: "fail condition on two containers without name given",
+			input: &JobSpecMod{
+				ControllerFields: ControllerFields{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "testJob",
+					},
+					Controller: "job",
+					PodSpecMod: PodSpecMod{
+						Containers: []Container{
+							{
+								Container: api_v1.Container{
+									Image: "testImage",
+								},
+							},
+							{
+								Container: api_v1.Container{
+									Image: "testSideCarImage",
+								},
+							},
+						},
+					},
+				},
+			},
+			success: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+
+			err := test.input.Fix()
+
+			switch test.success {
+			case true:
+				if err != nil {
+					t.Fatalf("Expected test to pass but got an error: %v", err)
+				} else {
+					t.Logf("test passed for input: %s", prettyPrintObjects(test.input))
+				}
+			case false:
+				if err == nil {
+					t.Fatalf("For the input -\n%v\nexpected test to fail, but test passed", prettyPrintObjects(test.input))
+				} else {
+					t.Logf("failed with error: %v", err)
+					return
+				}
+			}
+
+			if !reflect.DeepEqual(test.input, test.output) {
+				t.Fatalf("Expected Validated Kubernetes JobSpecMod to be -\n%v\nBut got -\n%v", prettyPrintObjects(test.output), prettyPrintObjects(test.input))
+			}
+		})
+	}
+}

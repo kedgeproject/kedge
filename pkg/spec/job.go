@@ -46,6 +46,10 @@ func (job *JobSpecMod) Fix() error {
 
 	job.ControllerFields.ObjectMeta.Labels = addKeyValueToMap(appLabelKey, job.ControllerFields.Name, job.ControllerFields.ObjectMeta.Labels)
 
+	// if RestartPolicy is not set by user default it to 'OnFailure'
+	if job.RestartPolicy == "" {
+		job.RestartPolicy = api_v1.RestartPolicyOnFailure
+	}
 	return nil
 }
 
@@ -127,6 +131,10 @@ func (job *JobSpecMod) Validate() error {
 	// validate controller fields
 	if err := job.ControllerFields.validateControllerFields(); err != nil {
 		return errors.Wrap(err, "unable to validate controller fields")
+	}
+
+	if job.RestartPolicy == api_v1.RestartPolicyAlways {
+		return fmt.Errorf("the Job %q is invalid: restartPolicy: unsupported value: \"Always\": supported values: OnFailure, Never", job.Name)
 	}
 
 	return nil
