@@ -1483,7 +1483,9 @@ Each "secret" is a Kubernetes <a target="_blank" href="https://kubernetes.io/doc
   <span class="na">command</span><span class="pi">:</span> <span class="pi">[</span><span class="s2">"</span><span class="s">perl"</span><span class="pi">,</span>  <span class="s2">"</span><span class="s">-Mbignum=bpi"</span><span class="pi">,</span> <span class="s2">"</span><span class="s">-wle"</span><span class="pi">,</span> <span class="s2">"</span><span class="s">print</span><span class="nv"> </span><span class="s">bpi(2000)"</span><span class="pi">]</span>
 <span class="na">restartPolicy</span><span class="pi">:</span> <span class="s">Never</span>
 <span class="na">parallelism</span><span class="pi">:</span> <span class="s">3</span>
-</code></pre><h2 id='deployment-config'>Deployment Config</h2><pre class="highlight yaml tab-yaml"><code><span class="na">controller</span><span class="pi">:</span> <span class="s">deploymentconfig</span>
+</code></pre>
+<p><strong>Note</strong>: If no <code>restartPolicy</code> is provided it defaults to <code>OnFailure</code>.</p>
+<h2 id='deployment-config'>Deployment Config</h2><pre class="highlight yaml tab-yaml"><code><span class="na">controller</span><span class="pi">:</span> <span class="s">deploymentconfig</span>
 <span class="na">name</span><span class="pi">:</span> <span class="s">httpd</span>
 <span class="na">replicas</span><span class="pi">:</span> <span class="s">2</span>
 <span class="na">containers</span><span class="pi">:</span>
