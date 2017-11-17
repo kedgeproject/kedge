@@ -103,6 +103,7 @@ For example, Kedge simplifies deployment by introducing the `health` key. Howeve
 
 ```yaml
 name: <string>
+appversion: <string>
 controller: <string>
 labels: <object>
 containers:
@@ -137,6 +138,7 @@ Depending on the controller key selected. Each "app" (Kedge file) is an extensio
 | Field    | Type     | Required     | Description  |
 |----------|----------|--------------|--------------|
 | name | string   | yes          | The name of the app or microservice this particular file defines. |
+| appversion | string | no           | The version of the app or microservice this particular file defines. |
 | controller | string   | no           | The Kubernetes controller of the app or microservice this particular file (default: "deployment") |
 | labels | object   | no           | Map of string keys and values that can be used to organize and categorize (scope and select) objects. May match selectors of replication controllers and services. |
 | containers | array of [containerObject](#containerobject) | yes          | [containerObject](#containerobject) |
@@ -160,6 +162,17 @@ name: mariadb
 | Type     | Required     | Description  |
 |----------|--------------|--------------|
 | string   | yes          | The name of the app or microservice this particular file defines. |
+
+
+## appversion
+
+```yaml
+appversion: 5.0.0-alpha
+```
+
+| Type     | Required     | Description  |
+|----------|--------------|--------------|
+| string   | no           | The version of the app or microservice this particular file defines. |
 
 
 ## controller
