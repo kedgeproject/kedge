@@ -14,6 +14,7 @@ import (
 
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/tools/clientcmd"
@@ -28,6 +29,10 @@ import (
 var ProjectPath = "$GOPATH/src/github.com/kedgeproject/kedge/"
 var BinaryLocation = ProjectPath + "kedge"
 var BinaryCommand = []string{"create", "-n"}
+
+const (
+	jobTimeout = 10 * time.Minute
+)
 
 func homeDir() string {
 	if h := os.Getenv("HOME"); h != "" {
@@ -140,6 +145,19 @@ func PodsStarted(t *testing.T, clientset *kubernetes.Clientset, namespace string
 	return nil
 }
 
+// Wait for the jobs to complete
+func waitForJobComplete(clientset *kubernetes.Clientset, namespace string, jobName string) error {
+	// Interval of 5
+	return wait.Poll(5, jobTimeout, func() (bool, error) {
+		jobStatus, err := clientset.Batch().Jobs(namespace).Get(jobName, metav1.GetOptions{})
+		if err != nil {
+			return false, errors.Wrap(err, "error getting jobs")
+		}
+
+		return (jobStatus.Status.Failed == 0) && (jobStatus.Status.Active == 0), nil
+	})
+}
+
 // Retrieve all required end-points via minikube (required!)
 func getEndPoints(t *testing.T, clientset *kubernetes.Clientset, namespace string, svcs []ServicePort) (map[string]string, error) {
 	// find the minikube ip
@@ -232,6 +250,7 @@ type testData struct {
 	InputFiles       []string
 	PodStarted       []string
 	NodePortServices []ServicePort
+	Type             string
 }
 
 // The "bread and butter" of the test-suite. We will iterate through
@@ -351,6 +370,15 @@ func Test_Integration(t *testing.T) {
 				{Name: "mariadb", Port: 3306},
 			},
 		},
+		{
+			TestName:  "Test jobs",
+			Namespace: "jobs",
+			InputFiles: []string{
+				ProjectPath + "docs/examples/jobs/job.yaml",
+			},
+			PodStarted: []string{"pival"},
+			Type:       "job",
+		},
 	}
 
 	_, err = clientset.CoreV1().Pods("").List(metav1.ListOptions{})
@@ -382,16 +410,34 @@ func Test_Integration(t *testing.T) {
 				t.Fatalf("error finding running pods: %v", err)
 			}
 
-			// get endpoints for all services
-			endPoints, err := getEndPoints(t, clientset, test.Namespace, test.NodePortServices)
-			if err != nil {
-				t.Fatalf("error getting nodes: %v", err)
-			}
+			if test.Type == "job" {
+				listJobs, err := clientset.Batch().Jobs(test.Namespace).List(metav1.ListOptions{})
+				if err != nil {
+					t.Fatalf("error getting the job list: %v", err)
+				}
 
-			if err := pingEndPoints(t, endPoints); err != nil {
-				t.Fatalf("error pinging endpoint: %v", err)
+				for _, job := range listJobs.Items {
+					err := waitForJobComplete(clientset, test.Namespace, job.Name)
+					if err != nil {
+						t.Fatalf("Job failed: %v", err)
+					}
+
+					t.Logf("Successfully completed the job: %s", job.Name)
+				}
+			} else {
+
+				// get endpoints for all services
+				endPoints, err := getEndPoints(t, clientset, test.Namespace, test.NodePortServices)
+				if err != nil {
+					t.Fatalf("error getting nodes: %v", err)
+				}
+
+				if err := pingEndPoints(t, endPoints); err != nil {
+					t.Fatalf("error pinging endpoint: %v", err)
+				}
+
+				t.Logf("Successfully pinged all endpoints!")
 			}
-			t.Logf("Successfully pinged all endpoints!")
 		})
 	}
 }
