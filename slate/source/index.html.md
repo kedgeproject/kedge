@@ -131,6 +131,8 @@ routes:
   - <routeObject>
 secrets:
   - <secret>
+imageStreams:
+  - <imageStreamObject>
 includeResources:
   - <includeResources>
 ```
@@ -154,6 +156,7 @@ Each "app" (Kedge file) is a Kubernetes <a target="_blank" href="https://kuberne
 | ingresses | array of [ingress object](#ingressobject) | no           | [ingress object](#ingressobject) object |
 | routes | array of [route object](#routeobject) | no           | [route object](#routeobject)  object |
 | secrets | array of [secret](#secret) | no           | [secret](#secret) object |
+| imageStreams | array of [imageStream object](#imagestreamobject) | no           | [imageStream object](#imagestreamobject)  object |
 | includeResources | array of [includeResources](#includeResources) | no           | 
 
 
@@ -326,6 +329,18 @@ secrets:
 |----------------------------------|--------------|------|
 | array of [secret](#secret) | no           | [secret](#secret) object |
 
+
+
+## imageStreams
+
+```yaml
+imageStreams:
+- <imageStreamObject>
+```
+
+| Type                         | Required | Description |
+|----------------------------------|--------------|------|
+| array of [imageStream Object](#imagestreamobject) | no           | [imageStream Object](#imagestreamobject) object |
 
 ## includeResources
 
@@ -881,6 +896,56 @@ secrets:
 
 Anything [EnvVarSource Spec](https://kubernetes.io/docs/api-reference/v1.8/#envvarsource-v1-core) from Kubernetes can be included within the Kedge file.
 
+
+## imageStreamObject
+
+```yaml
+imageStreams:
+- <imageStreamObject>
+```
+
+> Example
+
+```yaml
+name: rubyapp
+imageStreams:
+- name: rubystream
+  dockerImageRepository: "docker.io/openshift/ruby-20-centos7"
+```
+
+<aside class="notice">
+Each "imageStreamObject" is an OpenShift <a target="_blank" href="https://docs.openshift.org/latest/rest_api/apis-image.openshift.io/v1.ImageStream.html#object-schema">ImageStream Spec</a> with additional Kedge-specific keys.
+</aside>
+
+
+| Type                         | Required | Description |
+|----------------------------------|--------------|------|
+| name | string   | yes          | The name of the ImageStream |
+
+
+### name
+
+```yaml
+name: wordpress
+```
+
+| Type | Required | Description |
+|----------|--------------|-------|
+| string   | yes          | The name of the ImageStream |
+
+### OpenShift extension
+
+> Example extending `imageStreams` with OpenShift ImageStream Spec
+
+```yaml
+name: webapp
+imageStreams:
+- tags:
+  - from:
+      kind: DockerImage
+      name: centos/httpd-24-centos7:latest
+    name: "2.4"
+```
 
 ## includeResources
 

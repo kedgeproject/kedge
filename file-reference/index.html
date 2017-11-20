@@ -261,6 +261,9 @@
                     <a href="#secrets" class="toc-h2 toc-link" data-title="secrets">secrets</a>
                   </li>
                   <li>
+                    <a href="#imagestreams" class="toc-h2 toc-link" data-title="imageStreams">imageStreams</a>
+                  </li>
+                  <li>
                     <a href="#includeresources" class="toc-h2 toc-link" data-title="includeResources">includeResources</a>
                   </li>
               </ul>
@@ -288,6 +291,9 @@
                   </li>
                   <li>
                     <a href="#secret" class="toc-h2 toc-link" data-title="secret">secret</a>
+                  </li>
+                  <li>
+                    <a href="#imagestreamobject" class="toc-h2 toc-link" data-title="imageStreamObject">imageStreamObject</a>
                   </li>
                   <li>
                     <a href="#includeresources-2" class="toc-h2 toc-link" data-title="includeResources">includeResources</a>
@@ -430,6 +436,8 @@ Endpoints:              172.17.0.4:80
   <span class="pi">-</span> <span class="s">&lt;routeObject&gt;</span>
 <span class="na">secrets</span><span class="pi">:</span>
   <span class="pi">-</span> <span class="s">&lt;secret&gt;</span>
+<span class="na">imageStreams</span><span class="pi">:</span>
+  <span class="pi">-</span> <span class="s">&lt;imageStreamObject&gt;</span>
 <span class="na">includeResources</span><span class="pi">:</span>
   <span class="pi">-</span> <span class="s">&lt;includeResources&gt;</span>
 </code></pre>
@@ -504,6 +512,12 @@ Each "app" (Kedge file) is a Kubernetes <a target="_blank" href="https://kuberne
 <td>array of <a href="#secret">secret</a></td>
 <td>no</td>
 <td><a href="#secret">secret</a> object</td>
+</tr>
+<tr>
+<td>imageStreams</td>
+<td>array of <a href="#imagestreamobject">imageStream object</a></td>
+<td>no</td>
+<td><a href="#imagestreamobject">imageStream object</a>  object</td>
 </tr>
 <tr>
 <td>includeResources</td>
@@ -716,6 +730,22 @@ More info: <a href="http://kubernetes.io/docs/user-guide/labels">http://kubernet
 <td>array of <a href="#secret">secret</a></td>
 <td>no</td>
 <td><a href="#secret">secret</a> object</td>
+</tr>
+</tbody></table>
+<h2 id='imagestreams'>imageStreams</h2><pre class="highlight yaml tab-yaml"><code><span class="na">imageStreams</span><span class="pi">:</span>
+<span class="pi">-</span> <span class="s">&lt;imageStreamObject&gt;</span>
+</code></pre>
+<table><thead>
+<tr>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead><tbody>
+<tr>
+<td>array of <a href="#imagestreamobject">imageStream Object</a></td>
+<td>no</td>
+<td><a href="#imagestreamobject">imageStream Object</a> object</td>
 </tr>
 </tbody></table>
 <h2 id='includeresources'>includeResources</h2><pre class="highlight yaml tab-yaml"><code><span class="na">includeResources</span><span class="pi">:</span>
@@ -1371,7 +1401,61 @@ Each "secret" is a Kubernetes <a target="_blank" href="https://kubernetes.io/doc
     <span class="na">MYSQL_PASSWORD</span><span class="pi">:</span> <span class="s">cGFzc3dvcmQ=</span>
 </code></pre>
 <p>Anything <a href="https://kubernetes.io/docs/api-reference/v1.8/#envvarsource-v1-core">EnvVarSource Spec</a> from Kubernetes can be included within the Kedge file.</p>
-<h2 id='includeresources-2'>includeResources</h2><pre class="highlight yaml tab-yaml"><code><span class="na">includeResources</span><span class="pi">:</span>
+<h2 id='imagestreamobject'>imageStreamObject</h2><pre class="highlight yaml tab-yaml"><code><span class="na">imageStreams</span><span class="pi">:</span>
+<span class="pi">-</span> <span class="s">&lt;imageStreamObject&gt;</span>
+</code></pre>
+<blockquote>
+<p>Example</p>
+</blockquote>
+<pre class="highlight yaml tab-yaml"><code><span class="na">name</span><span class="pi">:</span> <span class="s">rubyapp</span>
+<span class="na">imageStreams</span><span class="pi">:</span>
+<span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">rubystream</span>
+  <span class="na">dockerImageRepository</span><span class="pi">:</span> <span class="s2">"</span><span class="s">docker.io/openshift/ruby-20-centos7"</span>
+</code></pre>
+<aside class="notice">
+Each "imageStreamObject" is an OpenShift <a target="_blank" href="https://docs.openshift.org/latest/rest_api/apis-image.openshift.io/v1.ImageStream.html#object-schema">ImageStream Spec</a> with additional Kedge-specific keys.
+</aside>
+
+<table><thead>
+<tr>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead><tbody>
+<tr>
+<td>name</td>
+<td>string</td>
+<td>yes</td>
+</tr>
+</tbody></table>
+<h3 id='name-8'>name</h3><pre class="highlight yaml tab-yaml"><code><span class="na">name</span><span class="pi">:</span> <span class="s">wordpress</span>
+</code></pre>
+<table><thead>
+<tr>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead><tbody>
+<tr>
+<td>string</td>
+<td>yes</td>
+<td>The name of the ImageStream</td>
+</tr>
+</tbody></table>
+<h3 id='openshift-extension-2'>OpenShift extension</h3>
+<blockquote>
+<p>Example extending <code>imageStreams</code> with OpenShift ImageStream Spec</p>
+</blockquote>
+<pre class="highlight yaml tab-yaml"><code><span class="na">name</span><span class="pi">:</span> <span class="s">webapp</span>
+<span class="na">imageStreams</span><span class="pi">:</span>
+<span class="pi">-</span> <span class="na">tags</span><span class="pi">:</span>
+  <span class="pi">-</span> <span class="na">from</span><span class="pi">:</span>
+      <span class="na">kind</span><span class="pi">:</span> <span class="s">DockerImage</span>
+      <span class="na">name</span><span class="pi">:</span> <span class="s">centos/httpd-24-centos7:latest</span>
+    <span class="na">name</span><span class="pi">:</span> <span class="s2">"</span><span class="s">2.4"</span>
+</code></pre><h2 id='includeresources-2'>includeResources</h2><pre class="highlight yaml tab-yaml"><code><span class="na">includeResources</span><span class="pi">:</span>
 <span class="pi">-</span> <span class="s">&lt;string&gt;</span>
 </code></pre>
 <blockquote>
