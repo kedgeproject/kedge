@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
+	image_v1 "github.com/openshift/origin/pkg/image/apis/image/v1"
 	os_route_v1 "github.com/openshift/origin/pkg/route/apis/route/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -167,6 +168,85 @@ func TestFixSecrets(t *testing.T) {
 	if !reflect.DeepEqual(got, expected) {
 		t.Errorf("expected: %s, got: %s", prettyPrintObjects(expected),
 			prettyPrintObjects(got))
+	}
+}
+
+func TestFixImageStreams(t *testing.T) {
+	appName := "testAppName"
+	tests := []struct {
+		name    string
+		input   []ImageStreamSpecMod
+		output  []ImageStreamSpecMod
+		success bool
+	}{
+		{
+			name: "passing one imageStream without name",
+			input: []ImageStreamSpecMod{
+				{},
+			},
+			output: []ImageStreamSpecMod{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: appName,
+						Labels: map[string]string{
+							appLabelKey: appName,
+						},
+					},
+				},
+			},
+			success: true,
+		},
+		{
+			name: "passing one imageStream with name",
+			input: []ImageStreamSpecMod{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "imageStreamName",
+					},
+				},
+			},
+			output: []ImageStreamSpecMod{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "imageStreamName",
+						Labels: map[string]string{
+							appLabelKey: appName,
+						},
+					},
+				},
+			},
+			success: true,
+		},
+		{
+			name: "passing multiple ingresses without names",
+			input: []ImageStreamSpecMod{
+				{},
+				{},
+			},
+			output:  nil,
+			success: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fixedImageStreams, err := fixImageStreams(test.input, appName)
+
+			switch test.success {
+			case true:
+				if err != nil {
+					t.Errorf("Expected test to pass but got an error -\n%v", err)
+				}
+			case false:
+				if err == nil {
+					t.Errorf("For the input -\n%v\nexpected test to fail, but test passed", prettyPrintObjects(test.input))
+				}
+			}
+
+			if !reflect.DeepEqual(fixedImageStreams, test.output) {
+				t.Errorf("Expected fixed imageStreams to be -\n%v\nBut got -\n%v\n", prettyPrintObjects(test.output), prettyPrintObjects(fixedImageStreams))
+			}
+		})
 	}
 }
 
@@ -622,6 +702,95 @@ func TestCreateServices(t *testing.T) {
 			}
 			if !reflect.DeepEqual(test.Objects, object) {
 				t.Fatalf("Expected:\n%v\nGot:\n%v", test.Objects, object)
+			}
+		})
+	}
+}
+
+func TestCreateImageStreams(t *testing.T) {
+	tests := []struct {
+		name   string
+		input  *ControllerFields
+		output []runtime.Object
+	}{
+		{
+			name:   "no imageStreams passed",
+			input:  &ControllerFields{},
+			output: nil,
+		},
+		{
+			name: "passing 1 imageStream definition",
+			input: &ControllerFields{
+				ImageStreams: []ImageStreamSpecMod{
+					{
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name: "testIS",
+						},
+						ImageStreamSpec: image_v1.ImageStreamSpec{
+							DockerImageRepository: "testRepo",
+						},
+					},
+				},
+			},
+			output: []runtime.Object{
+				&image_v1.ImageStream{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "testIS",
+					},
+					Spec: image_v1.ImageStreamSpec{
+						DockerImageRepository: "testRepo",
+					}},
+			},
+		},
+		{
+			name: "passing 2 imageStream definitions",
+			input: &ControllerFields{
+				ImageStreams: []ImageStreamSpecMod{
+					{
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name: "testIS1",
+						},
+						ImageStreamSpec: image_v1.ImageStreamSpec{
+							DockerImageRepository: "testRepo1",
+						},
+					},
+					{
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name: "testIS2",
+						},
+						ImageStreamSpec: image_v1.ImageStreamSpec{
+							DockerImageRepository: "testRepo2",
+						},
+					},
+				},
+			},
+			output: []runtime.Object{
+				&image_v1.ImageStream{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "testIS1",
+					},
+					Spec: image_v1.ImageStreamSpec{
+						DockerImageRepository: "testRepo1",
+					}},
+				&image_v1.ImageStream{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "testIS2",
+					},
+					Spec: image_v1.ImageStreamSpec{
+						DockerImageRepository: "testRepo2",
+					}},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			objects, err := test.input.createImageStreams()
+			if err != nil {
+				t.Errorf("Creating imageStreams failed: %v", err)
+			}
+			if !reflect.DeepEqual(test.output, objects) {
+				t.Fatalf("Expected:\n%v\nGot:\n%v", prettyPrintObjects(test.output), prettyPrintObjects(objects))
 			}
 		})
 	}
