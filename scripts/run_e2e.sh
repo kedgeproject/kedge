@@ -35,6 +35,12 @@ if [ -n "$VERBOSE" ]; then
     run_command+=" -v"
 fi
 
+if [ -n "$TEST" ]; then
+    run_command+=" -run=$TEST"
+else
+    run_command+=" -run=k8s"
+fi
+
 run_command+=" github.com/kedgeproject/kedge/tests/e2e"
 
 # Run e2e tests
@@ -47,7 +53,11 @@ echo "| Tests will be ran against a k8s    |"
 echo "| cluster in separate namespaces     |"
 echo "|                                    |"
 echo "| Use command:                       |"
-echo -e "| \e[1;34mVERBOSE=yes make test-e2e\e[0m          |"
+if [ "$TEST" == "os" ]; then
+    echo -e "| \e[1;34mVERBOSE=yes make test-e2e-os\e[0m       |"
+else
+    echo -e "| \e[1;34mVERBOSE=yes make test-e2e\e[0m          |"
+fi
 echo "| for verbosity.                     |"
 echo "======================================"
 echo ""
