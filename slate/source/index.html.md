@@ -133,6 +133,8 @@ secrets:
   - <secret>
 imageStreams:
   - <imageStreamObject>
+buildConfigs:
+  - <buildConfigObject>
 includeResources:
   - <includeResources>
 ```
@@ -157,6 +159,7 @@ Each "app" (Kedge file) is a Kubernetes <a target="_blank" href="https://kuberne
 | routes | array of [route object](#routeobject) | no           | [route object](#routeobject)  object |
 | secrets | array of [secret](#secret) | no           | [secret](#secret) object |
 | imageStreams | array of [imageStream object](#imagestreamobject) | no           | [imageStream object](#imagestreamobject)  object |
+| buildConfigs | array of [buildConfig object](#buildconfigobject) | no           | [buildConfig object](#buildconfigobject)  object |
 | includeResources | array of [includeResources](#includeResources) | no           | 
 
 
@@ -329,7 +332,16 @@ secrets:
 |----------------------------------|--------------|------|
 | array of [secret](#secret) | no           | [secret](#secret) object |
 
+## buildConfigs
 
+```yaml
+buildConfigs:
+- <buildConfigObject>
+```
+
+| Type                         | Required | Description |
+|----------------------------------|--------------|------|
+| array of [buildConfig Object](#buildconfigobject) | no           | [buildConfig Object](#buildconfigobject) object |
 
 ## imageStreams
 
@@ -896,6 +908,79 @@ secrets:
 
 Anything [EnvVarSource Spec](https://kubernetes.io/docs/api-reference/v1.8/#envvarsource-v1-core) from Kubernetes can be included within the Kedge file.
 
+## buildConfigObject
+
+```yaml
+buildConfigs:
+- <buildConfigObject>
+```
+
+> Example
+
+```yaml
+name: rubybc
+triggers:
+- type: "ImageChange"
+source:
+  type: "Git"
+  git:
+    uri: "https://github.com/openshift/ruby-hello-world"
+strategy:
+  type: "Source"
+  sourceStrategy:
+    from:
+      kind: "ImageStreamTag"
+      name: "ruby-22-centos7:latest"
+output:
+  to:
+    kind: "ImageStreamTag"
+    name: "origin-ruby-sample:latest"
+```
+
+<aside class="notice">
+Each "buildConfigObject" is an OpenShift <a target="_blank" href="https://docs.openshift.org/latest/rest_api/apis-build.openshift.io/v1.BuildConfig.html#object-schema">BuildConfig Spec</a> with additional Kedge-specific keys.
+</aside>
+
+
+| Type                         | Required | Description |
+|----------------------------------|--------------|------|
+| name | string   | yes          | The name of the BuildConfig |
+
+
+### name
+
+```yaml
+name: wordpress
+```
+
+| Type | Required | Description |
+|----------|--------------|-------|
+| string   | yes          | The name of the BuildConfig |
+
+### OpenShift extension
+
+> Example extending `buildConfigs` with OpenShift BuildConfig Spec
+
+```yaml
+name: ruby
+buildConfigs:
+- triggers:
+  - type: "ImageChange"
+  source:
+    type: "Git"
+    git:
+      uri: "https://github.com/openshift/ruby-hello-world"
+  strategy:
+    type: "Source"
+    sourceStrategy:
+      from:
+        kind: "ImageStreamTag"
+        name: "ruby-22-centos7:latest"
+  output:
+    to:
+      kind: "ImageStreamTag"
+      name: "origin-ruby-sample:latest"
+```
 
 ## imageStreamObject
 
