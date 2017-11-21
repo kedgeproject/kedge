@@ -1,5 +1,64 @@
 # Change Log
 
+## [v0.5.0](https://github.com/kedgeproject/kedge/tree/v0.5.0) (2017-11-21)
+[Full Changelog](https://github.com/kedgeproject/kedge/compare/v0.4.0...v0.5.0)
+
+**Closed issues:**
+
+- Upgrade vendor to openshift v3.6.1 [\#446](https://github.com/kedgeproject/kedge/issues/446)
+- Hard-code API details / what versions of Kubernetes to point to [\#434](https://github.com/kedgeproject/kedge/issues/434)
+- Add examples page [\#430](https://github.com/kedgeproject/kedge/issues/430)
+- Elaborate / emphasize that Kedge is an "extension" of Kubernetes. [\#413](https://github.com/kedgeproject/kedge/issues/413)
+- Automatically generated TOC for documentation [\#405](https://github.com/kedgeproject/kedge/issues/405)
+- Clean up user guide [\#404](https://github.com/kedgeproject/kedge/issues/404)
+- $ should be in-front of commands in the user guide [\#403](https://github.com/kedgeproject/kedge/issues/403)
+- File reference is unfriendly / unorganized [\#401](https://github.com/kedgeproject/kedge/issues/401)
+- Expand on DeploymentConfig documentation [\#377](https://github.com/kedgeproject/kedge/issues/377)
+- Documentation for deploymentConfig [\#358](https://github.com/kedgeproject/kedge/issues/358)
+- SemaphoreCI failing \(changing some settings, bear with me\) [\#340](https://github.com/kedgeproject/kedge/issues/340)
+- Finish issue labeling guide [\#337](https://github.com/kedgeproject/kedge/issues/337)
+- Generated Kubernetes Job should default to "restartPolicy: OnFailure" [\#290](https://github.com/kedgeproject/kedge/issues/290)
+- Add e2e tests for Jobs [\#270](https://github.com/kedgeproject/kedge/issues/270)
+- Odd issues with e2e tests [\#247](https://github.com/kedgeproject/kedge/issues/247)
+- Support OpenShift DeploymentConfig [\#237](https://github.com/kedgeproject/kedge/issues/237)
+- Missing keys in file reference? \(replicas and labels\) [\#104](https://github.com/kedgeproject/kedge/issues/104)
+
+**Merged pull requests:**
+
+- Make ./scripts/release.sh executable [\#474](https://github.com/kedgeproject/kedge/pull/474) ([cdrage](https://github.com/cdrage))
+- add BuildConfig docs and example [\#467](https://github.com/kedgeproject/kedge/pull/467) ([containscafeine](https://github.com/containscafeine))
+- add BuildConfig support [\#466](https://github.com/kedgeproject/kedge/pull/466) ([containscafeine](https://github.com/containscafeine))
+- Update our main example [\#456](https://github.com/kedgeproject/kedge/pull/456) ([cdrage](https://github.com/cdrage))
+- docs\(dev guide\): add instructions to update vendored openshift [\#449](https://github.com/kedgeproject/kedge/pull/449) ([surajssd](https://github.com/surajssd))
+- Update the vendored Openshift to 3.6.1 [\#448](https://github.com/kedgeproject/kedge/pull/448) ([surajssd](https://github.com/surajssd))
+- Add highlighting + updates footer [\#447](https://github.com/kedgeproject/kedge/pull/447) ([cdrage](https://github.com/cdrage))
+- add ImageStreams support [\#445](https://github.com/kedgeproject/kedge/pull/445) ([containscafeine](https://github.com/containscafeine))
+- add comments to init.go to explain redefinition of structs [\#443](https://github.com/kedgeproject/kedge/pull/443) ([surajssd](https://github.com/surajssd))
+- update the fixContainers error message [\#442](https://github.com/kedgeproject/kedge/pull/442) ([surajssd](https://github.com/surajssd))
+- fix a typo in 'dependencies' [\#439](https://github.com/kedgeproject/kedge/pull/439) ([containscafeine](https://github.com/containscafeine))
+- Update README with concise sentences, update quickstart guide [\#437](https://github.com/kedgeproject/kedge/pull/437) ([cdrage](https://github.com/cdrage))
+- Increase e2e timeout by a few minutes [\#431](https://github.com/kedgeproject/kedge/pull/431) ([cdrage](https://github.com/cdrage))
+- Add installation to sidebar [\#428](https://github.com/kedgeproject/kedge/pull/428) ([cdrage](https://github.com/cdrage))
+- Update file reference variable section [\#425](https://github.com/kedgeproject/kedge/pull/425) ([cdrage](https://github.com/cdrage))
+- Update file reference for deploymentconfig [\#424](https://github.com/kedgeproject/kedge/pull/424) ([cdrage](https://github.com/cdrage))
+- Update README.md and add installation guide [\#423](https://github.com/kedgeproject/kedge/pull/423) ([cdrage](https://github.com/cdrage))
+- Fix slate favicon [\#422](https://github.com/kedgeproject/kedge/pull/422) ([cdrage](https://github.com/cdrage))
+- Add TOC + notice [\#421](https://github.com/kedgeproject/kedge/pull/421) ([cdrage](https://github.com/cdrage))
+- Remove mention bot [\#420](https://github.com/kedgeproject/kedge/pull/420) ([cdrage](https://github.com/cdrage))
+- Minor edit [\#419](https://github.com/kedgeproject/kedge/pull/419) ([cdrage](https://github.com/cdrage))
+- Fix sync docs script [\#418](https://github.com/kedgeproject/kedge/pull/418) ([cdrage](https://github.com/cdrage))
+- Modify script for slate [\#417](https://github.com/kedgeproject/kedge/pull/417) ([cdrage](https://github.com/cdrage))
+- Adds a new file reference [\#416](https://github.com/kedgeproject/kedge/pull/416) ([cdrage](https://github.com/cdrage))
+- Adds slate [\#415](https://github.com/kedgeproject/kedge/pull/415) ([cdrage](https://github.com/cdrage))
+- Update the font for site [\#414](https://github.com/kedgeproject/kedge/pull/414) ([cdrage](https://github.com/cdrage))
+- Adds custom css for TOC [\#411](https://github.com/kedgeproject/kedge/pull/411) ([cdrage](https://github.com/cdrage))
+- Add $ symbol to CLI commands [\#410](https://github.com/kedgeproject/kedge/pull/410) ([cdrage](https://github.com/cdrage))
+- Add logo to README [\#390](https://github.com/kedgeproject/kedge/pull/390) ([cdrage](https://github.com/cdrage))
+- Remove verbose output e2e tests [\#388](https://github.com/kedgeproject/kedge/pull/388) ([cdrage](https://github.com/cdrage))
+- fix\(jobspec\): make restartPolicy as OnFailure [\#347](https://github.com/kedgeproject/kedge/pull/347) ([surajssd](https://github.com/surajssd))
+- Adding tests for jobs [\#297](https://github.com/kedgeproject/kedge/pull/297) ([ashetty1](https://github.com/ashetty1))
+- Issue labeling guide \(suggestions welcomed\) [\#284](https://github.com/kedgeproject/kedge/pull/284) ([kadel](https://github.com/kadel))
+
 ## [v0.4.0](https://github.com/kedgeproject/kedge/tree/v0.4.0) (2017-10-31)
 [Full Changelog](https://github.com/kedgeproject/kedge/compare/v0.3.0...v0.4.0)
 
@@ -24,6 +83,7 @@
 
 **Merged pull requests:**
 
+- 0.4.0 Release [\#406](https://github.com/kedgeproject/kedge/pull/406) ([cdrage](https://github.com/cdrage))
 - Update release script for introduction.md [\#400](https://github.com/kedgeproject/kedge/pull/400) ([cdrage](https://github.com/cdrage))
 - kedge init: fix wrong type for ports [\#399](https://github.com/kedgeproject/kedge/pull/399) ([kadel](https://github.com/kadel))
 - Update Makefile [\#398](https://github.com/kedgeproject/kedge/pull/398) ([bs34](https://github.com/bs34))

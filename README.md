@@ -27,10 +27,10 @@ __Linux and macOS:__
 
 ```sh
 # Linux
-curl -L https://github.com/kedgeproject/kedge/releases/download/v0.4.0/kedge-linux-amd64 -o kedge
+curl -L https://github.com/kedgeproject/kedge/releases/download/v0.5.0/kedge-linux-amd64 -o kedge
 
 # macOS
-curl -L https://github.com/kedgeproject/kedge/releases/download/v0.4.0/kedge-darwin-amd64 -o kedge
+curl -L https://github.com/kedgeproject/kedge/releases/download/v0.5.0/kedge-darwin-amd64 -o kedge
 
 chmod +x kedge
 sudo mv ./kedge /usr/local/bin/kedge
@@ -38,7 +38,7 @@ sudo mv ./kedge /usr/local/bin/kedge
 
 __Windows:__
 
-Download from [GitHub](https://github.com/kedgeproject/kedge/releases/download/v0.4.0/kedge-windows-amd64.exe) and add the binary to your PATH.
+Download from [GitHub](https://github.com/kedgeproject/kedge/releases/download/v0.5.0/kedge-windows-amd64.exe) and add the binary to your PATH.
 
 A more thorough installation guide is [also available](http://kedgeproject.org/installation).
 
