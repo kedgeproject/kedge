@@ -12,5 +12,5 @@ containers:
     value: wordpress
 services:
 - portMappings:
-  - 3306:3306/TCP
+  - 3306
   type: NodePort

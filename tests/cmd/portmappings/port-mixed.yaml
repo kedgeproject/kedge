@@ -1,0 +1,11 @@
+name: database
+
+containers:
+  - image: mariadb:10
+
+services:
+  - name: database
+    portMappings:
+      - 80
+      - "3306"
+      - "3307"
