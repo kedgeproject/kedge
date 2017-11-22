@@ -20,7 +20,7 @@ wget https://raw.githubusercontent.com/kedgeproject/kedge/master/examples/wordpr
 2. Deploy using `kedge`
 
 ```sh
-$ kedge create -f wordpress.yaml -f mariadb.yaml
+$ kedge apply -f wordpress.yaml -f mariadb.yaml
 persistentvolumeclaim "database" created
 service "database" created
 secret "database-root-password" created

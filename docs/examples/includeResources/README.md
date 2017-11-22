@@ -25,5 +25,5 @@ in which this config is specified.
 This does not change anything with respect to deploying applications.
 
 ```console
-$ kedge create -f app.yaml
+$ kedge apply -f app.yaml
 ```
