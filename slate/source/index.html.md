@@ -88,7 +88,7 @@ services:
 name: web
 containers:
 - image: nginx
-  # https://kubernetes.io/docs/api-reference/v1.8/#container-v1-core
+  # https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#container-v1-core
   livenessProbe:
     httpGet:
       path: /
@@ -118,19 +118,19 @@ name: <string>
 controller: <string>
 labels: <object>
 containers:
-  - <containerSpec>
+  - <containerObject>
 volumeClaims:
-  - <persistentVolume>
+  - <persistentVolumeObject>
 configMaps:
-  - <configMap>
+  - <configMapObject>
 services:
-  - <service>
+  - <serviceObject>
 ingresses:
   - <ingressObject>
 routes:
   - <routeObject>
 secrets:
-  - <secret>
+  - <secretObject>
 imageStreams:
   - <imageStreamObject>
 buildConfigs:
@@ -140,7 +140,7 @@ includeResources:
 ```
 
 <aside class="notice">
-Each "app" (Kedge file) is a Kubernetes <a target="_blank" href="https://kubernetes.io/docs/api-reference/v1.8/#podspec-v1-core">Pod Spec</a> with additional Kedge-specific keys.
+Each "app" (Kedge file) is a Kubernetes <a target="_blank" href="https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#podspec-v1-core">Pod Spec</a> with additional Kedge-specific keys.
 </aside>
 
 
@@ -151,16 +151,16 @@ Each "app" (Kedge file) is a Kubernetes <a target="_blank" href="https://kuberne
 | name | string   | yes          | The name of the app or micro-service this particular file defines. |
 | controller | string   | no           | The Kubernetes controller of the app or micro-service this particular file (default: "deployment") |
 | labels | object   | no           | Map of string keys and values that can be used to organize and categorize (scope and select) objects. May match selectors of replication controllers and services. |
-| containers | array of [containerSpec](#containerspec) | yes          | [containerSpec](#containerspec)  object |
-| volumeClaims | array of [persistentVolume](#persistentvolume) | no           | [persistentVolume](#persistentvolume) object |
-| configMaps | array of [configMap](#configmap) | no           | [configMap](#configmap) object |
-| services | array of [service](#service) | no           | [service](#service) object |
-| ingresses | array of [ingress object](#ingressobject) | no           | [ingress object](#ingressobject) object |
-| routes | array of [route object](#routeobject) | no           | [route object](#routeobject)  object |
-| secrets | array of [secret](#secret) | no           | [secret](#secret) object |
-| imageStreams | array of [imageStream object](#imagestreamobject) | no           | [imageStream object](#imagestreamobject)  object |
-| buildConfigs | array of [buildConfig object](#buildconfigobject) | no           | [buildConfig object](#buildconfigobject)  object |
-| includeResources | array of [includeResources](#includeResources) | no           | 
+| imageStreams | array of [imageStreamObject](#imagestreamobject) | no           | [imageStreamObject](#imagestreamobject) |
+| containers | array of [containerObject](#containerobject) | yes          | [containerObject](#containerobject) |
+| volumeClaims | array of [persistentVolumeObject](#persistentvolumeobject) | no           | [persistentVolumeObject](#persistentvolumeobject) |
+| configMap | array of [configMapObject](#configmapobject) | no           | [configMapObject](#configmapobject) |
+| services | array of [serviceObject](#serviceobject) | no           | [serviceObject](#serviceobject) |
+| ingresses | array of [ingressObject](#ingressobject) | no           | [ingressObject](#ingressobject) |
+| routes | array of [routeObject](#routeobject) | no           | [routeObject](#routeobject) |
+| secrets | array of [secretObject](#secretobject) | no           | [secretObject](#secretobject) |
+| buildConfigs | array of [buildConfigObject](#buildconfigobject) | no           | [buildConfigObject](#buildconfigobject) |
+| includeResources | array of [includeResourceObject](#includeresourceobject) | no           | [includeResourceObject](#includeresourceobject) |
 
 
 ## name
@@ -251,12 +251,12 @@ More info: [http://kubernetes.io/docs/user-guide/labels](http://kubernetes.io/do
 
 ```yaml
 containers:
-- <containerSpec>
+- <containerObject>
 ```
 
 | Type                                 | Required | Description |
 |------------------------------------------|--------------|-------|
-| array of [containerSpec](#containerspec) | yes          | [containerSpec](#containerspec)  object | 
+| array of [containerObject](#containerobject) | yes          | [containerObject](#containerobject) | 
 
 
 ## volumeClaims
@@ -268,19 +268,19 @@ volumeClaims:
 
 | Type                                       | Required | Description |
 |------------------------------------------------|--------------|---|
-| array of [persistentVolume](#persistentvolume) | no           | [persistentVolume](#persistentvolume) object |
+| array of [persistentVolumeObject](#persistentvolumeobject) | no           | [persistentVolumeObject](#persistentvolumeobject)|
 
 
 ## configMaps
 
 ```yaml
 configMaps:
-- <configMap>
+- <configMapObject>
 ```
 
 | Type                         | Required | Description |
 |----------------------------------|--------------|----|
-| array of [configMap](#configmap) | no           | [configMap](#configmap) object |
+| array of [configMapObject](#configmapobject) | no           | [configMapObject](#configmapobject) |
 
 
 ## services
@@ -292,7 +292,7 @@ services:
 
 | Type                     | Required | Description |
 |------------------------------|--------------|------|
-| array of [service](#service) | no           | [service](#service) object |
+| array of [serviceObject](#serviceobject) | no           | [serviceObject](#serviceobject) |
 
 
 ## ingresses
@@ -304,7 +304,7 @@ ingresses:
 
 | Type                                  | Required | Description |
 |-------------------------------------------|--------------|------|
-| array of [ingress object](#ingressobject) | no           | [ingress object](#ingressobject) object |
+| array of [ingressObject](#ingressobject) | no           | [ingressObject](#ingressobject) |
 
 
 
@@ -317,7 +317,7 @@ routes:
 
 | Type                                  | Required | Description |
 |-------------------------------------------|--------------|------|
-| array of [route object](#routeobject) | no           | [route object](#routeobject)  object |
+| array of [routeObject](#routeobject) | no           | [routeObject](#routeobject) |
 
 
 
@@ -330,7 +330,7 @@ secrets:
 
 | Type                         | Required | Description |
 |----------------------------------|--------------|------|
-| array of [secret](#secret) | no           | [secret](#secret) object |
+| array of [secretObject](#secretobject) | no           | [secretObject](#secretobject) |
 
 ## buildConfigs
 
@@ -373,7 +373,7 @@ This is list of files that are Kubernetes specific that can be passed to Kuberne
 
 | Type                         | Required | Description |
 |----------------------------------|--------------|------|
-| array of [includeResources](#includeResources) | no           | [includeResources](#includeResources) object |
+| array of [includeResourceObject](#includeresourceobject) | no           | [includeResourceObject](#includeresourceobject) |
 
 
 The file path are relative to the kedge application file.
@@ -383,15 +383,15 @@ anything in the Kubernetes land.
 
 # Objects
 
-## containerSpec
+## containerObject
 
 ```yaml
 containers:
-  - <containerSpec>
+  - <containerObject>
 ```
 
 <aside class="notice">
-Each "container" is a Kubernetes <a target="_blank" href="https://kubernetes.io/docs/api-reference/v1.8/#container-v1-core">Container Spec</a> with additional Kedge-specific keys.
+Each "container" is a Kubernetes <a target="_blank" href="https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#container-v1-core">Container Spec</a> with additional Kedge-specific keys.
 </aside>
 
 List of containers
@@ -425,7 +425,7 @@ simultaneously then the tool will error out.
 name: web
 containers:
 - image: nginx
-  # https://kubernetes.io/docs/api-reference/v1.8/#container-v1-core
+  # https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#container-v1-core
   env:
   - name: WORDPRESS_DB_PASSWORD
     value: wordpress
@@ -442,15 +442,15 @@ services:
     targetPort: 80
 ```
 
-Anything [Container Spec](https://kubernetes.io/docs/api-reference/v1.8/#container-v1-core) from Kubernetes can be included within the Kedge file.
+Anything [Container Spec](https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#container-v1-core) from Kubernetes can be included within the Kedge file.
 
 For example, keys such as `env` and `envFrom` are commonly used.
 
-## persistentVolume
+## persistentVolumeObject
 
 ```yaml
 volumeClaims:
-  - <persistentVolume>
+  - <persistentVolumeObject>
 ```
 
 > An example of deploying a volume
@@ -474,7 +474,7 @@ volumeClaims:
 ```
 
 <aside class="notice">
-Each "persistentVolume" is a Kubernetes <a target="_blank" href="https://kubernetes.io/docs/api-reference/v1.8/#persistentvolumeclaim-v1-core">PersistentVolumeClaim</a> with additional Kedge-specific keys.
+Each "persistentVolumeObject" is a Kubernetes <a target="_blank" href="https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#claim-v1-core">PersistentVolumeClaim</a> with additional Kedge-specific keys.
 </aside>
 
 
@@ -568,7 +568,7 @@ services:
 volumeClaims:
 - name: database
   size: 500Mi
-  # https://kubernetes.io/docs/api-reference/v1.8/#persistentvolumeclaim-v1-core
+  # https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#persistentvolumeclaim-v1-core
   persistentVolumeReclaimPolicy: Recycle
   storageClassName: slow
   mountOptions:
@@ -576,13 +576,13 @@ volumeClaims:
     - nfsvers=4.1
 ```
 
-Anything [PersistentVolumeClaim Spec](https://kubernetes.io/docs/api-reference/v1.8/#persistentvolumeclaim-v1-core) from Kubernetes can be included within the Kedge file.
+Anything [PersistentVolumeClaim Spec](https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#persistentvolumeclaim-v1-core) from Kubernetes can be included within the Kedge file.
 
-## configMap
+## configMapObject
 
 ```yaml
 configMaps:
-  - <configMap>
+  - <configMapObject>
 ```
 
 > Example
@@ -596,12 +596,12 @@ configMaps:
 ```
 
 <aside class="notice">
-Each "configMap" is a Kubernetes <a target="_blank" href="https://kubernetes.io/docs/api-reference/v1.8/#configmap-v1-core">ConfigMap Spec</a> with additional Kedge-specific keys.
+Each "configMapObject" is a Kubernetes <a target="_blank" href="https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#configmap-v1-core">ConfigMap Spec</a> with additional Kedge-specific keys.
 </aside>
 
 | Field | Type     | Required     | Description  |
 |-------|----------|--------------|--------------|
-| name | string   | yes          | The name of the configMap. This is optional field if only one configMap is defined, the default name will be the app name. |
+| name | string   | yes          | The name of the configMapObject. This is optional field if only one configMapObject is defined, the default name will be the app name. |
 | data | object   | yes          | Data contains the configuration data. Each key must be a valid DNS_SUBDOMAIN with an optional leading dot. |
 
 ### Name
@@ -612,7 +612,7 @@ name: database
 
 | Type | Required | Description |
 |----------|--------------|-----|
-| string   | yes          | The name of the configMap. This is optional field if only one configMap is defined, the default name will be the app name. |
+| string   | yes          | The name of the configMapObject. This is optional field if only one configMapObject is defined, the default name will be the app name. |
 
 ### Data
 
@@ -625,11 +625,11 @@ data:
 |----------|--------------|--------|
 | object   | yes          | Data contains the configuration data. Each key must be a valid DNS_SUBDOMAIN with an optional leading dot. |
 
-A `configMap` is created out of this configuration.
+A `configMapObject` is created out of this configuration.
 
 ### Kubernetes extension
 
-> Example extending `configMaps` with Kubernetes ConfigMap Spec
+> Example extending `configMapObjects` with Kubernetes ConfigMap Spec
 
 ```yaml
 name: database
@@ -653,17 +653,17 @@ services:
   - port: 3306
 configMaps:
 - data:
-  # https://kubernetes.io/docs/api-reference/v1.8/#configmap-v1-core
+  # https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#configmap-v1-core
     MYSQL_DATABASE: wordpress
 ```
 
-Anything [ConfigMap Spec](https://kubernetes.io/docs/api-reference/v1.8/#configmap-v1-core) from Kubernetes can be included. **Note:** Since Kedge already implents "data" in ConfigMaps no other keys are available to be added.
+Anything [ConfigMap Spec](https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#configmap-v1-core) from Kubernetes can be included. **Note:** Since Kedge already implents "data" in ConfigMaps no other keys are available to be added.
 
-## service
+## serviceObject
 
 ```yaml
 services:
-  - <service>
+  - <serviceObject>
 ```
 
 > Example
@@ -679,7 +679,7 @@ services:
 ```
 
 <aside class="notice">
-Each "service" is a Kubernetes <a target="_blank" href="https://kubernetes.io/docs/api-reference/v1.8/#service-v1-core">Service Spec</a> with additional Kedge-specific keys.
+Each "service" is a Kubernetes <a target="_blank" href="https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#service-v1-core">Service Spec</a> with additional Kedge-specific keys.
 </aside>
 
 | Field | Type     | Required     | Description  |
@@ -688,7 +688,7 @@ Each "service" is a Kubernetes <a target="_blank" href="https://kubernetes.io/do
 | endpoint | string   | no | The endpoint of the service. |
 | portMappings | array of "port" | no |  Array of ports. Ex. `80:8080/tcp` |
 
-More info: [https://kubernetes.io/docs/api-reference/v1.8/#servicespec-v1-core](https://kubernetes.io/docs/api-reference/v1.8/#servicespec-v1-core)
+More info: [https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#servicespec-v1-core](https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#servicespec-v1-core)
 
 Each service gets converted into a Kubernetes `service` and `ingress` respectively.
 
@@ -762,14 +762,14 @@ containers:
 - image: centos/httpd
 services:
 - name: httpd
-  # https://kubernetes.io/docs/api-reference/v1.8/#servicespec-v1-core
+  # https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#servicespec-v1-core
   ports:
   - port: 8080
     targetPort: 80
   type: NodePort
 ```
 
-Anything [Service Spec](https://kubernetes.io/docs/api-reference/v1.8/#servicespec-v1-core) from Kubernetes can be included within the Kedge file.
+Anything [Service Spec](https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#servicespec-v1-core) from Kubernetes can be included within the Kedge file.
 
 For example, keys such as `image` and `ports` are commonly used.
 
@@ -781,7 +781,7 @@ ingresses:
 ```
 
 <aside class="notice">
-Each "ingress" is a Kubernetes <a target="_blank" href="https://kubernetes.io/docs/api-reference/v1.8/#ingressspec-v1beta1-extensions">Ingress Spec</a> with additional Kedge-specific keys.
+Each "ingress" is a Kubernetes <a target="_blank" href="https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#ingressspec-v1beta1-extensions">Ingress Spec</a> with additional Kedge-specific keys.
 </aside>
 
 
@@ -809,7 +809,7 @@ name: wordpress
 ```yaml
 ingresses:
 - name: wordpress
-  # https://kubernetes.io/docs/api-reference/v1.8/#ingressspec-v1beta1-extensions
+  # https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#ingressspec-v1beta1-extensions
   rules:
   - host: minikube.local
     http:
@@ -820,7 +820,7 @@ ingresses:
         path: /
 ```
 
-Anything [Ingress Spec](https://kubernetes.io/docs/api-reference/v1.8/#ingressspec-v1beta1-extensions) from Kubernetes can be included within the Kedge file.
+Anything [Ingress Spec](https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#ingressspec-v1beta1-extensions) from Kubernetes can be included within the Kedge file.
 
 ## routeObject
 
@@ -871,7 +871,7 @@ routes:
 
 Anything [Route Spec](https://docs.openshift.org/latest/rest_api/apis-route.openshift.io/v1.Route.html#object-schema) from OpenShift can be included within the Kedge file.
 
-## secret
+## secretObject
 
 ```yaml
 secrets:
@@ -879,7 +879,7 @@ secrets:
 ```
 
 <aside class="notice">
-Each "secret" is a Kubernetes <a target="_blank" href="https://kubernetes.io/docs/api-reference/v1.8/#envvarsource-v1-core">EnvVarSource Spec</a> with additional Kedge-specific keys.
+Each "secret" is a Kubernetes <a target="_blank" href="https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#envvarsource-v1-core">EnvVarSource Spec</a> with additional Kedge-specific keys.
 </aside>
 
 ### Name
@@ -900,13 +900,13 @@ name: wordpress
 secrets:
 - name: wordpress
   data:
-    # https://kubernetes.io/docs/api-reference/v1.8/#envvarsource-v1-core
+    # https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#envvarsource-v1-core
     # Encoded in base64
     MYSQL_ROOT_PASSWORD: YWRtaW4=
     MYSQL_PASSWORD: cGFzc3dvcmQ=
 ```
 
-Anything [EnvVarSource Spec](https://kubernetes.io/docs/api-reference/v1.8/#envvarsource-v1-core) from Kubernetes can be included within the Kedge file.
+Anything [EnvVarSource Spec](https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#envvarsource-v1-core) from Kubernetes can be included within the Kedge file.
 
 ## buildConfigObject
 
@@ -1032,7 +1032,7 @@ imageStreams:
     name: "2.4"
 ```
 
-## includeResources
+## includeResourceObject
 
 ```yaml
 includeResources:

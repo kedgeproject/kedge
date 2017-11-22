@@ -275,16 +275,16 @@
             <a href="#objects" class="toc-h1 toc-link" data-title="Objects">Objects</a>
               <ul class="toc-list-h2">
                   <li>
-                    <a href="#containerspec" class="toc-h2 toc-link" data-title="containerSpec">containerSpec</a>
+                    <a href="#containerobject" class="toc-h2 toc-link" data-title="containerObject">containerObject</a>
                   </li>
                   <li>
-                    <a href="#persistentvolume" class="toc-h2 toc-link" data-title="persistentVolume">persistentVolume</a>
+                    <a href="#persistentvolumeobject" class="toc-h2 toc-link" data-title="persistentVolumeObject">persistentVolumeObject</a>
                   </li>
                   <li>
-                    <a href="#configmap" class="toc-h2 toc-link" data-title="configMap">configMap</a>
+                    <a href="#configmapobject" class="toc-h2 toc-link" data-title="configMapObject">configMapObject</a>
                   </li>
                   <li>
-                    <a href="#service" class="toc-h2 toc-link" data-title="service">service</a>
+                    <a href="#serviceobject" class="toc-h2 toc-link" data-title="serviceObject">serviceObject</a>
                   </li>
                   <li>
                     <a href="#ingressobject" class="toc-h2 toc-link" data-title="ingressObject">ingressObject</a>
@@ -293,7 +293,7 @@
                     <a href="#routeobject" class="toc-h2 toc-link" data-title="routeObject">routeObject</a>
                   </li>
                   <li>
-                    <a href="#secret" class="toc-h2 toc-link" data-title="secret">secret</a>
+                    <a href="#secretobject" class="toc-h2 toc-link" data-title="secretObject">secretObject</a>
                   </li>
                   <li>
                     <a href="#buildconfigobject" class="toc-h2 toc-link" data-title="buildConfigObject">buildConfigObject</a>
@@ -302,7 +302,7 @@
                     <a href="#imagestreamobject" class="toc-h2 toc-link" data-title="imageStreamObject">imageStreamObject</a>
                   </li>
                   <li>
-                    <a href="#includeresources-2" class="toc-h2 toc-link" data-title="includeResources">includeResources</a>
+                    <a href="#includeresourceobject" class="toc-h2 toc-link" data-title="includeResourceObject">includeResourceObject</a>
                   </li>
               </ul>
           </li>
@@ -402,7 +402,7 @@ Endpoints:              172.17.0.4:80
 <pre class="highlight yaml tab-yaml"><code><span class="na">name</span><span class="pi">:</span> <span class="s">web</span>
 <span class="na">containers</span><span class="pi">:</span>
 <span class="pi">-</span> <span class="na">image</span><span class="pi">:</span> <span class="s">nginx</span>
-  <span class="c1"># https://kubernetes.io/docs/api-reference/v1.8/#container-v1-core</span>
+  <span class="c1"># https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#container-v1-core</span>
   <span class="na">livenessProbe</span><span class="pi">:</span>
     <span class="na">httpGet</span><span class="pi">:</span>
       <span class="na">path</span><span class="pi">:</span> <span class="s">/</span>
@@ -429,19 +429,19 @@ Endpoints:              172.17.0.4:80
 <span class="na">controller</span><span class="pi">:</span> <span class="s">&lt;string&gt;</span>
 <span class="na">labels</span><span class="pi">:</span> <span class="s">&lt;object&gt;</span>
 <span class="na">containers</span><span class="pi">:</span>
-  <span class="pi">-</span> <span class="s">&lt;containerSpec&gt;</span>
+  <span class="pi">-</span> <span class="s">&lt;containerObject&gt;</span>
 <span class="na">volumeClaims</span><span class="pi">:</span>
-  <span class="pi">-</span> <span class="s">&lt;persistentVolume&gt;</span>
+  <span class="pi">-</span> <span class="s">&lt;persistentVolumeObject&gt;</span>
 <span class="na">configMaps</span><span class="pi">:</span>
-  <span class="pi">-</span> <span class="s">&lt;configMap&gt;</span>
+  <span class="pi">-</span> <span class="s">&lt;configMapObject&gt;</span>
 <span class="na">services</span><span class="pi">:</span>
-  <span class="pi">-</span> <span class="s">&lt;service&gt;</span>
+  <span class="pi">-</span> <span class="s">&lt;serviceObject&gt;</span>
 <span class="na">ingresses</span><span class="pi">:</span>
   <span class="pi">-</span> <span class="s">&lt;ingressObject&gt;</span>
 <span class="na">routes</span><span class="pi">:</span>
   <span class="pi">-</span> <span class="s">&lt;routeObject&gt;</span>
 <span class="na">secrets</span><span class="pi">:</span>
-  <span class="pi">-</span> <span class="s">&lt;secret&gt;</span>
+  <span class="pi">-</span> <span class="s">&lt;secretObject&gt;</span>
 <span class="na">imageStreams</span><span class="pi">:</span>
   <span class="pi">-</span> <span class="s">&lt;imageStreamObject&gt;</span>
 <span class="na">buildConfigs</span><span class="pi">:</span>
@@ -450,7 +450,7 @@ Endpoints:              172.17.0.4:80
   <span class="pi">-</span> <span class="s">&lt;includeResources&gt;</span>
 </code></pre>
 <aside class="notice">
-Each "app" (Kedge file) is a Kubernetes <a target="_blank" href="https://kubernetes.io/docs/api-reference/v1.8/#podspec-v1-core">Pod Spec</a> with additional Kedge-specific keys.
+Each "app" (Kedge file) is a Kubernetes <a target="_blank" href="https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#podspec-v1-core">Pod Spec</a> with additional Kedge-specific keys.
 </aside>
 <h4 id='kedge-specific'>Kedge specific</h4>
 <table><thead>
@@ -480,64 +480,64 @@ Each "app" (Kedge file) is a Kubernetes <a target="_blank" href="https://kuberne
 <td>Map of string keys and values that can be used to organize and categorize (scope and select) objects. May match selectors of replication controllers and services.</td>
 </tr>
 <tr>
+<td>imageStreams</td>
+<td>array of <a href="#imagestreamobject">imageStreamObject</a></td>
+<td>no</td>
+<td><a href="#imagestreamobject">imageStreamObject</a></td>
+</tr>
+<tr>
 <td>containers</td>
-<td>array of <a href="#containerspec">containerSpec</a></td>
+<td>array of <a href="#containerobject">containerObject</a></td>
 <td>yes</td>
-<td><a href="#containerspec">containerSpec</a>  object</td>
+<td><a href="#containerobject">containerObject</a></td>
 </tr>
 <tr>
 <td>volumeClaims</td>
-<td>array of <a href="#persistentvolume">persistentVolume</a></td>
+<td>array of <a href="#persistentvolumeobject">persistentVolumeObject</a></td>
 <td>no</td>
-<td><a href="#persistentvolume">persistentVolume</a> object</td>
+<td><a href="#persistentvolumeobject">persistentVolumeObject</a></td>
 </tr>
 <tr>
-<td>configMaps</td>
-<td>array of <a href="#configmap">configMap</a></td>
+<td>configMap</td>
+<td>array of <a href="#configmapobject">configMapObject</a></td>
 <td>no</td>
-<td><a href="#configmap">configMap</a> object</td>
+<td><a href="#configmapobject">configMapObject</a></td>
 </tr>
 <tr>
 <td>services</td>
-<td>array of <a href="#service">service</a></td>
+<td>array of <a href="#serviceobject">serviceObject</a></td>
 <td>no</td>
-<td><a href="#service">service</a> object</td>
+<td><a href="#serviceobject">serviceObject</a></td>
 </tr>
 <tr>
 <td>ingresses</td>
-<td>array of <a href="#ingressobject">ingress object</a></td>
+<td>array of <a href="#ingressobject">ingressObject</a></td>
 <td>no</td>
-<td><a href="#ingressobject">ingress object</a> object</td>
+<td><a href="#ingressobject">ingressObject</a></td>
 </tr>
 <tr>
 <td>routes</td>
-<td>array of <a href="#routeobject">route object</a></td>
+<td>array of <a href="#routeobject">routeObject</a></td>
 <td>no</td>
-<td><a href="#routeobject">route object</a>  object</td>
+<td><a href="#routeobject">routeObject</a></td>
 </tr>
 <tr>
 <td>secrets</td>
-<td>array of <a href="#secret">secret</a></td>
+<td>array of <a href="#secretobject">secretObject</a></td>
 <td>no</td>
-<td><a href="#secret">secret</a> object</td>
-</tr>
-<tr>
-<td>imageStreams</td>
-<td>array of <a href="#imagestreamobject">imageStream object</a></td>
-<td>no</td>
-<td><a href="#imagestreamobject">imageStream object</a>  object</td>
+<td><a href="#secretobject">secretObject</a></td>
 </tr>
 <tr>
 <td>buildConfigs</td>
-<td>array of <a href="#buildconfigobject">buildConfig object</a></td>
+<td>array of <a href="#buildconfigobject">buildConfigObject</a></td>
 <td>no</td>
-<td><a href="#buildconfigobject">buildConfig object</a>  object</td>
+<td><a href="#buildconfigobject">buildConfigObject</a></td>
 </tr>
 <tr>
 <td>includeResources</td>
-<td>array of <a href="#includeResources">includeResources</a></td>
+<td>array of <a href="#includeresourceobject">includeResourceObject</a></td>
 <td>no</td>
-<td></td>
+<td><a href="#includeresourceobject">includeResourceObject</a></td>
 </tr>
 </tbody></table>
 <h2 id='name'>name</h2><pre class="highlight yaml tab-yaml"><code><span class="na">name</span><span class="pi">:</span> <span class="s">mariadb</span>
@@ -635,7 +635,7 @@ Each "app" (Kedge file) is a Kubernetes <a target="_blank" href="https://kuberne
 <p>All the configuration created will have this label applied.
 More info: <a href="http://kubernetes.io/docs/user-guide/labels">http://kubernetes.io/docs/user-guide/labels</a></p>
 <h2 id='containers'>containers</h2><pre class="highlight yaml tab-yaml"><code><span class="na">containers</span><span class="pi">:</span>
-<span class="pi">-</span> <span class="s">&lt;containerSpec&gt;</span>
+<span class="pi">-</span> <span class="s">&lt;containerObject&gt;</span>
 </code></pre>
 <table><thead>
 <tr>
@@ -645,9 +645,9 @@ More info: <a href="http://kubernetes.io/docs/user-guide/labels">http://kubernet
 </tr>
 </thead><tbody>
 <tr>
-<td>array of <a href="#containerspec">containerSpec</a></td>
+<td>array of <a href="#containerobject">containerObject</a></td>
 <td>yes</td>
-<td><a href="#containerspec">containerSpec</a>  object</td>
+<td><a href="#containerobject">containerObject</a></td>
 </tr>
 </tbody></table>
 <h2 id='volumeclaims'>volumeClaims</h2><pre class="highlight yaml tab-yaml"><code><span class="na">volumeClaims</span><span class="pi">:</span>
@@ -661,13 +661,13 @@ More info: <a href="http://kubernetes.io/docs/user-guide/labels">http://kubernet
 </tr>
 </thead><tbody>
 <tr>
-<td>array of <a href="#persistentvolume">persistentVolume</a></td>
+<td>array of <a href="#persistentvolumeobject">persistentVolumeObject</a></td>
 <td>no</td>
-<td><a href="#persistentvolume">persistentVolume</a> object</td>
+<td><a href="#persistentvolumeobject">persistentVolumeObject</a></td>
 </tr>
 </tbody></table>
 <h2 id='configmaps'>configMaps</h2><pre class="highlight yaml tab-yaml"><code><span class="na">configMaps</span><span class="pi">:</span>
-<span class="pi">-</span> <span class="s">&lt;configMap&gt;</span>
+<span class="pi">-</span> <span class="s">&lt;configMapObject&gt;</span>
 </code></pre>
 <table><thead>
 <tr>
@@ -677,9 +677,9 @@ More info: <a href="http://kubernetes.io/docs/user-guide/labels">http://kubernet
 </tr>
 </thead><tbody>
 <tr>
-<td>array of <a href="#configmap">configMap</a></td>
+<td>array of <a href="#configmapobject">configMapObject</a></td>
 <td>no</td>
-<td><a href="#configmap">configMap</a> object</td>
+<td><a href="#configmapobject">configMapObject</a></td>
 </tr>
 </tbody></table>
 <h2 id='services'>services</h2><pre class="highlight yaml tab-yaml"><code><span class="na">services</span><span class="pi">:</span>
@@ -693,9 +693,9 @@ More info: <a href="http://kubernetes.io/docs/user-guide/labels">http://kubernet
 </tr>
 </thead><tbody>
 <tr>
-<td>array of <a href="#service">service</a></td>
+<td>array of <a href="#serviceobject">serviceObject</a></td>
 <td>no</td>
-<td><a href="#service">service</a> object</td>
+<td><a href="#serviceobject">serviceObject</a></td>
 </tr>
 </tbody></table>
 <h2 id='ingresses'>ingresses</h2><pre class="highlight yaml tab-yaml"><code><span class="na">ingresses</span><span class="pi">:</span>
@@ -709,9 +709,9 @@ More info: <a href="http://kubernetes.io/docs/user-guide/labels">http://kubernet
 </tr>
 </thead><tbody>
 <tr>
-<td>array of <a href="#ingressobject">ingress object</a></td>
+<td>array of <a href="#ingressobject">ingressObject</a></td>
 <td>no</td>
-<td><a href="#ingressobject">ingress object</a> object</td>
+<td><a href="#ingressobject">ingressObject</a></td>
 </tr>
 </tbody></table>
 <h2 id='routes'>routes</h2><pre class="highlight yaml tab-yaml"><code><span class="na">routes</span><span class="pi">:</span>
@@ -725,9 +725,9 @@ More info: <a href="http://kubernetes.io/docs/user-guide/labels">http://kubernet
 </tr>
 </thead><tbody>
 <tr>
-<td>array of <a href="#routeobject">route object</a></td>
+<td>array of <a href="#routeobject">routeObject</a></td>
 <td>no</td>
-<td><a href="#routeobject">route object</a>  object</td>
+<td><a href="#routeobject">routeObject</a></td>
 </tr>
 </tbody></table>
 <h2 id='secrets'>secrets</h2><pre class="highlight yaml tab-yaml"><code><span class="na">secrets</span><span class="pi">:</span>
@@ -741,9 +741,9 @@ More info: <a href="http://kubernetes.io/docs/user-guide/labels">http://kubernet
 </tr>
 </thead><tbody>
 <tr>
-<td>array of <a href="#secret">secret</a></td>
+<td>array of <a href="#secretobject">secretObject</a></td>
 <td>no</td>
-<td><a href="#secret">secret</a> object</td>
+<td><a href="#secretobject">secretObject</a></td>
 </tr>
 </tbody></table>
 <h2 id='buildconfigs'>buildConfigs</h2><pre class="highlight yaml tab-yaml"><code><span class="na">buildConfigs</span><span class="pi">:</span>
@@ -798,9 +798,9 @@ More info: <a href="http://kubernetes.io/docs/user-guide/labels">http://kubernet
 </tr>
 </thead><tbody>
 <tr>
-<td>array of <a href="#includeResources">includeResources</a></td>
+<td>array of <a href="#includeresourceobject">includeResourceObject</a></td>
 <td>no</td>
-<td><a href="#includeResources">includeResources</a> object</td>
+<td><a href="#includeresourceobject">includeResourceObject</a></td>
 </tr>
 </tbody></table>
 
@@ -808,11 +808,11 @@ More info: <a href="http://kubernetes.io/docs/user-guide/labels">http://kubernet
 
 <p>This is one of the mechanisms to extend kedge beyond its capabilites to support
 anything in the Kubernetes land.</p>
-<h1 id='objects'>Objects</h1><h2 id='containerspec'>containerSpec</h2><pre class="highlight yaml tab-yaml"><code><span class="na">containers</span><span class="pi">:</span>
-  <span class="pi">-</span> <span class="s">&lt;containerSpec&gt;</span>
+<h1 id='objects'>Objects</h1><h2 id='containerobject'>containerObject</h2><pre class="highlight yaml tab-yaml"><code><span class="na">containers</span><span class="pi">:</span>
+  <span class="pi">-</span> <span class="s">&lt;containerObject&gt;</span>
 </code></pre>
 <aside class="notice">
-Each "container" is a Kubernetes <a target="_blank" href="https://kubernetes.io/docs/api-reference/v1.8/#container-v1-core">Container Spec</a> with additional Kedge-specific keys.
+Each "container" is a Kubernetes <a target="_blank" href="https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#container-v1-core">Container Spec</a> with additional Kedge-specific keys.
 </aside>
 
 <p>List of containers</p>
@@ -861,7 +861,7 @@ simultaneously then the tool will error out.</p>
 <pre class="highlight yaml tab-yaml"><code><span class="na">name</span><span class="pi">:</span> <span class="s">web</span>
 <span class="na">containers</span><span class="pi">:</span>
 <span class="pi">-</span> <span class="na">image</span><span class="pi">:</span> <span class="s">nginx</span>
-  <span class="c1"># https://kubernetes.io/docs/api-reference/v1.8/#container-v1-core</span>
+  <span class="c1"># https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#container-v1-core</span>
   <span class="na">env</span><span class="pi">:</span>
   <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">WORDPRESS_DB_PASSWORD</span>
     <span class="na">value</span><span class="pi">:</span> <span class="s">wordpress</span>
@@ -877,11 +877,11 @@ simultaneously then the tool will error out.</p>
   <span class="pi">-</span> <span class="na">port</span><span class="pi">:</span> <span class="s">8080</span>
     <span class="na">targetPort</span><span class="pi">:</span> <span class="s">80</span>
 </code></pre>
-<p>Anything <a href="https://kubernetes.io/docs/api-reference/v1.8/#container-v1-core">Container Spec</a> from Kubernetes can be included within the Kedge file.</p>
+<p>Anything <a href="https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#container-v1-core">Container Spec</a> from Kubernetes can be included within the Kedge file.</p>
 
 <p>For example, keys such as <code>env</code> and <code>envFrom</code> are commonly used.</p>
-<h2 id='persistentvolume'>persistentVolume</h2><pre class="highlight yaml tab-yaml"><code><span class="na">volumeClaims</span><span class="pi">:</span>
-  <span class="pi">-</span> <span class="s">&lt;persistentVolume&gt;</span>
+<h2 id='persistentvolumeobject'>persistentVolumeObject</h2><pre class="highlight yaml tab-yaml"><code><span class="na">volumeClaims</span><span class="pi">:</span>
+  <span class="pi">-</span> <span class="s">&lt;persistentVolumeObject&gt;</span>
 </code></pre>
 <blockquote>
 <p>An example of deploying a volume</p>
@@ -902,7 +902,7 @@ simultaneously then the tool will error out.</p>
         <span class="na">storage</span><span class="pi">:</span> <span class="s">500Mi</span>
 </code></pre>
 <aside class="notice">
-Each "persistentVolume" is a Kubernetes <a target="_blank" href="https://kubernetes.io/docs/api-reference/v1.8/#persistentvolumeclaim-v1-core">PersistentVolumeClaim</a> with additional Kedge-specific keys.
+Each "persistentVolumeObject" is a Kubernetes <a target="_blank" href="https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#claim-v1-core">PersistentVolumeClaim</a> with additional Kedge-specific keys.
 </aside>
 
 <table><thead>
@@ -1041,16 +1041,16 @@ Each "persistentVolume" is a Kubernetes <a target="_blank" href="https://kuberne
 <span class="na">volumeClaims</span><span class="pi">:</span>
 <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">database</span>
   <span class="na">size</span><span class="pi">:</span> <span class="s">500Mi</span>
-  <span class="c1"># https://kubernetes.io/docs/api-reference/v1.8/#persistentvolumeclaim-v1-core</span>
+  <span class="c1"># https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#persistentvolumeclaim-v1-core</span>
   <span class="na">persistentVolumeReclaimPolicy</span><span class="pi">:</span> <span class="s">Recycle</span>
   <span class="na">storageClassName</span><span class="pi">:</span> <span class="s">slow</span>
   <span class="na">mountOptions</span><span class="pi">:</span>
     <span class="pi">-</span> <span class="s">hard</span>
     <span class="pi">-</span> <span class="s">nfsvers=4.1</span>
 </code></pre>
-<p>Anything <a href="https://kubernetes.io/docs/api-reference/v1.8/#persistentvolumeclaim-v1-core">PersistentVolumeClaim Spec</a> from Kubernetes can be included within the Kedge file.</p>
-<h2 id='configmap'>configMap</h2><pre class="highlight yaml tab-yaml"><code><span class="na">configMaps</span><span class="pi">:</span>
-  <span class="pi">-</span> <span class="s">&lt;configMap&gt;</span>
+<p>Anything <a href="https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#persistentvolumeclaim-v1-core">PersistentVolumeClaim Spec</a> from Kubernetes can be included within the Kedge file.</p>
+<h2 id='configmapobject'>configMapObject</h2><pre class="highlight yaml tab-yaml"><code><span class="na">configMaps</span><span class="pi">:</span>
+  <span class="pi">-</span> <span class="s">&lt;configMapObject&gt;</span>
 </code></pre>
 <blockquote>
 <p>Example</p>
@@ -1062,7 +1062,7 @@ Each "persistentVolume" is a Kubernetes <a target="_blank" href="https://kuberne
     <span class="na">app_data</span><span class="pi">:</span> <span class="s">/etc/app/data</span>
 </code></pre>
 <aside class="notice">
-Each "configMap" is a Kubernetes <a target="_blank" href="https://kubernetes.io/docs/api-reference/v1.8/#configmap-v1-core">ConfigMap Spec</a> with additional Kedge-specific keys.
+Each "configMapObject" is a Kubernetes <a target="_blank" href="https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#configmap-v1-core">ConfigMap Spec</a> with additional Kedge-specific keys.
 </aside>
 
 <table><thead>
@@ -1077,7 +1077,7 @@ Each "configMap" is a Kubernetes <a target="_blank" href="https://kubernetes.io/
 <td>name</td>
 <td>string</td>
 <td>yes</td>
-<td>The name of the configMap. This is optional field if only one configMap is defined, the default name will be the app name.</td>
+<td>The name of the configMapObject. This is optional field if only one configMapObject is defined, the default name will be the app name.</td>
 </tr>
 <tr>
 <td>data</td>
@@ -1098,7 +1098,7 @@ Each "configMap" is a Kubernetes <a target="_blank" href="https://kubernetes.io/
 <tr>
 <td>string</td>
 <td>yes</td>
-<td>The name of the configMap. This is optional field if only one configMap is defined, the default name will be the app name.</td>
+<td>The name of the configMapObject. This is optional field if only one configMapObject is defined, the default name will be the app name.</td>
 </tr>
 </tbody></table>
 <h3 id='data'>Data</h3><pre class="highlight yaml tab-yaml"><code><span class="na">data</span><span class="pi">:</span>
@@ -1118,10 +1118,10 @@ Each "configMap" is a Kubernetes <a target="_blank" href="https://kubernetes.io/
 </tr>
 </tbody></table>
 
-<p>A <code>configMap</code> is created out of this configuration.</p>
+<p>A <code>configMapObject</code> is created out of this configuration.</p>
 <h3 id='kubernetes-extension-3'>Kubernetes extension</h3>
 <blockquote>
-<p>Example extending <code>configMaps</code> with Kubernetes ConfigMap Spec</p>
+<p>Example extending <code>configMapObjects</code> with Kubernetes ConfigMap Spec</p>
 </blockquote>
 <pre class="highlight yaml tab-yaml"><code><span class="na">name</span><span class="pi">:</span> <span class="s">database</span>
 <span class="na">containers</span><span class="pi">:</span>
@@ -1144,12 +1144,12 @@ Each "configMap" is a Kubernetes <a target="_blank" href="https://kubernetes.io/
   <span class="pi">-</span> <span class="na">port</span><span class="pi">:</span> <span class="s">3306</span>
 <span class="na">configMaps</span><span class="pi">:</span>
 <span class="pi">-</span> <span class="na">data</span><span class="pi">:</span>
-  <span class="c1"># https://kubernetes.io/docs/api-reference/v1.8/#configmap-v1-core</span>
+  <span class="c1"># https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#configmap-v1-core</span>
     <span class="na">MYSQL_DATABASE</span><span class="pi">:</span> <span class="s">wordpress</span>
 </code></pre>
-<p>Anything <a href="https://kubernetes.io/docs/api-reference/v1.8/#configmap-v1-core">ConfigMap Spec</a> from Kubernetes can be included. <strong>Note:</strong> Since Kedge already implents &quot;data&quot; in ConfigMaps no other keys are available to be added.</p>
-<h2 id='service'>service</h2><pre class="highlight yaml tab-yaml"><code><span class="na">services</span><span class="pi">:</span>
-  <span class="pi">-</span> <span class="s">&lt;service&gt;</span>
+<p>Anything <a href="https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#configmap-v1-core">ConfigMap Spec</a> from Kubernetes can be included. <strong>Note:</strong> Since Kedge already implents &quot;data&quot; in ConfigMaps no other keys are available to be added.</p>
+<h2 id='serviceobject'>serviceObject</h2><pre class="highlight yaml tab-yaml"><code><span class="na">services</span><span class="pi">:</span>
+  <span class="pi">-</span> <span class="s">&lt;serviceObject&gt;</span>
 </code></pre>
 <blockquote>
 <p>Example</p>
@@ -1163,7 +1163,7 @@ Each "configMap" is a Kubernetes <a target="_blank" href="https://kubernetes.io/
   <span class="pi">-</span> <span class="s">90:9090/tcp</span>
 </code></pre>
 <aside class="notice">
-Each "service" is a Kubernetes <a target="_blank" href="https://kubernetes.io/docs/api-reference/v1.8/#service-v1-core">Service Spec</a> with additional Kedge-specific keys.
+Each "service" is a Kubernetes <a target="_blank" href="https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#service-v1-core">Service Spec</a> with additional Kedge-specific keys.
 </aside>
 
 <table><thead>
@@ -1194,7 +1194,7 @@ Each "service" is a Kubernetes <a target="_blank" href="https://kubernetes.io/do
 </tr>
 </tbody></table>
 
-<p>More info: <a href="https://kubernetes.io/docs/api-reference/v1.8/#servicespec-v1-core">https://kubernetes.io/docs/api-reference/v1.8/#servicespec-v1-core</a></p>
+<p>More info: <a href="https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#servicespec-v1-core">https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#servicespec-v1-core</a></p>
 
 <p>Each service gets converted into a Kubernetes <code>service</code> and <code>ingress</code> respectively.</p>
 <h3 id='name-4'>name</h3><pre class="highlight yaml tab-yaml"><code><span class="na">name</span><span class="pi">:</span> <span class="s">wordpress</span>
@@ -1279,20 +1279,20 @@ There are 4 possible cases here</p>
 <span class="pi">-</span> <span class="na">image</span><span class="pi">:</span> <span class="s">centos/httpd</span>
 <span class="na">services</span><span class="pi">:</span>
 <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">httpd</span>
-  <span class="c1"># https://kubernetes.io/docs/api-reference/v1.8/#servicespec-v1-core</span>
+  <span class="c1"># https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#servicespec-v1-core</span>
   <span class="na">ports</span><span class="pi">:</span>
   <span class="pi">-</span> <span class="na">port</span><span class="pi">:</span> <span class="s">8080</span>
     <span class="na">targetPort</span><span class="pi">:</span> <span class="s">80</span>
   <span class="na">type</span><span class="pi">:</span> <span class="s">NodePort</span>
 </code></pre>
-<p>Anything <a href="https://kubernetes.io/docs/api-reference/v1.8/#servicespec-v1-core">Service Spec</a> from Kubernetes can be included within the Kedge file.</p>
+<p>Anything <a href="https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#servicespec-v1-core">Service Spec</a> from Kubernetes can be included within the Kedge file.</p>
 
 <p>For example, keys such as <code>image</code> and <code>ports</code> are commonly used.</p>
 <h2 id='ingressobject'>ingressObject</h2><pre class="highlight yaml tab-yaml"><code><span class="na">ingresses</span><span class="pi">:</span>
 <span class="pi">-</span> <span class="s">&lt;ingress&gt;</span>
 </code></pre>
 <aside class="notice">
-Each "ingress" is a Kubernetes <a target="_blank" href="https://kubernetes.io/docs/api-reference/v1.8/#ingressspec-v1beta1-extensions">Ingress Spec</a> with additional Kedge-specific keys.
+Each "ingress" is a Kubernetes <a target="_blank" href="https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#ingressspec-v1beta1-extensions">Ingress Spec</a> with additional Kedge-specific keys.
 </aside>
 
 <table><thead>
@@ -1331,7 +1331,7 @@ Each "ingress" is a Kubernetes <a target="_blank" href="https://kubernetes.io/do
 </blockquote>
 <pre class="highlight yaml tab-yaml"><code><span class="na">ingresses</span><span class="pi">:</span>
 <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">wordpress</span>
-  <span class="c1"># https://kubernetes.io/docs/api-reference/v1.8/#ingressspec-v1beta1-extensions</span>
+  <span class="c1"># https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#ingressspec-v1beta1-extensions</span>
   <span class="na">rules</span><span class="pi">:</span>
   <span class="pi">-</span> <span class="na">host</span><span class="pi">:</span> <span class="s">minikube.local</span>
     <span class="na">http</span><span class="pi">:</span>
@@ -1341,7 +1341,7 @@ Each "ingress" is a Kubernetes <a target="_blank" href="https://kubernetes.io/do
           <span class="na">servicePort</span><span class="pi">:</span> <span class="s">8080</span>
         <span class="na">path</span><span class="pi">:</span> <span class="s">/</span>
 </code></pre>
-<p>Anything <a href="https://kubernetes.io/docs/api-reference/v1.8/#ingressspec-v1beta1-extensions">Ingress Spec</a> from Kubernetes can be included within the Kedge file.</p>
+<p>Anything <a href="https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#ingressspec-v1beta1-extensions">Ingress Spec</a> from Kubernetes can be included within the Kedge file.</p>
 <h2 id='routeobject'>routeObject</h2><pre class="highlight yaml tab-yaml"><code><span class="na">routes</span><span class="pi">:</span>
 <span class="pi">-</span> <span class="s">&lt;route&gt;</span>
 </code></pre>
@@ -1397,11 +1397,11 @@ Each "route" is an OpenShift <a target="_blank" href="https://docs.openshift.org
     <span class="na">name</span><span class="pi">:</span> <span class="s">httpd</span>
 </code></pre>
 <p>Anything <a href="https://docs.openshift.org/latest/rest_api/apis-route.openshift.io/v1.Route.html#object-schema">Route Spec</a> from OpenShift can be included within the Kedge file.</p>
-<h2 id='secret'>secret</h2><pre class="highlight yaml tab-yaml"><code><span class="na">secrets</span><span class="pi">:</span>
+<h2 id='secretobject'>secretObject</h2><pre class="highlight yaml tab-yaml"><code><span class="na">secrets</span><span class="pi">:</span>
   <span class="pi">-</span> <span class="s">&lt;secret&gt;</span>
 </code></pre>
 <aside class="notice">
-Each "secret" is a Kubernetes <a target="_blank" href="https://kubernetes.io/docs/api-reference/v1.8/#envvarsource-v1-core">EnvVarSource Spec</a> with additional Kedge-specific keys.
+Each "secret" is a Kubernetes <a target="_blank" href="https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#envvarsource-v1-core">EnvVarSource Spec</a> with additional Kedge-specific keys.
 </aside>
 <h3 id='name-7'>Name</h3><pre class="highlight yaml tab-yaml"><code><span class="na">name</span><span class="pi">:</span> <span class="s">wordpress</span>
 </code></pre>
@@ -1425,12 +1425,12 @@ Each "secret" is a Kubernetes <a target="_blank" href="https://kubernetes.io/doc
 <pre class="highlight yaml tab-yaml"><code><span class="na">secrets</span><span class="pi">:</span>
 <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">wordpress</span>
   <span class="na">data</span><span class="pi">:</span>
-    <span class="c1"># https://kubernetes.io/docs/api-reference/v1.8/#envvarsource-v1-core</span>
+    <span class="c1"># https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#envvarsource-v1-core</span>
     <span class="c1"># Encoded in base64</span>
     <span class="na">MYSQL_ROOT_PASSWORD</span><span class="pi">:</span> <span class="s">YWRtaW4=</span>
     <span class="na">MYSQL_PASSWORD</span><span class="pi">:</span> <span class="s">cGFzc3dvcmQ=</span>
 </code></pre>
-<p>Anything <a href="https://kubernetes.io/docs/api-reference/v1.8/#envvarsource-v1-core">EnvVarSource Spec</a> from Kubernetes can be included within the Kedge file.</p>
+<p>Anything <a href="https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#envvarsource-v1-core">EnvVarSource Spec</a> from Kubernetes can be included within the Kedge file.</p>
 <h2 id='buildconfigobject'>buildConfigObject</h2><pre class="highlight yaml tab-yaml"><code><span class="na">buildConfigs</span><span class="pi">:</span>
 <span class="pi">-</span> <span class="s">&lt;buildConfigObject&gt;</span>
 </code></pre>
@@ -1563,7 +1563,7 @@ Each "imageStreamObject" is an OpenShift <a target="_blank" href="https://docs.o
       <span class="na">kind</span><span class="pi">:</span> <span class="s">DockerImage</span>
       <span class="na">name</span><span class="pi">:</span> <span class="s">centos/httpd-24-centos7:latest</span>
     <span class="na">name</span><span class="pi">:</span> <span class="s2">"</span><span class="s">2.4"</span>
-</code></pre><h2 id='includeresources-2'>includeResources</h2><pre class="highlight yaml tab-yaml"><code><span class="na">includeResources</span><span class="pi">:</span>
+</code></pre><h2 id='includeresourceobject'>includeResourceObject</h2><pre class="highlight yaml tab-yaml"><code><span class="na">includeResources</span><span class="pi">:</span>
 <span class="pi">-</span> <span class="s">&lt;string&gt;</span>
 </code></pre>
 <blockquote>
