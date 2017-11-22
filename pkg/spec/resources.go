@@ -331,7 +331,7 @@ func (app *ControllerFields) createServices() ([]runtime.Object, error) {
 		}
 
 		for _, portMapping := range s.PortMappings {
-			servicePort, err := parsePortMapping(portMapping)
+			servicePort, err := parsePortMapping(portMapping.String())
 			if err != nil {
 				return nil, errors.Wrap(err, "unable to parse port mapping")
 			}

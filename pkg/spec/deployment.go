@@ -33,7 +33,7 @@ import (
 func (deployment *DeploymentSpecMod) Unmarshal(data []byte) error {
 	err := yaml.Unmarshal(data, &deployment)
 	if err != nil {
-		return errors.Wrap(err, "could not unmarshal into internal struct")
+		return errors.Wrap(err, "Deployment could not unmarshal into internal struct")
 	}
 	log.Debugf("object unmarshalled: %#v\n", deployment)
 	return nil
