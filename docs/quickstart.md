@@ -13,18 +13,19 @@ Kedge is a deployment tool for Kubernetes artifacts by using a simplified versio
 
 In two steps, we will go from a super-simple YAML file to a full-fledged Kubernetes deployment:
 
-__1. Using an example [httpd.yaml](https://raw.githubusercontent.com/kedgeproject/kedge/master/examples/simplest/httpd.yaml) file.__
+__1. Using an example [httpd.yaml](https://raw.githubusercontent.com/kedgeproject/kedge/master/examples/httpd/httpd.yaml) file__
 
 ```yaml
 name: httpd
+
 containers:
 - image: centos/httpd
+
 services:
 - name: httpd
-  type: NodePort
-  ports:
-  - port: 8080
-    targetPort: 80
+  type: LoadBalancer
+  portMappings: 
+    - 8080:80
 ```
 
 __2. Now run the create command to deploy to Kubernetes!__
