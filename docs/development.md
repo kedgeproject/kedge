@@ -379,6 +379,51 @@ pkgcmd "github.com/kedgeproject/kedge/pkg/cmd"
 Once arranged, let `gofmt` sort the sequence of imports.
 
 
+## Code instructions
+
+### Things to take care of when adding new type:
+
+- Creating type struct
+
+  - Make a struct type named `ControllerSpecMod` and add it to [types.go](https://github.com/kedgeproject/kedge/blob/cd5297cfdbd2f1daa510824d49c9d3d649ffc0b8/pkg/spec/types.go).
+  - Embed this struct with `ControllerSpec` from upstream and [`ControllerFields`](https://github.com/kedgeproject/kedge/blob/cd5297cfdbd2f1daa510824d49c9d3d649ffc0b8/pkg/spec/types.go#L146).
+  - Make sure all the comments are placed well and all optional fields are maked as
+  [optional](https://github.com/kedgeproject/kedge/blob/cd5297cfdbd2f1daa510824d49c9d3d649ffc0b8/pkg/spec/types.go#L154).
+  - For more info about how to add fields read [here](https://github.com/kedgeproject/kedge/blob/3640c31ea44c2aa06e59e127b291bf4e1d49a6b4/docs/development.md#typesgo-conventions).
+
+- Make sure it satisfies the interface [`ControllerInterface`](https://github.com/kedgeproject/kedge/blob/cd5297cfdbd2f1daa510824d49c9d3d649ffc0b8/pkg/spec/controller.go#L29)
+
+  - Define all these methods in interface on the new `ControllerSpecMod` in it's
+  own separate file `controller-name.go`, like we have [`deployment.go`](https://github.com/kedgeproject/kedge/blob/d4e27324b444c68a27b552a6eca83baceec4e0df/pkg/spec/deployment.go),
+  [`deploymentconfig.go`](https://github.com/kedgeproject/kedge/blob/f4c3808a0285199a5e94f3b89bdfe03eedfe91a3/pkg/spec/deploymentconfig.go), etc.
+  - After that, goto function [`GetController`](https://github.com/kedgeproject/kedge/blob/cd5297cfdbd2f1daa510824d49c9d3d649ffc0b8/pkg/spec/controller.go#L46)
+  and add a case for this new controller type.
+
+- Interface's Validate method
+
+  - This is to validate what user has given is the right information.
+  - In this function we fail, since we can't do much about what user means.
+  - Here don't forget to make a call to [`ControllerFields.validateControllerFields()`](https://github.com/kedgeproject/kedge/blob/9b732e3d526b03b197c9ba623627099f221f023c/pkg/spec/resources.go#L512)
+  and then also add any other validations that are Controller specific.
+  - [Sample Validate method](https://github.com/kedgeproject/kedge/blob/cd5297cfdbd2f1daa510824d49c9d3d649ffc0b8/pkg/spec/deployment.go#L42)
+  of `deployment` controller.
+
+- Interface's Fix method
+
+  - This is where we can do most of fixing of user provided data, we can do
+  auto-population of information that user has not given us.
+  - Make sure to call the [`ControllerFields.fixControllerFields()`](https://github.com/surajssd/kedge/blob/9b732e3d526b03b197c9ba623627099f221f023c/pkg/spec/resources.go#L183).
+  - Now after that add any Controller specific Fix methods.
+  - [Sample Fix method](https://github.com/kedgeproject/kedge/blob/2f1cf4ee6a90e5f0911ac8d8fcee0d751fc97fa8/pkg/spec/job.go#L42)
+  of Job controller.
+
+- Interface's Transform method
+
+  - Create basic Kubernetes/OpenShift objects by calling [`CreateK8sObjects`](https://github.com/surajssd/kedge/blob/9b732e3d526b03b197c9ba623627099f221f023c/pkg/spec/resources.go#L407)
+  on the controller.
+  - Now create the actual `Controller`.
+  - [Sample Transform method](https://github.com/surajssd/kedge/blob/f4c3808a0285199a5e94f3b89bdfe03eedfe91a3/pkg/spec/deploymentconfig.go#L79)
+  of DeploymentConfig controller.
 
 
 ##  Issue labeling
