@@ -1,7 +1,8 @@
 name: backend
+
 containers:
-  #- image: quay.io/tomkral/guestbook-demo-backend:v1
   - image: quay.io/tomkral/guestbook-demo-backend@sha256:abc9d419c2fc27511332471e7b82359f84ccec37577e1fcf05e7318145b3e125
+
     env:
       - name: MONGODB_PASSWORD
         valueFrom:
@@ -23,6 +24,7 @@ containers:
           configMapKeyRef:
             name: mongodb-user
             key: MONGODB_SERVER
+
 services:
-  - ports:
-    - port: 3000
+  - portMappings:
+    - 3000

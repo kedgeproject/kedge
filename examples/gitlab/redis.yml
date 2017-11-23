@@ -1,16 +1,12 @@
 name: redis
+
 labels:
     app: redis
+
 containers:
 - name: redis
   image: "bitnami/redis:3.2.8-r1"
   imagePullPolicy: "IfNotPresent"
-  env:
-  - name: REDIS_PASSWORD
-    valueFrom:
-      secretKeyRef:
-        name: redis
-        key: redis-password
   livenessProbe:
     exec:
       command:
@@ -29,6 +25,15 @@ containers:
     requests:
       cpu: 100m
       memory: 1Gi
+
+  # Environment variables
+  env:
+  - name: REDIS_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: redis
+        key: redis-password
+
   volumeMounts:
   - name: redis-data
     mountPath: /bitnami/redis
@@ -37,10 +42,8 @@ services:
 - name: redis
   labels:
     app: redis
-  ports:
-  - name: redis
-    port: 6379
-    targetPort: 6379
+  portMappings:
+    - 6379:6379
 
 volumeClaims:
 - name: redis-data

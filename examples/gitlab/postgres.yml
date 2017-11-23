@@ -1,27 +1,12 @@
 name: postgresql
+
 labels:
     app: postgresql
+
 containers:
 - name: postgresql
   image: "postgres:9.6"
   imagePullPolicy: ""
-  env:
-  - name: POSTGRES_USER
-    value: "gitlab"
-    # Required for pg_isready in the health probes.
-  - name: PGUSER
-    value: "gitlab"
-  - name: POSTGRES_DB
-    value: "gitlab"
-  - name: PGDATA
-    value: /var/lib/postgresql/data/pgdata
-  - name: POSTGRES_PASSWORD
-    valueFrom:
-      secretKeyRef:
-        name: postgresql
-        key: postgres-password
-  - name: POD_IP
-    valueFrom: { fieldRef: { fieldPath: status.podIP } }
   livenessProbe:
     exec:
       command:
@@ -45,6 +30,24 @@ containers:
       cpu: 100m
       memory: 256Mi
 
+  # Environment variables
+  env:
+  - name: POSTGRES_USER
+    value: "gitlab"
+  - name: PGUSER
+    value: "gitlab"
+  - name: POSTGRES_DB
+    value: "gitlab"
+  - name: PGDATA
+    value: /var/lib/postgresql/data/pgdata
+  - name: POSTGRES_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: postgresql
+        key: postgres-password
+  - name: POD_IP
+    valueFrom: { fieldRef: { fieldPath: status.podIP } }
+
   volumeMounts:
   - name: data
     mountPath: /var/lib/postgresql/data/pgdata
@@ -54,10 +57,8 @@ services:
 - name: postgresql
   labels:
     app: postgresql
-  ports:
-  - name: postgresql
-    port: 5432
-    targetPort: 5432
+  portMappings:
+    - 5432:5432
 
 volumeClaims:
 - name: data
