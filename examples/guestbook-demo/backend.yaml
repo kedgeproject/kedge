@@ -13,7 +13,7 @@ containers:
         valueFrom:
           configMapKeyRef:
             name: mongodb-user
-            key: MONGODB_USERNAME
+            key: MONGODB_USER
       - name: MONGODB_DATABASE
         valueFrom:
           configMapKeyRef:

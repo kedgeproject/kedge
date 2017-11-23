@@ -43,3 +43,14 @@ If you are using `minikube` for local Kubernetes deployment, you can access your
 $ minikube service guestbook 
 Opening kubernetes service default/guestbook in default browser...
 ```
+
+If you are using `minishift` for local OpenShift development, you can create Route  and access your Guestbook instance using it.
+
+```sh
+$ oc expose svc frontend
+route "frontend" exposed
+
+$ oc get route frontend
+NAME       HOST/PORT                                 PATH      SERVICES   PORT            TERMINATION   WILDCARD
+frontend   frontend-myproject.192.168.64.19.nip.io             frontend   frontend-8080                 None
+```
