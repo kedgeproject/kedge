@@ -1,5 +1,24 @@
 # Change Log
 
+## [v0.5.1](https://github.com/kedgeproject/kedge/tree/v0.5.1) (2017-11-23)
+[Full Changelog](https://github.com/kedgeproject/kedge/compare/v0.5.0...v0.5.1)
+
+**Closed issues:**
+
+- portMappings errors with `80`, success with `80:80` [\#438](https://github.com/kedgeproject/kedge/issues/438)
+- `kedge generate` should create files, rather than go to stdout [\#436](https://github.com/kedgeproject/kedge/issues/436)
+- Rename objects [\#427](https://github.com/kedgeproject/kedge/issues/427)
+- Need to clarify ingresses / routes examples better. [\#402](https://github.com/kedgeproject/kedge/issues/402)
+- Add support for BuildConfig and ImageStreams [\#385](https://github.com/kedgeproject/kedge/issues/385)
+- Implement ImageStream [\#317](https://github.com/kedgeproject/kedge/issues/317)
+
+**Merged pull requests:**
+
+- Update quickstart [\#476](https://github.com/kedgeproject/kedge/pull/476) ([cdrage](https://github.com/cdrage))
+- docs\(routes\): indent the routes example in README [\#463](https://github.com/kedgeproject/kedge/pull/463) ([surajssd](https://github.com/surajssd))
+- Allow the usage of a string or int as a value in portMappings [\#455](https://github.com/kedgeproject/kedge/pull/455) ([cdrage](https://github.com/cdrage))
+- Rename object names to better reflect consistency [\#429](https://github.com/kedgeproject/kedge/pull/429) ([cdrage](https://github.com/cdrage))
+
 ## [v0.5.0](https://github.com/kedgeproject/kedge/tree/v0.5.0) (2017-11-21)
 [Full Changelog](https://github.com/kedgeproject/kedge/compare/v0.4.0...v0.5.0)
 
@@ -25,6 +44,7 @@
 
 **Merged pull requests:**
 
+- 0.5.0 Release [\#475](https://github.com/kedgeproject/kedge/pull/475) ([cdrage](https://github.com/cdrage))
 - Make ./scripts/release.sh executable [\#474](https://github.com/kedgeproject/kedge/pull/474) ([cdrage](https://github.com/cdrage))
 - add BuildConfig docs and example [\#467](https://github.com/kedgeproject/kedge/pull/467) ([containscafeine](https://github.com/containscafeine))
 - add BuildConfig support [\#466](https://github.com/kedgeproject/kedge/pull/466) ([containscafeine](https://github.com/containscafeine))
