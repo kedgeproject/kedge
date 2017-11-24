@@ -23,7 +23,7 @@ spec:
 
 ### Deploying on Kubernetes
 ```
-$ kedge create -f gitlab.yml -f redis.yml -f postgres.yml 
+$ kedge apply -f gitlab.yml -f redis.yml -f postgres.yml 
 persistentvolumeclaim "gitlab-data" created
 persistentvolumeclaim "gitlab-etc" created
 service "gitlab" created

@@ -27,7 +27,7 @@ running build command.
 Deploy the kedge configs in `configs` directory:
 
 ```console
-$ kedge create -f configs/
+$ kedge apply -f configs/
 service "ticker" created
 deployment "ticker" created
 service "redis" created

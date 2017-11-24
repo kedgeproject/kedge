@@ -22,7 +22,7 @@ wget https://raw.githubusercontent.com/kedgeproject/kedge/master/examples/guestb
 2. Deploy using `kedge`
 
 ```sh
-$ kedge create -f backend.yaml -f frontend.yaml -f db.yaml
+$ kedge apply -f backend.yaml -f frontend.yaml -f db.yaml
 service "guestbook" created
 deployment "guestbook" created
 service "backend" created
