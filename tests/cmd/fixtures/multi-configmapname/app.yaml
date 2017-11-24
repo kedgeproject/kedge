@@ -1,7 +1,7 @@
 name: nginx
 containers:
 - image: nginx
-configData:
+configMaps:
 - data:
     foo: bar
   name: foo

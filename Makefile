@@ -88,13 +88,18 @@ endif
 endif
 endif
 
+# Run cmd line tests
+.PHONY: test-cmd
+test-cmd: bin
+	go test -v github.com/kedgeproject/kedge/tests/cmd
+
 # Run all tests
 .PHONY: test
-test: test-dep validate test-unit test-unit-cover
+test: test-dep validate test-unit test-cmd test-unit-cover
 
 # Tests that are run on travs-ci
 .PHONY: travis-tests
-travis-tests: test-dep validate test-unit-cover test-jsonschema-generation
+travis-tests: test-cmd test-dep validate test-unit-cover test-jsonschema-generation
 
 # Install all the required test-dependencies before executing tests (only valid when running `make test`)
 .PHONY: test-dep

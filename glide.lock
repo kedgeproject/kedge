@@ -29,6 +29,10 @@ imports:
   version: 73d445a93680fa1a78ae23a5839bad48f32ba1ee
 - name: github.com/inconshreveable/mousetrap
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
+- name: github.com/kylelemons/godebug
+  version: d65d576e9348f5982d7f6d83682b694e731a45c6
+  subpackages:
+  - diff
 - name: github.com/novln/docker-parser
   version: 6030251119d652af8ead44ac7907444227b64d56
 - name: github.com/pkg/errors
