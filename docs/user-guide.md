@@ -10,6 +10,16 @@ redirect_from:
 * TOC
 {:toc}
 
+## Kedge Apply
+
+Deploy directly to Kubernetes, either updating or creating the artifacts if they don't exist.
+
+```sh
+$ kedge apply -f httpd.yaml
+deployment "httpd" created
+service "httpd" created
+```
+
 ## Kedge Create
 
 Deploy directly to Kubernetes without creating the artifacts. Internally, Kedge will generate the artifacts and then create it using the `kubectl` command.

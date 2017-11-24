@@ -28,10 +28,10 @@ services:
     - 8080:80
 ```
 
-__2. Now run the create command to deploy to Kubernetes!__
+__2. Now run the apply command to deploy to Kubernetes!__
 
 ```sh
-$ kedge create -f httpd.yaml
+$ kedge apply -f httpd.yaml
 deployment "httpd" created
 service "httpd" created
 ```
@@ -40,7 +40,7 @@ __2.1. Alternatively, you can generate the raw Kubernetes artifact files and dep
 
 ```sh
 $ kedge generate -f httpd.yaml > output.yaml
-$ kubectl create -f output.yaml
+$ kubectl apply -f output.yaml
 ```
 
 __View the deployed service__
