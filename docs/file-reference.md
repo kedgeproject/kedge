@@ -135,8 +135,8 @@ Each "app" (Kedge file) is a Kubernetes <a target="_blank" href="https://v1-6.do
 
 | Field    | Type     | Required     | Description  |
 |----------|----------|--------------|--------------|
-| name | string   | yes          | The name of the app or micro-service this particular file defines. |
-| controller | string   | no           | The Kubernetes controller of the app or micro-service this particular file (default: "deployment") |
+| name | string   | yes          | The name of the app or microservice this particular file defines. |
+| controller | string   | no           | The Kubernetes controller of the app or microservice this particular file (default: "deployment") |
 | labels | object   | no           | Map of string keys and values that can be used to organize and categorize (scope and select) objects. May match selectors of replication controllers and services. |
 | imageStreams | array of [imageStreamObject](#imagestreamobject) | no           | [imageStreamObject](#imagestreamobject) |
 | containers | array of [containerObject](#containerobject) | yes          | [containerObject](#containerobject) |
@@ -158,7 +158,7 @@ name: mariadb
 
 | Type     | Required     | Description  |
 |----------|--------------|--------------|
-| string   | yes          | The name of the app or micro-service this particular file defines. |
+| string   | yes          | The name of the app or microservice this particular file defines. |
 
 
 ## controller
@@ -199,7 +199,7 @@ Specify the type of controller that Kedge expects to use.
 
 | Type     | Required     | Description |
 |----------|--------------|-------------|
-| string   | no           | The Kubernetes controller of the app or micro-service this particular file defines (default: "deployment") |
+| string   | no           | The Kubernetes controller of the app or microservice this particular file defines (default: "deployment") |
 
 Supported controllers:
 
@@ -385,7 +385,7 @@ List of containers
 
 | Field | Type     | Required     | Description  |
 |-------|----------|--------------|--------------|
-| health | string   | yes          | The name of the app or micro-service this particular file defines. |
+| health | string   | yes          | The name of the app or microservice this particular file defines. |
 
 ### health
 
@@ -397,7 +397,7 @@ containers:
 
 | Type     | Required     | Description  |
 |----------|--------------|--------------|
-| string   | yes          | The name of the app or micro-service this particular file defines. |
+| string   | yes          | The name of the app or microservice this particular file defines. |
 
 This is `probe` spec. Rather than defining `livenessProbe` and `readinessProbe`,
 define only `health`. And then it gets copied in both in the resultant spec.
