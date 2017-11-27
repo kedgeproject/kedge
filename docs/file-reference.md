@@ -207,7 +207,7 @@ Supported controllers:
 | Name                 | Container Orchestrator | Extension                                                                                                                          |
 |----------------------|------------------------|------------------------------------------------------------------------------------------------------------------------------------|
 | Deployment (default) | Kubernetes             | An extension of [DeploymentSpec](https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#deployment-v1beta1-apps)                 |
-| Job                  | Kubernetes             | An extension of [JobSpec](https://kubernetes.io/docs/api-reference/v1.8/#job-v1-batch)                                             |
+| Job                  | Kubernetes             | An extension of [JobSpec](https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#job-v1-batch)                                   |
 | DeploymentConfig     | OpenShift              | An extension of [DeploymentConfigSpec](https://docs.openshift.org/latest/rest_api/apis-apps/v1beta1.Deployment.html#object-schema) |
 
 
