@@ -17,14 +17,15 @@ search: true
 
 ```yaml
 name: httpd
+
 containers:
 - image: centos/httpd
+
 services:
 - name: httpd
-  type: NodePort
-  ports:
-  - port: 8080
-    targetPort: 80
+  type: LoadBalancer
+  portMappings: 
+    - 8080:80
 ```
 
 > Now run the apply command to deploy to Kubernetes
@@ -140,7 +141,7 @@ includeResources:
 ```
 
 <aside class="notice">
-Each "app" (Kedge file) is a Kubernetes <a target="_blank" href="https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#podspec-v1-core">Pod Spec</a> with additional Kedge-specific keys.
+Depending on the controller key selected. Each "app" (Kedge file) is an extension of that controller. Anything defineable within Kubernetes may also be defined within Kedge. See <a href="http://kedgeproject.org/file-reference/#controller">the controller table</a> for more information.
 </aside>
 
 
@@ -148,10 +149,9 @@ Each "app" (Kedge file) is a Kubernetes <a target="_blank" href="https://v1-6.do
 
 | Field    | Type     | Required     | Description  |
 |----------|----------|--------------|--------------|
-| name | string   | yes          | The name of the app or micro-service this particular file defines. |
-| controller | string   | no           | The Kubernetes controller of the app or micro-service this particular file (default: "deployment") |
+| name | string   | yes          | The name of the app or microservice this particular file defines. |
+| controller | string   | no           | The Kubernetes controller of the app or microservice this particular file (default: "deployment") |
 | labels | object   | no           | Map of string keys and values that can be used to organize and categorize (scope and select) objects. May match selectors of replication controllers and services. |
-| imageStreams | array of [imageStreamObject](#imagestreamobject) | no           | [imageStreamObject](#imagestreamobject) |
 | containers | array of [containerObject](#containerobject) | yes          | [containerObject](#containerobject) |
 | volumeClaims | array of [persistentVolumeObject](#persistentvolumeobject) | no           | [persistentVolumeObject](#persistentvolumeobject) |
 | configMap | array of [configMapObject](#configmapobject) | no           | [configMapObject](#configmapobject) |
@@ -159,6 +159,7 @@ Each "app" (Kedge file) is a Kubernetes <a target="_blank" href="https://v1-6.do
 | ingresses | array of [ingressObject](#ingressobject) | no           | [ingressObject](#ingressobject) |
 | routes | array of [routeObject](#routeobject) | no           | [routeObject](#routeobject) |
 | secrets | array of [secretObject](#secretobject) | no           | [secretObject](#secretobject) |
+| imageStreams | array of [imageStreamObject](#imagestreamobject) | no           | [imageStreamObject](#imagestreamobject) |
 | buildConfigs | array of [buildConfigObject](#buildconfigobject) | no           | [buildConfigObject](#buildconfigobject) |
 | includeResources | array of [includeResourceObject](#includeresourceobject) | no           | [includeResourceObject](#includeresourceobject) |
 
@@ -171,7 +172,7 @@ name: mariadb
 
 | Type     | Required     | Description  |
 |----------|--------------|--------------|
-| string   | yes          | The name of the app or micro-service this particular file defines. |
+| string   | yes          | The name of the app or microservice this particular file defines. |
 
 
 ## controller
@@ -204,26 +205,28 @@ name: pival
 containers:
 - image: perl
   command: ["perl",  "-Mbignum=bpi", "-wle", "print bpi(2000)"]
+
+# Job-related definitions
 restartPolicy: Never
 parallelism: 3
 ```
 
-Specify the type of controller that Kedge expects to use.
-
 | Type     | Required     | Description |
 |----------|--------------|-------------|
-| string   | no           | The Kubernetes controller of the app or micro-service this particular file defines (default: "deployment") |
+| string   | no           | The Kubernetes controller of the app or microservice this particular file defines (default: "deployment") |
 
 Supported controllers:
 
-- Deployment (Kubernetes) (Default)
-- Job (Kubernetes)
-- DeploymentConfig (OpenShift)
+| Name                 | Container Orchestrator | Extension                                                                                                                          |
+|----------------------|------------------------|------------------------------------------------------------------------------------------------------------------------------------|
+| Deployment (default) | Kubernetes             | An extension of [DeploymentSpec](https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#deployment-v1beta1-apps)                 |
+| Job                  | Kubernetes             | An extension of [JobSpec](https://kubernetes.io/docs/api-reference/v1.8/#job-v1-batch)                                             |
+| DeploymentConfig     | OpenShift              | An extension of [DeploymentConfigSpec](https://docs.openshift.org/latest/rest_api/apis-apps/v1beta1.Deployment.html#object-schema) |
+
 
 __Note on conflicting fields:__
 
 `activeDeadlineSeconds` is a conflicting field which exists in both, v1.PodSpec and batch/v1.JobSpec, and both of these fields exist at the top level of the Kedge spec.
-
 
 So, whenever `activeDeadlineSeconds` field is set, only JobSpec is populated, which means that `activeDeadlineSeconds` is set only for the job and not for the pod.
 
@@ -398,7 +401,7 @@ List of containers
 
 | Field | Type     | Required     | Description  |
 |-------|----------|--------------|--------------|
-| health | string   | yes          | The name of the app or micro-service this particular file defines. |
+| health | string   | yes          | The name of the app or microservice this particular file defines. |
 
 ### health
 
@@ -410,7 +413,7 @@ containers:
 
 | Type     | Required     | Description  |
 |----------|--------------|--------------|
-| string   | yes          | The name of the app or micro-service this particular file defines. |
+| string   | yes          | The name of the app or microservice this particular file defines. |
 
 This is `probe` spec. Rather than defining `livenessProbe` and `readinessProbe`,
 define only `health`. And then it gets copied in both in the resultant spec.

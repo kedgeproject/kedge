@@ -337,14 +337,15 @@
 <p>Using an example <a href="https://raw.githubusercontent.com/kedgeproject/kedge/master/examples/simplest/httpd.yaml">httpd.yaml</a> file.</p>
 </blockquote>
 <pre class="highlight yaml tab-yaml"><code><span class="na">name</span><span class="pi">:</span> <span class="s">httpd</span>
+
 <span class="na">containers</span><span class="pi">:</span>
 <span class="pi">-</span> <span class="na">image</span><span class="pi">:</span> <span class="s">centos/httpd</span>
+
 <span class="na">services</span><span class="pi">:</span>
 <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">httpd</span>
-  <span class="na">type</span><span class="pi">:</span> <span class="s">NodePort</span>
-  <span class="na">ports</span><span class="pi">:</span>
-  <span class="pi">-</span> <span class="na">port</span><span class="pi">:</span> <span class="s">8080</span>
-    <span class="na">targetPort</span><span class="pi">:</span> <span class="s">80</span>
+  <span class="na">type</span><span class="pi">:</span> <span class="s">LoadBalancer</span>
+  <span class="na">portMappings</span><span class="pi">:</span> 
+    <span class="pi">-</span> <span class="s">8080:80</span>
 </code></pre>
 <blockquote>
 <p>Now run the apply command to deploy to Kubernetes</p>
@@ -450,7 +451,7 @@ Endpoints:              172.17.0.4:80
   <span class="pi">-</span> <span class="s">&lt;includeResources&gt;</span>
 </code></pre>
 <aside class="notice">
-Each "app" (Kedge file) is a Kubernetes <a target="_blank" href="https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#podspec-v1-core">Pod Spec</a> with additional Kedge-specific keys.
+Depending on the controller key selected. Each "app" (Kedge file) is an extension of that controller. Anything defineable within Kubernetes may also be defined within Kedge. See <a href="http://kedgeproject.org/file-reference/#controller">the controller table</a> for more information.
 </aside>
 <h4 id='kedge-specific'>Kedge specific</h4>
 <table><thead>
@@ -465,25 +466,19 @@ Each "app" (Kedge file) is a Kubernetes <a target="_blank" href="https://v1-6.do
 <td>name</td>
 <td>string</td>
 <td>yes</td>
-<td>The name of the app or micro-service this particular file defines.</td>
+<td>The name of the app or microservice this particular file defines.</td>
 </tr>
 <tr>
 <td>controller</td>
 <td>string</td>
 <td>no</td>
-<td>The Kubernetes controller of the app or micro-service this particular file (default: &quot;deployment&quot;)</td>
+<td>The Kubernetes controller of the app or microservice this particular file (default: &quot;deployment&quot;)</td>
 </tr>
 <tr>
 <td>labels</td>
 <td>object</td>
 <td>no</td>
 <td>Map of string keys and values that can be used to organize and categorize (scope and select) objects. May match selectors of replication controllers and services.</td>
-</tr>
-<tr>
-<td>imageStreams</td>
-<td>array of <a href="#imagestreamobject">imageStreamObject</a></td>
-<td>no</td>
-<td><a href="#imagestreamobject">imageStreamObject</a></td>
 </tr>
 <tr>
 <td>containers</td>
@@ -528,6 +523,12 @@ Each "app" (Kedge file) is a Kubernetes <a target="_blank" href="https://v1-6.do
 <td><a href="#secretobject">secretObject</a></td>
 </tr>
 <tr>
+<td>imageStreams</td>
+<td>array of <a href="#imagestreamobject">imageStreamObject</a></td>
+<td>no</td>
+<td><a href="#imagestreamobject">imageStreamObject</a></td>
+</tr>
+<tr>
 <td>buildConfigs</td>
 <td>array of <a href="#buildconfigobject">buildConfigObject</a></td>
 <td>no</td>
@@ -552,7 +553,7 @@ Each "app" (Kedge file) is a Kubernetes <a target="_blank" href="https://v1-6.do
 <tr>
 <td>string</td>
 <td>yes</td>
-<td>The name of the app or micro-service this particular file defines.</td>
+<td>The name of the app or microservice this particular file defines.</td>
 </tr>
 </tbody></table>
 <h2 id='controller'>controller</h2><pre class="highlight yaml tab-yaml"><code><span class="na">controller</span><span class="pi">:</span> <span class="s">deployment</span>
@@ -580,11 +581,11 @@ Each "app" (Kedge file) is a Kubernetes <a target="_blank" href="https://v1-6.do
 <span class="na">containers</span><span class="pi">:</span>
 <span class="pi">-</span> <span class="na">image</span><span class="pi">:</span> <span class="s">perl</span>
   <span class="na">command</span><span class="pi">:</span> <span class="pi">[</span><span class="s2">"</span><span class="s">perl"</span><span class="pi">,</span>  <span class="s2">"</span><span class="s">-Mbignum=bpi"</span><span class="pi">,</span> <span class="s2">"</span><span class="s">-wle"</span><span class="pi">,</span> <span class="s2">"</span><span class="s">print</span><span class="nv"> </span><span class="s">bpi(2000)"</span><span class="pi">]</span>
+
+<span class="c1"># Job-related definitions</span>
 <span class="na">restartPolicy</span><span class="pi">:</span> <span class="s">Never</span>
 <span class="na">parallelism</span><span class="pi">:</span> <span class="s">3</span>
 </code></pre>
-<p>Specify the type of controller that Kedge expects to use.</p>
-
 <table><thead>
 <tr>
 <th>Type</th>
@@ -595,17 +596,35 @@ Each "app" (Kedge file) is a Kubernetes <a target="_blank" href="https://v1-6.do
 <tr>
 <td>string</td>
 <td>no</td>
-<td>The Kubernetes controller of the app or micro-service this particular file defines (default: &quot;deployment&quot;)</td>
+<td>The Kubernetes controller of the app or microservice this particular file defines (default: &quot;deployment&quot;)</td>
 </tr>
 </tbody></table>
 
 <p>Supported controllers:</p>
 
-<ul>
-<li>Deployment (Kubernetes) (Default)</li>
-<li>Job (Kubernetes)</li>
-<li>DeploymentConfig (OpenShift)</li>
-</ul>
+<table><thead>
+<tr>
+<th>Name</th>
+<th>Container Orchestrator</th>
+<th>Extension</th>
+</tr>
+</thead><tbody>
+<tr>
+<td>Deployment (default)</td>
+<td>Kubernetes</td>
+<td>An extension of <a href="https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#deployment-v1beta1-apps">DeploymentSpec</a></td>
+</tr>
+<tr>
+<td>Job</td>
+<td>Kubernetes</td>
+<td>An extension of <a href="https://kubernetes.io/docs/api-reference/v1.8/#job-v1-batch">JobSpec</a></td>
+</tr>
+<tr>
+<td>DeploymentConfig</td>
+<td>OpenShift</td>
+<td>An extension of <a href="https://docs.openshift.org/latest/rest_api/apis-apps/v1beta1.Deployment.html#object-schema">DeploymentConfigSpec</a></td>
+</tr>
+</tbody></table>
 
 <p><strong>Note on conflicting fields:</strong></p>
 
@@ -829,7 +848,7 @@ Each "container" is a Kubernetes <a target="_blank" href="https://v1-6.docs.kube
 <td>health</td>
 <td>string</td>
 <td>yes</td>
-<td>The name of the app or micro-service this particular file defines.</td>
+<td>The name of the app or microservice this particular file defines.</td>
 </tr>
 </tbody></table>
 <h3 id='health'>health</h3><pre class="highlight yaml tab-yaml"><code><span class="na">containers</span><span class="pi">:</span>
@@ -846,7 +865,7 @@ Each "container" is a Kubernetes <a target="_blank" href="https://v1-6.docs.kube
 <tr>
 <td>string</td>
 <td>yes</td>
-<td>The name of the app or micro-service this particular file defines.</td>
+<td>The name of the app or microservice this particular file defines.</td>
 </tr>
 </tbody></table>
 
