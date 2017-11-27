@@ -56,6 +56,10 @@ func (deployment *DeploymentSpecMod) Fix() error {
 
 	deployment.ControllerFields.ObjectMeta.Labels = addKeyValueToMap(appLabelKey, deployment.ControllerFields.Name, deployment.ControllerFields.ObjectMeta.Labels)
 
+	if deployment.ControllerFields.Appversion != "" {
+		deployment.ControllerFields.ObjectMeta.Annotations = addKeyValueToMap(appVersion, deployment.ControllerFields.Appversion, deployment.ControllerFields.ObjectMeta.Annotations)
+	}
+
 	return nil
 }
 
@@ -133,6 +137,8 @@ func (deployment *DeploymentSpecMod) createKubernetesController() (*ext_v1beta1.
 
 	// TODO: merge with already existing labels and avoid duplication
 	deploymentSpec.Template.ObjectMeta.Labels = deployment.Labels
+
+	deploymentSpec.Template.ObjectMeta.Annotations = deployment.Annotations
 
 	return &ext_v1beta1.Deployment{
 		ObjectMeta: deployment.ObjectMeta,

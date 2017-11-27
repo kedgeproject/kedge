@@ -65,6 +65,12 @@ func (deploymentConfig *DeploymentConfigSpecMod) fixDeploymentConfig() {
 		deploymentConfig.ControllerFields.Name,
 		deploymentConfig.ControllerFields.ObjectMeta.Labels)
 
+	if deploymentConfig.ControllerFields.Appversion != "" {
+		deploymentConfig.ControllerFields.ObjectMeta.Annotations = addKeyValueToMap(appVersion,
+			deploymentConfig.ControllerFields.Appversion,
+			deploymentConfig.ControllerFields.ObjectMeta.Annotations)
+	}
+
 	// If the replicas are not specified at all, we need to set the value as 1
 	if deploymentConfig.Replicas == nil {
 		deploymentConfig.Replicas = getInt32Addr(1)
