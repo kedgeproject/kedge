@@ -1,8 +1,7 @@
 name: mongodb
 
 containers:
-  - image: bitnami/mongodb@sha256:0665d6f4be13b965a8ff60a11b770e6434b627ffc12df640e3c0527af53d449b
-
+  - image:  centos/mongodb-32-centos7:3.2
     envFrom:
       - secretRef:
           name: mongodb-admin
@@ -13,8 +12,7 @@ containers:
 
     volumeMounts:
      - name: mongodb-data
-       mountPath: /bitnami
-
+       mountPath: /var/lib/mongodb/data
 services:
   - portMappings:
     - 27017
@@ -34,6 +32,6 @@ secrets:
 configMaps:
   - name: mongodb-user
     data:
-      MONGODB_USERNAME: user
+      MONGODB_USER: user
       MONGODB_DATABASE: db
       MONGODB_SERVER: mongodb:27017
