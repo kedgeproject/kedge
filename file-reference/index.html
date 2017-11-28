@@ -234,6 +234,9 @@
                     <a href="#name" class="toc-h2 toc-link" data-title="name">name</a>
                   </li>
                   <li>
+                    <a href="#appversion" class="toc-h2 toc-link" data-title="appversion">appversion</a>
+                  </li>
+                  <li>
                     <a href="#controller" class="toc-h2 toc-link" data-title="controller">controller</a>
                   </li>
                   <li>
@@ -427,6 +430,7 @@ Endpoints:              172.17.0.4:80
 <p>All defineable Kedge keys</p>
 </blockquote>
 <pre class="highlight yaml tab-yaml"><code><span class="na">name</span><span class="pi">:</span> <span class="s">&lt;string&gt;</span>
+<span class="na">appversion</span><span class="pi">:</span> <span class="s">&lt;string&gt;</span>
 <span class="na">controller</span><span class="pi">:</span> <span class="s">&lt;string&gt;</span>
 <span class="na">labels</span><span class="pi">:</span> <span class="s">&lt;object&gt;</span>
 <span class="na">containers</span><span class="pi">:</span>
@@ -467,6 +471,12 @@ Depending on the controller key selected. Each "app" (Kedge file) is an extensio
 <td>string</td>
 <td>yes</td>
 <td>The name of the app or microservice this particular file defines.</td>
+</tr>
+<tr>
+<td>appversion</td>
+<td>string</td>
+<td>no</td>
+<td>The version of the app or microservice this particular file defines.</td>
 </tr>
 <tr>
 <td>controller</td>
@@ -554,6 +564,21 @@ Depending on the controller key selected. Each "app" (Kedge file) is an extensio
 <td>string</td>
 <td>yes</td>
 <td>The name of the app or microservice this particular file defines.</td>
+</tr>
+</tbody></table>
+<h2 id='appversion'>appversion</h2><pre class="highlight yaml tab-yaml"><code><span class="na">appversion</span><span class="pi">:</span> <span class="s">5.0.0-alpha</span>
+</code></pre>
+<table><thead>
+<tr>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead><tbody>
+<tr>
+<td>string</td>
+<td>no</td>
+<td>The version of the app or microservice this particular file defines.</td>
 </tr>
 </tbody></table>
 <h2 id='controller'>controller</h2><pre class="highlight yaml tab-yaml"><code><span class="na">controller</span><span class="pi">:</span> <span class="s">deployment</span>
