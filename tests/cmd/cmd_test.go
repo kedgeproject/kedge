@@ -15,6 +15,8 @@ import (
 var Fixtures = os.ExpandEnv("$GOPATH/src/github.com/kedgeproject/kedge/tests/cmd/fixtures/")
 var ProjectPath = "$GOPATH/src/github.com/kedgeproject/kedge/"
 var BinaryLocation = os.ExpandEnv(ProjectPath + "kedge")
+var imagename = "testrun"
+var context = "kedge-build/"
 
 func TestKedgeGenerate(t *testing.T) {
 	testCases := []struct {
@@ -94,4 +96,21 @@ func runCmd(t *testing.T, args []string) (string, error) {
 		return strings.TrimSpace(stdout.String()), err
 	}
 	return strings.TrimSpace(stdout.String()), nil
+}
+
+func Test_builderror(t *testing.T) {
+
+	cmdStr := fmt.Sprintf("%s build -i %s -c %s", BinaryLocation, imagename, context)
+	output, err := exec.Command("/bin/sh", "-c", cmdStr).Output()
+	if err != nil {
+		fmt.Println("Error executing command", err)
+	}
+	cmdStr = fmt.Sprintf("docker images | grep %s | awk '{print $1}'", imagename)
+	output, err = exec.Command("/bin/sh", "-c", cmdStr).Output()
+	if err != nil {
+		fmt.Println("Error executing command", err)
+	}
+	if strings.TrimSpace(string(output)) != imagename {
+		t.Errorf("Test Failed")
+	}
 }

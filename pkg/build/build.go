@@ -153,21 +153,34 @@ func CreateTarball(source, target string) error {
 			if err != nil {
 				return err
 			}
-			header, err := tar.FileInfoHeader(info, info.Name())
+			var symLink string
+			// Checking for the symlinks
+			if info.Mode()&os.ModeSymlink == os.ModeSymlink {
+				// Allow symlinks
+				if symLink, err = os.Readlink(path); err != nil {
+					return err
+				}
+			}
+
+			fileHeader, err := tar.FileInfoHeader(info, symLink)
 			if err != nil {
 				return err
 			}
 
 			if baseDir != "" {
 				if strings.HasSuffix(source, "/") {
-					header.Name = strings.TrimPrefix(path, source)
+					fileHeader.Name = strings.TrimPrefix(path, source)
 				} else {
-					header.Name = filepath.Join(baseDir, strings.TrimPrefix(path, source))
+					fileHeader.Name = filepath.Join(baseDir, strings.TrimPrefix(path, source))
 				}
 			}
 
-			if err := tarball.WriteHeader(header); err != nil {
+			if err := tarball.WriteHeader(fileHeader); err != nil {
 				return err
+			}
+
+			if !info.Mode().IsRegular() {
+				return nil
 			}
 
 			if info.IsDir() {
