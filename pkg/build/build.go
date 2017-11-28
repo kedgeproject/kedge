@@ -73,6 +73,9 @@ func (c *Build) BuildImage(dockerfile, image, context string) error {
 
 	// Create a temporary file for tarball image packaging
 	tmpFile, err := ioutil.TempFile("/tmp", "kedge-image-build-")
+	// Delete tarball after creating image
+	defer os.Remove(tmpFile.Name())
+
 	if err != nil {
 		return err
 	}
@@ -98,7 +101,6 @@ func (c *Build) BuildImage(dockerfile, image, context string) error {
 		OutputStream: outputBuffer,
 		Dockerfile:   dockerfile,
 	}
-
 	// Build it!
 	if err := c.Client.BuildImage(opts); err != nil {
 		return errors.Wrap(err, "unable to build image")
@@ -106,7 +108,6 @@ func (c *Build) BuildImage(dockerfile, image, context string) error {
 
 	log.Infof("Image '%s' from directory '%s' built successfully", image, path.Base(context))
 	log.Debugf("Image %s build output:\n%s", image, outputBuffer)
-
 	return nil
 }
 
