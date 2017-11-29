@@ -24,6 +24,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/garethr/kubeval/kubeval"
 	"github.com/pkg/errors"
 )
 
@@ -152,4 +153,29 @@ func replaceWithEnv(in []byte) []byte {
 		return in
 	}
 	return []byte(value)
+}
+
+func ValidateOutput(data []byte) error {
+	results, err := kubeval.Validate(data, "output")
+	if err != nil {
+		return errors.Wrap(err, "kubeval validation error")
+	}
+
+	var errs []string
+	for _, result := range results {
+		if len(result.Errors) > 0 {
+			err := result.FileName + " contains an invalid " + result.Kind + " "
+			for _, e := range result.Errors {
+				err = err + e.String()
+			}
+			err = err + "\n"
+			errs = append(errs, err)
+		}
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("%s", strings.Join(errs, "\n"))
+	}
+
+	return nil
+
 }
