@@ -26,6 +26,10 @@ all: bin
 bin:
 	go build ${BUILD_FLAGS} -o kedge main.go
 
+.PHONY: image
+image:
+	docker build -t kedge -f Dockerfile .
+
 .PHONY: install
 install:
 	go install ${BUILD_FLAGS}
