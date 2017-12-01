@@ -78,7 +78,9 @@ type IngressSpecMod struct {
 	meta_v1.ObjectMeta `json:",inline"`
 }
 
+// kedgeSpec: io.kedge.RouteSpec
 type RouteSpecMod struct {
+	// k8s: v1.RouteSpec
 	os_route_v1.RouteSpec `json:",inline"`
 	// k8s: io.k8s.kubernetes.pkg.apis.meta.v1.ObjectMeta
 	meta_v1.ObjectMeta `json:",inline"`
@@ -148,6 +150,7 @@ type SecretMod struct {
 // ImageStreamSpec defines OpenShift ImageStream Object
 // kedgeSpec: io.kedge.ImageStreamSpec
 type ImageStreamSpecMod struct {
+	// k8s: v1.ImageStreamSpec
 	image_v1.ImageStreamSpec `json:",inline"`
 	// k8s: io.k8s.kubernetes.pkg.apis.meta.v1.ObjectMeta
 	meta_v1.ObjectMeta `json:",inline"`
@@ -156,6 +159,7 @@ type ImageStreamSpecMod struct {
 // BuildConfigSpecMod defines OpenShift BuildConfig object
 // kedgeSpec: io.kedge.BuildConfigSpec
 type BuildConfigSpecMod struct {
+	// k8s: v1.BuildConfigSpec
 	build_v1.BuildConfigSpec `json:",inline"`
 	// k8s: io.k8s.kubernetes.pkg.apis.meta.v1.ObjectMeta
 	meta_v1.ObjectMeta `json:",inline"`
