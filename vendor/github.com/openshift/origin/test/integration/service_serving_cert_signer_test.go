@@ -18,18 +18,12 @@ import (
 func TestServiceServingCertSigner(t *testing.T) {
 	ns := "service-serving-cert-signer"
 
-	testutil.RequireEtcd(t)
-	defer testutil.DumpEtcdOnFailure(t)
-
-	_, clusterAdminKubeConfig, err := testserver.StartTestMaster()
+	masterConfig, clusterAdminKubeConfig, err := testserver.StartTestMaster()
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer testserver.CleanupMasterEtcd(t, masterConfig)
 	clusterAdminConfig, err := testutil.GetClusterAdminClientConfig(clusterAdminKubeConfig)
-	if err != nil {
-		t.Fatal(err)
-	}
-	clusterAdminClient, err := testutil.GetClusterAdminClient(clusterAdminKubeConfig)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +31,7 @@ func TestServiceServingCertSigner(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := testserver.CreateNewProject(clusterAdminClient, *clusterAdminConfig, "service-serving-cert-signer", "deads"); err != nil {
+	if _, _, err := testserver.CreateNewProject(clusterAdminConfig, "service-serving-cert-signer", "deads"); err != nil {
 		t.Fatal(err)
 	}
 

@@ -52,7 +52,7 @@ type Foo struct {
 
 type FooList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty" description:"standard list metadata; see http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#metadata"`
+	metav1.ListMeta `json:"metadata,omitempty" description:"standard list metadata; see https://git.k8s.io/community/contributors/devel/api-conventions.md#metadata"`
 
 	Items []Foo `json:"items"`
 }
@@ -72,7 +72,7 @@ var _ = Describe("ThirdParty resources [Flaky] [Disruptive]", func() {
 	}
 
 	Context("Simple Third Party", func() {
-		It("creating/deleting thirdparty objects works [Conformance]", func() {
+		It("creating/deleting thirdparty objects works", func() {
 			defer func() {
 				if err := f.ClientSet.Extensions().ThirdPartyResources().Delete(rsrc.Name, nil); err != nil {
 					framework.Failf("failed to delete third party resource: %v", err)

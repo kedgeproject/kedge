@@ -12,7 +12,6 @@ import (
 	"k8s.io/kubernetes/pkg/api"
 	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 
-	osclient "github.com/openshift/origin/pkg/client"
 	"github.com/openshift/origin/pkg/cmd/flagtypes"
 	"github.com/openshift/origin/pkg/cmd/util"
 )
@@ -44,31 +43,6 @@ func NewConfig() *Config {
 		MasterAddr:     flagtypes.Addr{Value: "localhost:8080", DefaultScheme: "http", DefaultPort: 8080, AllowPrefix: true}.Default(),
 		KubernetesAddr: flagtypes.Addr{Value: "localhost:8080", DefaultScheme: "http", DefaultPort: 8080}.Default(),
 		CommonConfig:   restclient.Config{},
-	}
-}
-
-// AnonymousClientConfig returns a copy of the given config with all user credentials (cert/key, bearer token, and username/password) removed
-func AnonymousClientConfig(config *restclient.Config) restclient.Config {
-	// copy only known safe fields
-	// TODO: expose a copy method on the config that is "auth free"
-	return restclient.Config{
-		Host:          config.Host,
-		APIPath:       config.APIPath,
-		Prefix:        config.Prefix,
-		ContentConfig: config.ContentConfig,
-		TLSClientConfig: restclient.TLSClientConfig{
-			CAFile:     config.TLSClientConfig.CAFile,
-			CAData:     config.TLSClientConfig.CAData,
-			Insecure:   config.Insecure,
-			ServerName: config.ServerName,
-		},
-		RateLimiter:   config.RateLimiter,
-		UserAgent:     config.UserAgent,
-		Transport:     config.Transport,
-		WrapTransport: config.WrapTransport,
-		QPS:           config.QPS,
-		Burst:         config.Burst,
-		Timeout:       config.Timeout,
 	}
 }
 
@@ -232,18 +206,13 @@ func (cfg *Config) OpenShiftConfig() *restclient.Config {
 }
 
 // Clients returns an OpenShift and a Kubernetes client from a given configuration
-func (cfg *Config) Clients() (osclient.Interface, kclientset.Interface, error) {
+func (cfg *Config) Clients() (kclientset.Interface, error) {
 	cfg.bindEnv()
 
 	kubeClientset, err := kclientset.NewForConfig(cfg.KubeConfig())
 	if err != nil {
-		return nil, nil, fmt.Errorf("Unable to configure Kubernetes client: %v", err)
+		return nil, fmt.Errorf("Unable to configure Kubernetes client: %v", err)
 	}
 
-	osClient, err := osclient.New(cfg.OpenShiftConfig())
-	if err != nil {
-		return nil, nil, fmt.Errorf("Unable to configure Origin client: %v", err)
-	}
-
-	return osClient, kubeClientset, nil
+	return kubeClientset, nil
 }

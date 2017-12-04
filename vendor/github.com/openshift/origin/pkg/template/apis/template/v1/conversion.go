@@ -4,48 +4,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	oapi "github.com/openshift/origin/pkg/api"
-	"github.com/openshift/origin/pkg/api/extension"
-	templateapi "github.com/openshift/origin/pkg/template/apis/template"
+	"github.com/openshift/origin/pkg/api/apihelpers"
 )
-
-func addConversionFuncs(scheme *runtime.Scheme) error {
-	if err := scheme.AddFieldLabelConversionFunc("v1", "Template",
-		oapi.GetFieldLabelConversionFunc(templateapi.TemplateToSelectableFields(&templateapi.Template{}), nil),
-	); err != nil {
-		return err
-	}
-	if err := scheme.AddFieldLabelConversionFunc(SchemeGroupVersion.String(), "Template",
-		oapi.GetFieldLabelConversionFunc(templateapi.TemplateToSelectableFields(&templateapi.Template{}), nil),
-	); err != nil {
-		return err
-	}
-
-	if err := scheme.AddFieldLabelConversionFunc("v1", "TemplateInstance",
-		oapi.GetFieldLabelConversionFunc(templateapi.TemplateInstanceToSelectableFields(&templateapi.TemplateInstance{}), nil),
-	); err != nil {
-		return err
-	}
-	if err := scheme.AddFieldLabelConversionFunc(SchemeGroupVersion.String(), "TemplateInstance",
-		oapi.GetFieldLabelConversionFunc(templateapi.TemplateInstanceToSelectableFields(&templateapi.TemplateInstance{}), nil),
-	); err != nil {
-		return err
-	}
-
-	if err := scheme.AddFieldLabelConversionFunc("v1", "BrokerTemplateInstance",
-		oapi.GetFieldLabelConversionFunc(templateapi.BrokerTemplateInstanceToSelectableFields(&templateapi.BrokerTemplateInstance{}), nil),
-	); err != nil {
-		return err
-	}
-	if err := scheme.AddFieldLabelConversionFunc(SchemeGroupVersion.String(), "BrokerTemplateInstance",
-		oapi.GetFieldLabelConversionFunc(templateapi.BrokerTemplateInstanceToSelectableFields(&templateapi.BrokerTemplateInstance{}), nil),
-	); err != nil {
-		return err
-	}
-
-	return nil
-
-}
 
 var _ runtime.NestedObjectDecoder = &Template{}
 var _ runtime.NestedObjectEncoder = &Template{}
@@ -65,7 +25,7 @@ func (c *Template) DecodeNestedObjects(d runtime.Decoder) error {
 }
 func (c *Template) EncodeNestedObjects(e runtime.Encoder) error {
 	for i := range c.Objects {
-		if err := extension.EncodeNestedRawExtension(unstructured.UnstructuredJSONScheme, &c.Objects[i]); err != nil {
+		if err := apihelpers.EncodeNestedRawExtension(unstructured.UnstructuredJSONScheme, &c.Objects[i]); err != nil {
 			return err
 		}
 	}

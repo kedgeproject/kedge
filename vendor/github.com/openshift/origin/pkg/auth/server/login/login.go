@@ -14,8 +14,10 @@ import (
 
 	"github.com/openshift/origin/pkg/auth/authenticator"
 	"github.com/openshift/origin/pkg/auth/oauth/handlers"
+	"github.com/openshift/origin/pkg/auth/prometheus"
 	"github.com/openshift/origin/pkg/auth/server/csrf"
 	"github.com/openshift/origin/pkg/auth/server/errorpage"
+	"github.com/openshift/origin/pkg/auth/server/headers"
 )
 
 const (
@@ -94,6 +96,7 @@ func (l *Login) Install(mux Mux, paths ...string) {
 }
 
 func (l *Login) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	headers.SetStandardHeaders(w)
 	switch req.Method {
 	case "GET":
 		l.handleLoginForm(w, req)
@@ -107,7 +110,7 @@ func (l *Login) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 func (l *Login) handleLoginForm(w http.ResponseWriter, req *http.Request) {
 	uri, err := getBaseURL(req)
 	if err != nil {
-		glog.Errorf("Unable to generate base URL: %v", err)
+		utilruntime.HandleError(fmt.Errorf("Unable to generate base URL: %v", err))
 		http.Error(w, "Unable to determine URL", http.StatusInternalServerError)
 		return
 	}
@@ -150,7 +153,7 @@ func (l *Login) handleLoginForm(w http.ResponseWriter, req *http.Request) {
 
 func (l *Login) handleLogin(w http.ResponseWriter, req *http.Request) {
 	if ok, err := l.csrf.Check(req, req.FormValue("csrf")); !ok || err != nil {
-		glog.Errorf("Unable to check CSRF token: %v", err)
+		utilruntime.HandleError(fmt.Errorf("Unable to check CSRF token: %v", err))
 		failed(errorCodeTokenExpired, w, req)
 		return
 	}
@@ -164,15 +167,21 @@ func (l *Login) handleLogin(w http.ResponseWriter, req *http.Request) {
 		failed(errorCodeUserRequired, w, req)
 		return
 	}
+	var result string = metrics.SuccessResult
+	defer func() {
+		metrics.RecordFormPasswordAuth(result)
+	}()
 	user, ok, err := l.auth.AuthenticatePassword(username, password)
 	if err != nil {
-		glog.Errorf(`Error authenticating %q with provider %q: %v`, username, l.provider, err)
+		utilruntime.HandleError(fmt.Errorf(`Error authenticating %q with provider %q: %v`, username, l.provider, err))
 		failed(errorpage.AuthenticationErrorCode(err), w, req)
+		result = metrics.ErrorResult
 		return
 	}
 	if !ok {
 		glog.V(4).Infof(`Login with provider %q failed for %q`, l.provider, username)
 		failed(errorCodeAccessDenied, w, req)
+		result = metrics.FailResult
 		return
 	}
 	glog.V(4).Infof(`Login with provider %q succeeded for %q: %#v`, l.provider, username, user)

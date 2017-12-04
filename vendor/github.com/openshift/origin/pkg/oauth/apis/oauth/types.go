@@ -4,6 +4,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// +genclient
+// +genclient:nonNamespaced
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 type OAuthAccessToken struct {
 	metav1.TypeMeta
 	metav1.ObjectMeta
@@ -32,6 +36,10 @@ type OAuthAccessToken struct {
 	// RefreshToken is the value by which this token can be renewed. Can be blank.
 	RefreshToken string
 }
+
+// +genclient
+// +genclient:nonNamespaced
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 type OAuthAuthorizeToken struct {
 	metav1.TypeMeta
@@ -66,7 +74,9 @@ type OAuthAuthorizeToken struct {
 	CodeChallengeMethod string
 }
 
-// +genclient=true
+// +genclient
+// +genclient:nonNamespaced
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 type OAuthClient struct {
 	metav1.TypeMeta
@@ -93,6 +103,10 @@ type OAuthClient struct {
 	// is checked against each restriction.  If any restriction matches, then the scope is allowed.
 	// If no restriction matches, then the scope is denied.
 	ScopeRestrictions []ScopeRestriction
+
+	// AccessTokenMaxAgeSeconds overrides the default access token max age for tokens granted to this client.
+	// 0 means no expiration.
+	AccessTokenMaxAgeSeconds *int32
 }
 
 type GrantHandlerType string
@@ -125,6 +139,10 @@ type ClusterRoleScopeRestriction struct {
 	AllowEscalation bool
 }
 
+// +genclient
+// +genclient:nonNamespaced
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 type OAuthClientAuthorization struct {
 	metav1.TypeMeta
 	metav1.ObjectMeta
@@ -143,11 +161,15 @@ type OAuthClientAuthorization struct {
 	Scopes []string
 }
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 type OAuthAccessTokenList struct {
 	metav1.TypeMeta
 	metav1.ListMeta
 	Items []OAuthAccessToken
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 type OAuthAuthorizeTokenList struct {
 	metav1.TypeMeta
@@ -155,17 +177,23 @@ type OAuthAuthorizeTokenList struct {
 	Items []OAuthAuthorizeToken
 }
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 type OAuthClientList struct {
 	metav1.TypeMeta
 	metav1.ListMeta
 	Items []OAuthClient
 }
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 type OAuthClientAuthorizationList struct {
 	metav1.TypeMeta
 	metav1.ListMeta
 	Items []OAuthClientAuthorization
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 type OAuthRedirectReference struct {
 	metav1.TypeMeta

@@ -5,8 +5,9 @@ import (
 	kapi "k8s.io/kubernetes/pkg/api/v1"
 )
 
-// +genclient=true
-// +nonNamespaced=true
+// +genclient
+// +genclient:nonNamespaced
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // ClusterResourceQuota mirrors ResourceQuota at a cluster scope.  This object is easily convertible to
 // synthetic ResourceQuota object to allow quota evaluation re-use.
@@ -53,8 +54,10 @@ type ClusterResourceQuotaStatus struct {
 	// Namespaces slices the usage by project.  This division allows for quick resolution of
 	// deletion reconciliation inside of a single project without requiring a recalculation
 	// across all projects.  This can be used to pull the deltas for a given project.
-	Namespaces ResourceQuotasStatusByNamespace `json:"namespaces" protobuf:"bytes,2,rep,name=namespaces,casttype=ResourceQuotasStatusByNamespace"`
+	Namespaces ResourceQuotasStatusByNamespace `json:"namespaces" protobuf:"bytes,2,rep,name=namespaces"`
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // ClusterResourceQuotaList is a collection of ClusterResourceQuotas
 type ClusterResourceQuotaList struct {
@@ -78,6 +81,10 @@ type ResourceQuotaStatusByNamespace struct {
 	Status kapi.ResourceQuotaStatus `json:"status" protobuf:"bytes,2,opt,name=status"`
 }
 
+// +genclient
+// +genclient:onlyVerbs=get,list
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 // AppliedClusterResourceQuota mirrors ClusterResourceQuota at a project scope, for projection
 // into a project.  It allows a project-admin to know which ClusterResourceQuotas are applied to
 // his project and their associated usage.
@@ -92,6 +99,8 @@ type AppliedClusterResourceQuota struct {
 	// Status defines the actual enforced quota and its current usage
 	Status ClusterResourceQuotaStatus `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // AppliedClusterResourceQuotaList is a collection of AppliedClusterResourceQuotas
 type AppliedClusterResourceQuotaList struct {

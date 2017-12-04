@@ -23,12 +23,10 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	klabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/kubernetes/pkg/api/v1"
@@ -94,12 +92,11 @@ var _ = framework.KubeDescribe("StatefulSet", func() {
 		It("should provide basic identity", func() {
 			By("Creating statefulset " + ssName + " in namespace " + ns)
 			*(ss.Spec.Replicas) = 3
-			framework.SetStatefulSetInitializedAnnotation(ss, "false")
+			sst := framework.NewStatefulSetTester(c)
+			sst.PauseNewPods(ss)
 
 			_, err := c.Apps().StatefulSets(ns).Create(ss)
 			Expect(err).NotTo(HaveOccurred())
-
-			sst := framework.NewStatefulSetTester(c)
 
 			By("Saturating stateful set " + ss.Name)
 			sst.Saturate(ss)
@@ -119,7 +116,7 @@ var _ = framework.KubeDescribe("StatefulSet", func() {
 
 			By("Restarting statefulset " + ss.Name)
 			sst.Restart(ss)
-			sst.Saturate(ss)
+			sst.WaitForRunningAndReady(*ss.Spec.Replicas, ss)
 
 			By("Verifying statefulset mounted data directory is usable")
 			framework.ExpectNoError(sst.CheckMount(ss, "/data"))
@@ -132,7 +129,8 @@ var _ = framework.KubeDescribe("StatefulSet", func() {
 		It("should adopt matching orphans and release non-matching pods", func() {
 			By("Creating statefulset " + ssName + " in namespace " + ns)
 			*(ss.Spec.Replicas) = 1
-			framework.SetStatefulSetInitializedAnnotation(ss, "false")
+			sst := framework.NewStatefulSetTester(c)
+			sst.PauseNewPods(ss)
 
 			// Replace ss with the one returned from Create() so it has the UID.
 			// Save Kind since it won't be populated in the returned ss.
@@ -140,8 +138,6 @@ var _ = framework.KubeDescribe("StatefulSet", func() {
 			ss, err := c.Apps().StatefulSets(ns).Create(ss)
 			Expect(err).NotTo(HaveOccurred())
 			ss.Kind = kind
-
-			sst := framework.NewStatefulSetTester(c)
 
 			By("Saturating stateful set " + ss.Name)
 			sst.Saturate(ss)
@@ -216,20 +212,19 @@ var _ = framework.KubeDescribe("StatefulSet", func() {
 		It("should not deadlock when a pod's predecessor fails", func() {
 			By("Creating statefulset " + ssName + " in namespace " + ns)
 			*(ss.Spec.Replicas) = 2
-			framework.SetStatefulSetInitializedAnnotation(ss, "false")
+			sst := framework.NewStatefulSetTester(c)
+			sst.PauseNewPods(ss)
 
 			_, err := c.Apps().StatefulSets(ns).Create(ss)
 			Expect(err).NotTo(HaveOccurred())
 
-			sst := framework.NewStatefulSetTester(c)
+			sst.WaitForRunning(1, 0, ss)
 
-			sst.WaitForRunningAndReady(1, ss)
-
-			By("Marking stateful pod at index 0 as healthy.")
-			sst.SetHealthy(ss)
+			By("Resuming stateful pod at index 0.")
+			sst.ResumeNextPod(ss)
 
 			By("Waiting for stateful pod at index 1 to enter running.")
-			sst.WaitForRunningAndReady(2, ss)
+			sst.WaitForRunning(2, 1, ss)
 
 			// Now we have 1 healthy and 1 unhealthy stateful pod. Deleting the healthy stateful pod should *not*
 			// create a new stateful pod till the remaining stateful pod becomes healthy, which won't happen till
@@ -239,112 +234,417 @@ var _ = framework.KubeDescribe("StatefulSet", func() {
 			sst.DeleteStatefulPodAtIndex(0, ss)
 
 			By("Confirming stateful pod at index 0 is recreated.")
-			sst.WaitForRunningAndReady(2, ss)
+			sst.WaitForRunning(2, 1, ss)
 
-			By("Deleting unhealthy stateful pod at index 1.")
-			sst.DeleteStatefulPodAtIndex(1, ss)
+			By("Resuming stateful pod at index 1.")
+			sst.ResumeNextPod(ss)
 
 			By("Confirming all stateful pods in statefulset are created.")
-			sst.Saturate(ss)
+			sst.WaitForRunningAndReady(*ss.Spec.Replicas, ss)
 		})
 
-		It("should allow template updates", func() {
-			By("Creating stateful set " + ssName + " in namespace " + ns)
-			*(ss.Spec.Replicas) = 2
-
+		It("should perform rolling updates and roll backs of template modifications", func() {
+			By("Creating a new StatefulSet")
+			ss := framework.NewStatefulSet("ss2", ns, headlessSvcName, 3, nil, nil, labels)
+			sst := framework.NewStatefulSetTester(c)
+			sst.SetHttpProbe(ss)
 			ss, err := c.Apps().StatefulSets(ns).Create(ss)
 			Expect(err).NotTo(HaveOccurred())
-
-			sst := framework.NewStatefulSetTester(c)
-
 			sst.WaitForRunningAndReady(*ss.Spec.Replicas, ss)
-
+			ss = sst.WaitForStatus(ss)
+			currentRevision, updateRevision := ss.Status.CurrentRevision, ss.Status.UpdateRevision
+			Expect(currentRevision).To(Equal(updateRevision),
+				fmt.Sprintf("StatefulSet %s/%s created with update revision %s not equal to current revision %s",
+					ss.Namespace, ss.Name, updateRevision, currentRevision))
+			pods := sst.GetPodList(ss)
+			for i := range pods.Items {
+				Expect(pods.Items[i].Labels[apps.StatefulSetRevisionLabel]).To(Equal(currentRevision),
+					fmt.Sprintf("Pod %s/%s revision %s is not equal to current revision %s",
+						pods.Items[i].Namespace,
+						pods.Items[i].Name,
+						pods.Items[i].Labels[apps.StatefulSetRevisionLabel],
+						currentRevision))
+			}
+			sst.SortStatefulPods(pods)
+			sst.BreakPodHttpProbe(ss, &pods.Items[1])
+			Expect(err).NotTo(HaveOccurred())
+			ss, pods = sst.WaitForPodNotReady(ss, pods.Items[1].Name)
 			newImage := newNginxImage
 			oldImage := ss.Spec.Template.Spec.Containers[0].Image
-			By(fmt.Sprintf("Updating stateful set template: update image from %s to %s", oldImage, newImage))
+
+			By(fmt.Sprintf("Updating StatefulSet template: update image from %s to %s", oldImage, newImage))
 			Expect(oldImage).NotTo(Equal(newImage), "Incorrect test setup: should update to a different image")
-			_, err = framework.UpdateStatefulSetWithRetries(c, ns, ss.Name, func(update *apps.StatefulSet) {
+			ss, err = framework.UpdateStatefulSetWithRetries(c, ns, ss.Name, func(update *apps.StatefulSet) {
 				update.Spec.Template.Spec.Containers[0].Image = newImage
 			})
 			Expect(err).NotTo(HaveOccurred())
 
-			updateIndex := 0
-			By(fmt.Sprintf("Deleting stateful pod at index %d", updateIndex))
-			sst.DeleteStatefulPodAtIndex(updateIndex, ss)
+			By("Creating a new revision")
+			ss = sst.WaitForStatus(ss)
+			currentRevision, updateRevision = ss.Status.CurrentRevision, ss.Status.UpdateRevision
+			Expect(currentRevision).NotTo(Equal(updateRevision),
+				"Current revision should not equal update revision during rolling update")
 
-			By("Waiting for all stateful pods to be running again")
-			sst.WaitForRunningAndReady(*ss.Spec.Replicas, ss)
-
-			By(fmt.Sprintf("Verifying stateful pod at index %d is updated", updateIndex))
-			verify := func(pod *v1.Pod) {
-				podImage := pod.Spec.Containers[0].Image
-				Expect(podImage).To(Equal(newImage), fmt.Sprintf("Expected stateful pod image %s updated to %s", podImage, newImage))
+			By("Updating Pods in reverse ordinal order")
+			pods = sst.GetPodList(ss)
+			sst.SortStatefulPods(pods)
+			sst.RestorePodHttpProbe(ss, &pods.Items[1])
+			ss, pods = sst.WaitForPodReady(ss, pods.Items[1].Name)
+			ss, pods = sst.WaitForRollingUpdate(ss)
+			Expect(ss.Status.CurrentRevision).To(Equal(updateRevision),
+				fmt.Sprintf("StatefulSet %s/%s current revision %s does not equal updste revision %s on update completion",
+					ss.Namespace,
+					ss.Name,
+					ss.Status.CurrentRevision,
+					updateRevision))
+			for i := range pods.Items {
+				Expect(pods.Items[i].Spec.Containers[0].Image).To(Equal(newImage),
+					fmt.Sprintf(" Pod %s/%s has image %s not have new image %s",
+						pods.Items[i].Namespace,
+						pods.Items[i].Name,
+						pods.Items[i].Spec.Containers[0].Image,
+						newImage))
+				Expect(pods.Items[i].Labels[apps.StatefulSetRevisionLabel]).To(Equal(updateRevision),
+					fmt.Sprintf("Pod %s/%s revision %s is not equal to update revision %s",
+						pods.Items[i].Namespace,
+						pods.Items[i].Name,
+						pods.Items[i].Labels[apps.StatefulSetRevisionLabel],
+						updateRevision))
 			}
-			sst.VerifyPodAtIndex(updateIndex, ss, verify)
-		})
 
-		It("Scaling down before scale up is finished should wait until current pod will be running and ready before it will be removed", func() {
-			By("Creating stateful set " + ssName + " in namespace " + ns + ", and pausing scale operations after each pod")
-			testProbe := &v1.Probe{Handler: v1.Handler{HTTPGet: &v1.HTTPGetAction{
-				Path: "/index.html",
-				Port: intstr.IntOrString{IntVal: 80}}}}
-			ss := framework.NewStatefulSet(ssName, ns, headlessSvcName, 1, nil, nil, labels)
-			ss.Spec.Template.Spec.Containers[0].ReadinessProbe = testProbe
-			framework.SetStatefulSetInitializedAnnotation(ss, "false")
-			ss, err := c.Apps().StatefulSets(ns).Create(ss)
+			By("Rolling back to a previous revision")
+			sst.BreakPodHttpProbe(ss, &pods.Items[1])
 			Expect(err).NotTo(HaveOccurred())
-			sst := framework.NewStatefulSetTester(c)
-			sst.WaitForRunningAndReady(1, ss)
-
-			By("Scaling up stateful set " + ssName + " to 3 replicas and pausing after 2nd pod")
-			sst.SetHealthy(ss)
-			sst.UpdateReplicas(ss, 3)
-			sst.WaitForRunningAndReady(2, ss)
-
-			By("Before scale up finished setting 2nd pod to be not ready by breaking readiness probe")
-			sst.BreakProbe(ss, testProbe)
-			sst.WaitForStatus(ss, 0)
-			sst.WaitForRunningAndNotReady(2, ss)
-
-			By("Continue scale operation after the 2nd pod, and scaling down to 1 replica")
-			sst.SetHealthy(ss)
-			sst.UpdateReplicas(ss, 1)
-
-			By("Verifying that the 2nd pod wont be removed if it is not running and ready")
-			sst.ConfirmStatefulPodCount(2, ss, 10*time.Second)
-			expectedPodName := ss.Name + "-1"
-			expectedPod, err := f.ClientSet.Core().Pods(ns).Get(expectedPodName, metav1.GetOptions{})
-			Expect(err).NotTo(HaveOccurred())
-			watcher, err := f.ClientSet.Core().Pods(ns).Watch(metav1.SingleObject(
-				metav1.ObjectMeta{
-					Name:            expectedPod.Name,
-					ResourceVersion: expectedPod.ResourceVersion,
-				},
-			))
-			Expect(err).NotTo(HaveOccurred())
-
-			By("Verifying the 2nd pod is removed only when it becomes running and ready")
-			sst.RestoreProbe(ss, testProbe)
-			_, err = watch.Until(framework.StatefulSetTimeout, watcher, func(event watch.Event) (bool, error) {
-				if event.Type == watch.Error {
-					framework.Logf("Keep waiting, received error from watch event: %v", kerrors.FromObject(event.Object))
-					return false, nil
-				}
-				pod := event.Object.(*v1.Pod)
-				if event.Type == watch.Deleted && pod.Name == expectedPodName {
-					return false, fmt.Errorf("Pod %v was deleted before enter running", pod.Name)
-				}
-				framework.Logf("Observed event %v for pod %v. Phase %v, Pod is ready %v",
-					event.Type, pod.Name, pod.Status.Phase, v1.IsPodReady(pod))
-				if pod.Name != expectedPodName {
-					return false, nil
-				}
-				if pod.Status.Phase == v1.PodRunning && v1.IsPodReady(pod) {
-					return true, nil
-				}
-				return false, nil
+			ss, pods = sst.WaitForPodNotReady(ss, pods.Items[1].Name)
+			priorRevision := currentRevision
+			currentRevision, updateRevision = ss.Status.CurrentRevision, ss.Status.UpdateRevision
+			ss, err = framework.UpdateStatefulSetWithRetries(c, ns, ss.Name, func(update *apps.StatefulSet) {
+				update.Spec.Template.Spec.Containers[0].Image = oldImage
 			})
 			Expect(err).NotTo(HaveOccurred())
+			ss = sst.WaitForStatus(ss)
+			currentRevision, updateRevision = ss.Status.CurrentRevision, ss.Status.UpdateRevision
+			Expect(currentRevision).NotTo(Equal(updateRevision),
+				"Current revision should not equal update revision during roll bakc")
+			Expect(priorRevision).To(Equal(updateRevision),
+				"Prior revision should equal update revision during roll back")
+
+			By("Rolling back update in reverse ordinal order")
+			pods = sst.GetPodList(ss)
+			sst.SortStatefulPods(pods)
+			sst.RestorePodHttpProbe(ss, &pods.Items[1])
+			ss, pods = sst.WaitForPodReady(ss, pods.Items[1].Name)
+			ss, pods = sst.WaitForRollingUpdate(ss)
+			Expect(ss.Status.CurrentRevision).To(Equal(priorRevision),
+				fmt.Sprintf("StatefulSet %s/%s current revision %s does not equal prior revision %s on rollback completion",
+					ss.Namespace,
+					ss.Name,
+					ss.Status.CurrentRevision,
+					updateRevision))
+
+			for i := range pods.Items {
+				Expect(pods.Items[i].Spec.Containers[0].Image).To(Equal(oldImage),
+					fmt.Sprintf("Pod %s/%s has image %s not equal to previous image %s",
+						pods.Items[i].Namespace,
+						pods.Items[i].Name,
+						pods.Items[i].Spec.Containers[0].Image,
+						oldImage))
+				Expect(pods.Items[i].Labels[apps.StatefulSetRevisionLabel]).To(Equal(priorRevision),
+					fmt.Sprintf("Pod %s/%s revision %s is not equal to prior revision %s",
+						pods.Items[i].Namespace,
+						pods.Items[i].Name,
+						pods.Items[i].Labels[apps.StatefulSetRevisionLabel],
+						priorRevision))
+			}
+		})
+
+		It("should perform canary updates and phased rolling updates of template modifications", func() {
+			By("Creating a new StaefulSet")
+			ss := framework.NewStatefulSet("ss2", ns, headlessSvcName, 3, nil, nil, labels)
+			sst := framework.NewStatefulSetTester(c)
+			sst.SetHttpProbe(ss)
+			ss.Spec.UpdateStrategy = apps.StatefulSetUpdateStrategy{
+				Type: apps.RollingUpdateStatefulSetStrategyType,
+				RollingUpdate: func() *apps.RollingUpdateStatefulSetStrategy {
+					return &apps.RollingUpdateStatefulSetStrategy{
+						Partition: func() *int32 {
+							i := int32(3)
+							return &i
+						}()}
+				}(),
+			}
+			ss, err := c.Apps().StatefulSets(ns).Create(ss)
+			Expect(err).NotTo(HaveOccurred())
+			sst.WaitForRunningAndReady(*ss.Spec.Replicas, ss)
+			ss = sst.WaitForStatus(ss)
+			currentRevision, updateRevision := ss.Status.CurrentRevision, ss.Status.UpdateRevision
+			Expect(currentRevision).To(Equal(updateRevision),
+				fmt.Sprintf("StatefulSet %s/%s created with update revision %s not equal to current revision %s",
+					ss.Namespace, ss.Name, updateRevision, currentRevision))
+			pods := sst.GetPodList(ss)
+			for i := range pods.Items {
+				Expect(pods.Items[i].Labels[apps.StatefulSetRevisionLabel]).To(Equal(currentRevision),
+					fmt.Sprintf("Pod %s/%s revision %s is not equal to currentRevision %s",
+						pods.Items[i].Namespace,
+						pods.Items[i].Name,
+						pods.Items[i].Labels[apps.StatefulSetRevisionLabel],
+						currentRevision))
+			}
+			newImage := newNginxImage
+			oldImage := ss.Spec.Template.Spec.Containers[0].Image
+
+			By(fmt.Sprintf("Updating stateful set template: update image from %s to %s", oldImage, newImage))
+			Expect(oldImage).NotTo(Equal(newImage), "Incorrect test setup: should update to a different image")
+			ss, err = framework.UpdateStatefulSetWithRetries(c, ns, ss.Name, func(update *apps.StatefulSet) {
+				update.Spec.Template.Spec.Containers[0].Image = newImage
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Creating a new revision")
+			ss = sst.WaitForStatus(ss)
+			currentRevision, updateRevision = ss.Status.CurrentRevision, ss.Status.UpdateRevision
+			Expect(currentRevision).NotTo(Equal(updateRevision),
+				"Current revision should not equal update revision during rolling update")
+
+			By("Not applying an update when the partition is greater than the number of replicas")
+			for i := range pods.Items {
+				Expect(pods.Items[i].Spec.Containers[0].Image).To(Equal(oldImage),
+					fmt.Sprintf("Pod %s/%s has image %s not equal to current image %s",
+						pods.Items[i].Namespace,
+						pods.Items[i].Name,
+						pods.Items[i].Spec.Containers[0].Image,
+						oldImage))
+				Expect(pods.Items[i].Labels[apps.StatefulSetRevisionLabel]).To(Equal(currentRevision),
+					fmt.Sprintf("Pod %s/%s has revision %s not equal to current revision %s",
+						pods.Items[i].Namespace,
+						pods.Items[i].Name,
+						pods.Items[i].Labels[apps.StatefulSetRevisionLabel],
+						currentRevision))
+			}
+
+			By("By performing a canary update")
+			ss.Spec.UpdateStrategy = apps.StatefulSetUpdateStrategy{
+				Type: apps.RollingUpdateStatefulSetStrategyType,
+				RollingUpdate: func() *apps.RollingUpdateStatefulSetStrategy {
+					return &apps.RollingUpdateStatefulSetStrategy{
+						Partition: func() *int32 {
+							i := int32(2)
+							return &i
+						}()}
+				}(),
+			}
+			ss, err = framework.UpdateStatefulSetWithRetries(c, ns, ss.Name, func(update *apps.StatefulSet) {
+				update.Spec.UpdateStrategy = apps.StatefulSetUpdateStrategy{
+					Type: apps.RollingUpdateStatefulSetStrategyType,
+					RollingUpdate: func() *apps.RollingUpdateStatefulSetStrategy {
+						return &apps.RollingUpdateStatefulSetStrategy{
+							Partition: func() *int32 {
+								i := int32(2)
+								return &i
+							}()}
+					}(),
+				}
+			})
+			Expect(err).NotTo(HaveOccurred())
+			ss, pods = sst.WaitForPartitionedRollingUpdate(ss)
+			for i := range pods.Items {
+				if i < int(*ss.Spec.UpdateStrategy.RollingUpdate.Partition) {
+					Expect(pods.Items[i].Spec.Containers[0].Image).To(Equal(oldImage),
+						fmt.Sprintf("Pod %s/%s has image %s not equal to current image %s",
+							pods.Items[i].Namespace,
+							pods.Items[i].Name,
+							pods.Items[i].Spec.Containers[0].Image,
+							oldImage))
+					Expect(pods.Items[i].Labels[apps.StatefulSetRevisionLabel]).To(Equal(currentRevision),
+						fmt.Sprintf("Pod %s/%s has revision %s not equal to current revision %s",
+							pods.Items[i].Namespace,
+							pods.Items[i].Name,
+							pods.Items[i].Labels[apps.StatefulSetRevisionLabel],
+							currentRevision))
+				} else {
+					Expect(pods.Items[i].Spec.Containers[0].Image).To(Equal(newImage),
+						fmt.Sprintf("Pod %s/%s has image %s not equal to new image  %s",
+							pods.Items[i].Namespace,
+							pods.Items[i].Name,
+							pods.Items[i].Spec.Containers[0].Image,
+							newImage))
+					Expect(pods.Items[i].Labels[apps.StatefulSetRevisionLabel]).To(Equal(updateRevision),
+						fmt.Sprintf("Pod %s/%s has revision %s not equal to new revision %s",
+							pods.Items[i].Namespace,
+							pods.Items[i].Name,
+							pods.Items[i].Labels[apps.StatefulSetRevisionLabel],
+							updateRevision))
+				}
+			}
+
+			By("Restoring Pods to the correct revision when they are deleted")
+			sst.DeleteStatefulPodAtIndex(0, ss)
+			sst.DeleteStatefulPodAtIndex(2, ss)
+			sst.WaitForRunningAndReady(3, ss)
+			ss = sst.GetStatefulSet(ss.Namespace, ss.Name)
+			pods = sst.GetPodList(ss)
+			for i := range pods.Items {
+				if i < int(*ss.Spec.UpdateStrategy.RollingUpdate.Partition) {
+					Expect(pods.Items[i].Spec.Containers[0].Image).To(Equal(oldImage),
+						fmt.Sprintf("Pod %s/%s has image %s not equal to current image %s",
+							pods.Items[i].Namespace,
+							pods.Items[i].Name,
+							pods.Items[i].Spec.Containers[0].Image,
+							oldImage))
+					Expect(pods.Items[i].Labels[apps.StatefulSetRevisionLabel]).To(Equal(currentRevision),
+						fmt.Sprintf("Pod %s/%s has revision %s not equal to current revision %s",
+							pods.Items[i].Namespace,
+							pods.Items[i].Name,
+							pods.Items[i].Labels[apps.StatefulSetRevisionLabel],
+							currentRevision))
+				} else {
+					Expect(pods.Items[i].Spec.Containers[0].Image).To(Equal(newImage),
+						fmt.Sprintf("Pod %s/%s has image %s not equal to new image  %s",
+							pods.Items[i].Namespace,
+							pods.Items[i].Name,
+							pods.Items[i].Spec.Containers[0].Image,
+							newImage))
+					Expect(pods.Items[i].Labels[apps.StatefulSetRevisionLabel]).To(Equal(updateRevision),
+						fmt.Sprintf("Pod %s/%s has revision %s not equal to new revision %s",
+							pods.Items[i].Namespace,
+							pods.Items[i].Name,
+							pods.Items[i].Labels[apps.StatefulSetRevisionLabel],
+							updateRevision))
+				}
+			}
+
+			By("Performing a phased rolling update")
+			for i := int(*ss.Spec.UpdateStrategy.RollingUpdate.Partition) - 1; i >= 0; i-- {
+				ss, err = framework.UpdateStatefulSetWithRetries(c, ns, ss.Name, func(update *apps.StatefulSet) {
+					update.Spec.UpdateStrategy = apps.StatefulSetUpdateStrategy{
+						Type: apps.RollingUpdateStatefulSetStrategyType,
+						RollingUpdate: func() *apps.RollingUpdateStatefulSetStrategy {
+							j := int32(i)
+							return &apps.RollingUpdateStatefulSetStrategy{
+								Partition: &j,
+							}
+						}(),
+					}
+				})
+				Expect(err).NotTo(HaveOccurred())
+				ss, pods = sst.WaitForPartitionedRollingUpdate(ss)
+				for i := range pods.Items {
+					if i < int(*ss.Spec.UpdateStrategy.RollingUpdate.Partition) {
+						Expect(pods.Items[i].Spec.Containers[0].Image).To(Equal(oldImage),
+							fmt.Sprintf("Pod %s/%s has image %s not equal to current image %s",
+								pods.Items[i].Namespace,
+								pods.Items[i].Name,
+								pods.Items[i].Spec.Containers[0].Image,
+								oldImage))
+						Expect(pods.Items[i].Labels[apps.StatefulSetRevisionLabel]).To(Equal(currentRevision),
+							fmt.Sprintf("Pod %s/%s has revision %s not equal to current revision %s",
+								pods.Items[i].Namespace,
+								pods.Items[i].Name,
+								pods.Items[i].Labels[apps.StatefulSetRevisionLabel],
+								currentRevision))
+					} else {
+						Expect(pods.Items[i].Spec.Containers[0].Image).To(Equal(newImage),
+							fmt.Sprintf("Pod %s/%s has image %s not equal to new image  %s",
+								pods.Items[i].Namespace,
+								pods.Items[i].Name,
+								pods.Items[i].Spec.Containers[0].Image,
+								newImage))
+						Expect(pods.Items[i].Labels[apps.StatefulSetRevisionLabel]).To(Equal(updateRevision),
+							fmt.Sprintf("Pod %s/%s has revision %s not equal to new revision %s",
+								pods.Items[i].Namespace,
+								pods.Items[i].Name,
+								pods.Items[i].Labels[apps.StatefulSetRevisionLabel],
+								updateRevision))
+					}
+				}
+			}
+			Expect(ss.Status.CurrentRevision).To(Equal(updateRevision),
+				fmt.Sprintf("StatefulSet %s/%s current revision %s does not equal update revison %s on update completion",
+					ss.Namespace,
+					ss.Name,
+					ss.Status.CurrentRevision,
+					updateRevision))
+
+		})
+
+		It("should implement legacy replacement when the update strategy is OnDelete", func() {
+			By("Creating a new StatefulSet")
+			ss := framework.NewStatefulSet("ss2", ns, headlessSvcName, 3, nil, nil, labels)
+			sst := framework.NewStatefulSetTester(c)
+			sst.SetHttpProbe(ss)
+			ss.Spec.UpdateStrategy = apps.StatefulSetUpdateStrategy{
+				Type: apps.OnDeleteStatefulSetStrategyType,
+			}
+			ss, err := c.Apps().StatefulSets(ns).Create(ss)
+			Expect(err).NotTo(HaveOccurred())
+			sst.WaitForRunningAndReady(*ss.Spec.Replicas, ss)
+			ss = sst.WaitForStatus(ss)
+			currentRevision, updateRevision := ss.Status.CurrentRevision, ss.Status.UpdateRevision
+			Expect(currentRevision).To(Equal(updateRevision),
+				fmt.Sprintf("StatefulSet %s/%s created with update revision %s not equal to current revision %s",
+					ss.Namespace, ss.Name, updateRevision, currentRevision))
+			pods := sst.GetPodList(ss)
+			for i := range pods.Items {
+				Expect(pods.Items[i].Labels[apps.StatefulSetRevisionLabel]).To(Equal(currentRevision),
+					fmt.Sprintf("Pod %s/%s revision %s is not equal to current revision %s",
+						pods.Items[i].Namespace,
+						pods.Items[i].Name,
+						pods.Items[i].Labels[apps.StatefulSetRevisionLabel],
+						currentRevision))
+			}
+
+			By("Restoring Pods to the current revision")
+			sst.DeleteStatefulPodAtIndex(0, ss)
+			sst.DeleteStatefulPodAtIndex(1, ss)
+			sst.DeleteStatefulPodAtIndex(2, ss)
+			sst.WaitForRunningAndReady(3, ss)
+			ss = sst.GetStatefulSet(ss.Namespace, ss.Name)
+			pods = sst.GetPodList(ss)
+			for i := range pods.Items {
+				Expect(pods.Items[i].Labels[apps.StatefulSetRevisionLabel]).To(Equal(currentRevision),
+					fmt.Sprintf("Pod %s/%s revision %s is not equal to current revision %s",
+						pods.Items[i].Namespace,
+						pods.Items[i].Name,
+						pods.Items[i].Labels[apps.StatefulSetRevisionLabel],
+						currentRevision))
+			}
+			newImage := newNginxImage
+			oldImage := ss.Spec.Template.Spec.Containers[0].Image
+
+			By(fmt.Sprintf("Updating stateful set template: update image from %s to %s", oldImage, newImage))
+			Expect(oldImage).NotTo(Equal(newImage), "Incorrect test setup: should update to a different image")
+			ss, err = framework.UpdateStatefulSetWithRetries(c, ns, ss.Name, func(update *apps.StatefulSet) {
+				update.Spec.Template.Spec.Containers[0].Image = newImage
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Creating a new revision")
+			ss = sst.WaitForStatus(ss)
+			currentRevision, updateRevision = ss.Status.CurrentRevision, ss.Status.UpdateRevision
+			Expect(currentRevision).NotTo(Equal(updateRevision),
+				"Current revision should not equal update revision during rolling update")
+
+			By("Recreating Pods at the new revision")
+			sst.DeleteStatefulPodAtIndex(0, ss)
+			sst.DeleteStatefulPodAtIndex(1, ss)
+			sst.DeleteStatefulPodAtIndex(2, ss)
+			sst.WaitForRunningAndReady(3, ss)
+			ss = sst.GetStatefulSet(ss.Namespace, ss.Name)
+			pods = sst.GetPodList(ss)
+			for i := range pods.Items {
+				Expect(pods.Items[i].Spec.Containers[0].Image).To(Equal(newImage),
+					fmt.Sprintf("Pod %s/%s has image %s not equal to new image %s",
+						pods.Items[i].Namespace,
+						pods.Items[i].Name,
+						pods.Items[i].Spec.Containers[0].Image,
+						newImage))
+				Expect(pods.Items[i].Labels[apps.StatefulSetRevisionLabel]).To(Equal(updateRevision),
+					fmt.Sprintf("Pod %s/%s has revision %s not equal to current revision %s",
+						pods.Items[i].Namespace,
+						pods.Items[i].Name,
+						pods.Items[i].Labels[apps.StatefulSetRevisionLabel],
+						updateRevision))
+			}
 		})
 
 		It("Scaling should happen in predictable order and halt if any stateful pod is unhealthy", func() {
@@ -356,27 +656,24 @@ var _ = framework.KubeDescribe("StatefulSet", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Creating stateful set " + ssName + " in namespace " + ns)
-			testProbe := &v1.Probe{Handler: v1.Handler{HTTPGet: &v1.HTTPGetAction{
-				Path: "/index.html",
-				Port: intstr.IntOrString{IntVal: 80}}}}
 			ss := framework.NewStatefulSet(ssName, ns, headlessSvcName, 1, nil, nil, psLabels)
-			ss.Spec.Template.Spec.Containers[0].ReadinessProbe = testProbe
+			sst := framework.NewStatefulSetTester(c)
+			sst.SetHttpProbe(ss)
 			ss, err = c.Apps().StatefulSets(ns).Create(ss)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Waiting until all stateful set " + ssName + " replicas will be running in namespace " + ns)
-			sst := framework.NewStatefulSetTester(c)
 			sst.WaitForRunningAndReady(*ss.Spec.Replicas, ss)
 
 			By("Confirming that stateful set scale up will halt with unhealthy stateful pod")
-			sst.BreakProbe(ss, testProbe)
+			sst.BreakHttpProbe(ss)
 			sst.WaitForRunningAndNotReady(*ss.Spec.Replicas, ss)
-			sst.WaitForStatus(ss, 0)
+			sst.WaitForStatusReadyReplicas(ss, 0)
 			sst.UpdateReplicas(ss, 3)
-			sst.ConfirmStatefulPodCount(1, ss, 10*time.Second)
+			sst.ConfirmStatefulPodCount(1, ss, 10*time.Second, true)
 
 			By("Scaling up stateful set " + ssName + " to 3 replicas and waiting until all of them will be running in namespace " + ns)
-			sst.RestoreProbe(ss, testProbe)
+			sst.RestoreHttpProbe(ss)
 			sst.WaitForRunningAndReady(3, ss)
 
 			By("Verifying that stateful set " + ssName + " was scaled up in order")
@@ -400,14 +697,14 @@ var _ = framework.KubeDescribe("StatefulSet", func() {
 			})
 			Expect(err).NotTo(HaveOccurred())
 
-			sst.BreakProbe(ss, testProbe)
-			sst.WaitForStatus(ss, 0)
+			sst.BreakHttpProbe(ss)
+			sst.WaitForStatusReadyReplicas(ss, 0)
 			sst.WaitForRunningAndNotReady(3, ss)
 			sst.UpdateReplicas(ss, 0)
-			sst.ConfirmStatefulPodCount(3, ss, 10*time.Second)
+			sst.ConfirmStatefulPodCount(3, ss, 10*time.Second, true)
 
 			By("Scaling down stateful set " + ssName + " to 0 replicas and waiting until none of pods will run in namespace" + ns)
-			sst.RestoreProbe(ss, testProbe)
+			sst.RestoreHttpProbe(ss)
 			sst.Scale(ss, 0)
 
 			By("Verifying that stateful set " + ssName + " was scaled down in reverse order")
@@ -424,6 +721,44 @@ var _ = framework.KubeDescribe("StatefulSet", func() {
 
 			})
 			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("Burst scaling should run to completion even with unhealthy pods", func() {
+			psLabels := klabels.Set(labels)
+
+			By("Creating stateful set " + ssName + " in namespace " + ns)
+			ss := framework.NewStatefulSet(ssName, ns, headlessSvcName, 1, nil, nil, psLabels)
+			ss.Spec.PodManagementPolicy = apps.ParallelPodManagement
+			sst := framework.NewStatefulSetTester(c)
+			sst.SetHttpProbe(ss)
+			ss, err := c.Apps().StatefulSets(ns).Create(ss)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Waiting until all stateful set " + ssName + " replicas will be running in namespace " + ns)
+			sst.WaitForRunningAndReady(*ss.Spec.Replicas, ss)
+
+			By("Confirming that stateful set scale up will not halt with unhealthy stateful pod")
+			sst.BreakHttpProbe(ss)
+			sst.WaitForRunningAndNotReady(*ss.Spec.Replicas, ss)
+			sst.WaitForStatusReadyReplicas(ss, 0)
+			sst.UpdateReplicas(ss, 3)
+			sst.ConfirmStatefulPodCount(3, ss, 10*time.Second, false)
+
+			By("Scaling up stateful set " + ssName + " to 3 replicas and waiting until all of them will be running in namespace " + ns)
+			sst.RestoreHttpProbe(ss)
+			sst.WaitForRunningAndReady(3, ss)
+
+			By("Scale down will not halt with unhealthy stateful pod")
+			sst.BreakHttpProbe(ss)
+			sst.WaitForStatusReadyReplicas(ss, 0)
+			sst.WaitForRunningAndNotReady(3, ss)
+			sst.UpdateReplicas(ss, 0)
+			sst.ConfirmStatefulPodCount(0, ss, 10*time.Second, false)
+
+			By("Scaling down stateful set " + ssName + " to 0 replicas and waiting until none of pods will run in namespace" + ns)
+			sst.RestoreHttpProbe(ss)
+			sst.Scale(ss, 0)
+			sst.WaitForStatusReplicas(ss, 0)
 		})
 
 		It("Should recreate evicted statefulset", func() {
@@ -472,12 +807,9 @@ var _ = framework.KubeDescribe("StatefulSet", func() {
 			framework.ExpectNoError(err)
 			// we need to get UID from pod in any state and wait until stateful set controller will remove pod atleast once
 			_, err = watch.Until(framework.StatefulPodTimeout, w, func(event watch.Event) (bool, error) {
-				if event.Type == watch.Error {
-					framework.Logf("Keep waiting, received error from watch event: %v", kerrors.FromObject(event.Object))
-					return false, nil
-				}
 				pod := event.Object.(*v1.Pod)
-				if event.Type == watch.Deleted {
+				switch event.Type {
+				case watch.Deleted:
 					framework.Logf("Observed delete event for stateful pod %v in namespace %v", pod.Name, pod.Namespace)
 					if initialStatefulPodUID == "" {
 						return false, nil
@@ -727,7 +1059,7 @@ func (c *cockroachDBTester) name() string {
 }
 
 func (c *cockroachDBTester) cockroachDBExec(cmd, ns, podName string) string {
-	cmd = fmt.Sprintf("/cockroach/cockroach sql --host %s.cockroachdb -e \"%v\"", podName, cmd)
+	cmd = fmt.Sprintf("/cockroach/cockroach sql --insecure --host %s.cockroachdb -e \"%v\"", podName, cmd)
 	return framework.RunKubectlOrDie(fmt.Sprintf("--namespace=%v", ns), "exec", podName, "--", "/bin/sh", "-c", cmd)
 }
 

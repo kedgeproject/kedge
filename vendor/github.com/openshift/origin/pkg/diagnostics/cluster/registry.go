@@ -11,18 +11,18 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	kapi "k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/apis/authorization"
 	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 
-	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
-	osclient "github.com/openshift/origin/pkg/client"
 	"github.com/openshift/origin/pkg/diagnostics/types"
 	osapi "github.com/openshift/origin/pkg/image/apis/image"
+	imagetypedclient "github.com/openshift/origin/pkg/image/generated/internalclientset/typed/image/internalversion"
 )
 
 // ClusterRegistry is a Diagnostic to check that there is a working Docker registry.
 type ClusterRegistry struct {
 	KubeClient          kclientset.Interface
-	OsClient            *osclient.Client
+	ImageStreamClient   imagetypedclient.ImageStreamsGetter
 	PreventModification bool
 }
 
@@ -36,7 +36,7 @@ There is no "%s" service in project "%s". This is not strictly required to
 be present; however, it is required for builds, and its absence probably
 indicates an incomplete installation.
 
-Please consult the documentation and use the 'oadm registry' command
+Please consult the documentation and use the 'oc adm registry' command
 to create a Docker registry.`
 
 	clGetRegFailed = `
@@ -131,19 +131,19 @@ oc delete imagestream/%[1]s -n default
 `
 
 	clRegISMismatch = `
-Diagnostics created a test ImageStream and compared the registry IP
-it received to the registry IP available via the %[1]s service.
+Diagnostics created a test ImageStream and compared the registry
+it received to the registry IP and host available via the %[1]s service.
 
-%[1]s      : %[2]s
-ImageStream registry : %[3]s
+%[1]s by IP: %[2]s
+%[1]s by host: %[3]s
+ImageStream registry : %[4]s
 
-They do not match, which probably means that an administrator re-created
-the %[1]s service but the master has cached the old service
-IP address. Builds or deployments that use ImageStreams with the wrong
-%[1]s IP will fail under this condition.
-
-To resolve this issue, restarting the master (to clear the cache) should
-be sufficient. Existing ImageStreams may need to be re-created.`
+Neither matches, which could mean that the master has cached an old
+service; possibly an administrator re-created the %[1]s service with
+a different IP address. Builds or deployments that use ImageStreams
+with the wrong %[1]s IP will fail under this condition. If this is the
+case, restarting the master (to clear the cache) should resolve the
+issue. Existing ImageStreams may need to be re-created.`
 )
 
 func (d *ClusterRegistry) Name() string {
@@ -155,15 +155,15 @@ func (d *ClusterRegistry) Description() string {
 }
 
 func (d *ClusterRegistry) CanRun() (bool, error) {
-	if d.OsClient == nil || d.KubeClient == nil {
+	if d.ImageStreamClient == nil || d.KubeClient == nil {
 		return false, fmt.Errorf("must have kube and os clients")
 	}
-	return userCan(d.OsClient, authorizationapi.Action{
-		Namespace:    metav1.NamespaceDefault,
-		Verb:         "get",
-		Group:        kapi.GroupName,
-		Resource:     "services",
-		ResourceName: registryName,
+	return userCan(d.KubeClient.Authorization(), &authorization.ResourceAttributes{
+		Namespace: metav1.NamespaceDefault,
+		Verb:      "get",
+		Group:     kapi.GroupName,
+		Resource:  "services",
+		Name:      registryName,
 	})
 }
 
@@ -321,25 +321,28 @@ func (d *ClusterRegistry) verifyRegistryImageStream(service *kapi.Service, r typ
 		r.Info("DClu1021", "Skipping creating an ImageStream to test registry service address, because you requested no API modifications.")
 		return
 	}
-	imgStream, err := d.OsClient.ImageStreams(metav1.NamespaceDefault).Create(&osapi.ImageStream{ObjectMeta: metav1.ObjectMeta{GenerateName: "diagnostic-test"}})
+	imgStream, err := d.ImageStreamClient.ImageStreams(metav1.NamespaceDefault).Create(&osapi.ImageStream{ObjectMeta: metav1.ObjectMeta{GenerateName: "diagnostic-test"}})
 	if err != nil {
 		r.Error("DClu1015", err, fmt.Sprintf("Creating test ImageStream failed. Error: (%T) %[1]v", err))
 		return
 	}
 	defer func() { // delete what we created, or notify that we couldn't
-		if err := d.OsClient.ImageStreams(metav1.NamespaceDefault).Delete(imgStream.ObjectMeta.Name); err != nil {
+		if err := d.ImageStreamClient.ImageStreams(metav1.NamespaceDefault).Delete(imgStream.ObjectMeta.Name, nil); err != nil {
 			r.Warn("DClu1016", err, fmt.Sprintf(clRegISDelFail, imgStream.ObjectMeta.Name, fmt.Sprintf("(%T) %[1]s", err)))
 		}
 	}()
-	imgStream, err = d.OsClient.ImageStreams(metav1.NamespaceDefault).Get(imgStream.ObjectMeta.Name, metav1.GetOptions{}) // status is filled in post-create
+	imgStream, err = d.ImageStreamClient.ImageStreams(metav1.NamespaceDefault).Get(imgStream.ObjectMeta.Name, metav1.GetOptions{}) // status is filled in post-create
 	if err != nil {
 		r.Error("DClu1017", err, fmt.Sprintf("Getting created test ImageStream failed. Error: (%T) %[1]v", err))
 		return
 	}
 	r.Debug("DClu1018", fmt.Sprintf("Created test ImageStream: %[1]v", imgStream))
 	cacheHost := strings.SplitN(imgStream.Status.DockerImageRepository, "/", 2)[0]
-	serviceHost := fmt.Sprintf("%s:%d", service.Spec.ClusterIP, service.Spec.Ports[0].Port)
-	if cacheHost != serviceHost {
-		r.Error("DClu1019", nil, fmt.Sprintf(clRegISMismatch, registryName, serviceHost, cacheHost))
+	// the registry for imagestreams was previously recorded as an IP, which could change if the registry service were re-created.
+	// Now it is a cluster hostname, which should be unchanging even if re-created. Just ensure it is the right hostname.
+	serviceIpPort := fmt.Sprintf("%s:%d", service.Spec.ClusterIP, service.Spec.Ports[0].Port)
+	serviceHostPort := fmt.Sprintf("%s.%s.svc:%d", registryName, service.ObjectMeta.Namespace, service.Spec.Ports[0].Port)
+	if cacheHost != serviceIpPort && cacheHost != serviceHostPort {
+		r.Error("DClu1019", nil, fmt.Sprintf(clRegISMismatch, registryName, serviceIpPort, serviceHostPort, cacheHost))
 	}
 }

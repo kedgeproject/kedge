@@ -25,7 +25,7 @@ import (
 )
 
 func TestDeletionTimestampExists(t *testing.T) {
-	obj := &sc.Instance{
+	obj := &sc.ServiceInstance{
 		ObjectMeta: metav1.ObjectMeta{},
 	}
 	exists, err := DeletionTimestampExists(obj)
@@ -49,7 +49,7 @@ func TestDeletionTimestampExists(t *testing.T) {
 func TestRoundTripDeletionTimestamp(t *testing.T) {
 	t1 := metav1.NewTime(time.Now())
 	t2 := metav1.NewTime(time.Now().Add(1 * time.Hour))
-	obj := &sc.Instance{
+	obj := &sc.ServiceInstance{
 		ObjectMeta: metav1.ObjectMeta{
 			DeletionTimestamp: &t1,
 		},
@@ -58,7 +58,7 @@ func TestRoundTripDeletionTimestamp(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error getting 1st deletion timestamp (%s)", err)
 	}
-	if !t1.Equal(*t1Ret) {
+	if !t1.Equal(t1Ret) {
 		t.Fatalf("expected deletion timestamp %s, got %s", t1, *t1Ret)
 	}
 	if err := SetDeletionTimestamp(obj, t2.Time); err != nil {
@@ -68,7 +68,7 @@ func TestRoundTripDeletionTimestamp(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error getting 2nd deletion timestamp (%s)", err)
 	}
-	if !t2.Equal(*t2Ret) {
+	if !t2.Equal(t2Ret) {
 		t.Fatalf("expected deletion timestamp %s, got %s", t2, *t2Ret)
 	}
 }

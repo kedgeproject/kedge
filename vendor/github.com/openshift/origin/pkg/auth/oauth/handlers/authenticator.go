@@ -23,6 +23,13 @@ func NewAuthorizeAuthenticator(request authenticator.Request, handler Authentica
 	return &AuthorizeAuthenticator{request, handler, errorHandler}
 }
 
+type TokenMaxAgeSeconds interface {
+	// GetTokenMaxAgeSeconds returns the max age of the token in seconds.
+	// 0 means no expiration.
+	// nil means to use the default expiration.
+	GetTokenMaxAgeSeconds() *int32
+}
+
 // HandleAuthorize implements osinserver.AuthorizeHandler to ensure the AuthorizeRequest is authenticated.
 // If the request is authenticated, UserData and Authorized are set and false is returned.
 // If the request is not authenticated, the auth handler is called and the request is not authorized
@@ -38,6 +45,16 @@ func (h *AuthorizeAuthenticator) HandleAuthorize(ar *osin.AuthorizeRequest, resp
 	glog.V(4).Infof("OAuth authentication succeeded: %#v", info)
 	ar.UserData = info
 	ar.Authorized = true
+
+	// If requesting a token directly, optionally override the expiration
+	if ar.Type == osin.TOKEN {
+		if e, ok := ar.Client.(TokenMaxAgeSeconds); ok {
+			if maxAge := e.GetTokenMaxAgeSeconds(); maxAge != nil {
+				ar.Expiration = *maxAge
+			}
+		}
+	}
+
 	return false, nil
 }
 
@@ -87,7 +104,14 @@ func (h *AccessAuthenticator) HandleAccess(ar *osin.AccessRequest, w http.Respon
 		if info != nil {
 			ar.AccessData.UserData = info
 		}
+
+		if e, ok := ar.Client.(TokenMaxAgeSeconds); ok {
+			if maxAge := e.GetTokenMaxAgeSeconds(); maxAge != nil {
+				ar.Expiration = *maxAge
+			}
+		}
 	}
+
 	return nil
 }
 

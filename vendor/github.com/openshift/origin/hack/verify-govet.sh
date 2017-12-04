@@ -1,6 +1,13 @@
 #!/bin/bash
 source "$(dirname "${BASH_SOURCE}")/lib/init.sh"
 
+function cleanup() {
+    return_code=$?
+    os::util::describe_return_code "${return_code}"
+    exit "${return_code}"
+}
+trap "cleanup" EXIT
+
 os::golang::verify_go_version
 
 govet_blacklist=(
@@ -23,7 +30,7 @@ function govet_blacklist_contains() {
 }
 
 for test_dir in $(os::util::list_go_src_dirs); do
-	if ! result="$(go tool vet -shadow=false "${test_dir}" 2>&1)"; then
+	if ! result="$(go tool vet -shadow=false -printfuncs=Info,Infof,Warning,Warningf "${test_dir}" 2>&1)"; then
 		while read -r line; do
 			if ! govet_blacklist_contains "${line}"; then
 				echo "${line}"
@@ -36,9 +43,5 @@ done
 # We don't want to exit on the first failure of go vet, so just keep track of
 # whether a failure occurred or not.
 if [[ -n "${FAILURE:-}" ]]; then
-	echo "FAILURE: go vet failed!"
-	exit 1
-else
-	echo "SUCCESS: go vet succeeded!"
-	exit 0
+	os::log::fatal "FAILURE: go vet failed!"
 fi

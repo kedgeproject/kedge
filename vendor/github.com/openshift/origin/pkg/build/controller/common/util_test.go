@@ -15,8 +15,8 @@ import (
 
 	buildapi "github.com/openshift/origin/pkg/build/apis/build"
 	buildclient "github.com/openshift/origin/pkg/build/client"
+	buildfake "github.com/openshift/origin/pkg/build/generated/internalclientset/fake"
 	buildutil "github.com/openshift/origin/pkg/build/util"
-	"github.com/openshift/origin/pkg/client/testclient"
 )
 
 func mockBuildConfig(name string) buildapi.BuildConfig {
@@ -88,28 +88,6 @@ func mockBuildsList(length int) (buildapi.BuildConfig, []buildapi.Build) {
 	return mockBuildConfig("myapp"), builds
 }
 
-func TestSetBuildCompletionTimeAndDuration(t *testing.T) {
-	build := &buildapi.Build{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "myapp-1",
-			Namespace: "namespace",
-		},
-	}
-
-	now := metav1.Now()
-	SetBuildCompletionTimeAndDuration(build, &now)
-
-	if build.Status.StartTimestamp == nil {
-		t.Errorf("should have set the StartTimestamp, but instead it was nil")
-	}
-	if build.Status.CompletionTimestamp == nil {
-		t.Errorf("should have set the CompletionTimestamp, but instead it was nil")
-	}
-	if build.Status.Duration > 0 {
-		t.Errorf("should have set the Duration to 0s, but instead it was %v", build.Status.Duration)
-	}
-}
-
 func TestHandleBuildPruning(t *testing.T) {
 	var objects []runtime.Object
 	buildconfig, builds := mockBuildsList(16)
@@ -119,16 +97,16 @@ func TestHandleBuildPruning(t *testing.T) {
 		objects = append(objects, &builds[index])
 	}
 
-	osclient := testclient.NewSimpleFake(objects...)
+	buildClient := buildfake.NewSimpleClientset(objects...)
 
-	build, err := osclient.Builds("namespace").Get("myapp-0", metav1.GetOptions{})
+	build, err := buildClient.Build().Builds("namespace").Get("myapp-0", metav1.GetOptions{})
 	if err != nil {
 		t.Errorf("%v", err)
 	}
 
-	buildLister := buildclient.NewOSClientBuildLister(osclient)
-	buildConfigGetter := buildclient.NewOSClientBuildConfigLister(osclient)
-	buildDeleter := buildclient.NewOSClientBuildClient(osclient)
+	buildLister := buildclient.NewClientBuildLister(buildClient.Build())
+	buildConfigGetter := buildclient.NewClientBuildConfigLister(buildClient.Build())
+	buildDeleter := buildclient.NewClientBuildClient(buildClient)
 
 	bcName := buildutil.ConfigNameForBuild(build)
 	successfulStartingBuilds, err := buildutil.BuildConfigBuilds(buildLister, build.Namespace, bcName, func(build *buildapi.Build) bool { return build.Status.Phase == buildapi.BuildPhaseComplete })

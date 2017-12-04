@@ -49,9 +49,8 @@ func SetDefaults_ImagePolicyConfig(obj *ImagePolicyConfig) {
 }
 
 func addDefaultingFuncs(scheme *runtime.Scheme) error {
-	return scheme.AddDefaultingFuncs(
-		SetDefaults_ImagePolicyConfig,
-	)
+	scheme.AddTypeDefaultingFunc(&ImagePolicyConfig{}, func(obj interface{}) { SetDefaults_ImagePolicyConfig(obj.(*ImagePolicyConfig)) })
+	return nil
 }
 
 // executionRuleCoversResource returns true if gr is covered by rule.

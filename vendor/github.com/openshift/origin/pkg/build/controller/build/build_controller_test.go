@@ -2,6 +2,7 @@ package build
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
@@ -22,19 +23,18 @@ import (
 	kinternalclientfake "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/fake"
 	kexternalinformers "k8s.io/kubernetes/pkg/client/informers/informers_generated/externalversions"
 
-	builddefaults "github.com/openshift/origin/pkg/build/admission/defaults"
-	buildoverrides "github.com/openshift/origin/pkg/build/admission/overrides"
 	buildapi "github.com/openshift/origin/pkg/build/apis/build"
 	"github.com/openshift/origin/pkg/build/apis/build/validation"
+	builddefaults "github.com/openshift/origin/pkg/build/controller/build/defaults"
+	buildoverrides "github.com/openshift/origin/pkg/build/controller/build/overrides"
 	"github.com/openshift/origin/pkg/build/controller/common"
 	"github.com/openshift/origin/pkg/build/controller/policy"
 	strategy "github.com/openshift/origin/pkg/build/controller/strategy"
 	buildinformersinternal "github.com/openshift/origin/pkg/build/generated/informers/internalversion"
 	buildinternalclientset "github.com/openshift/origin/pkg/build/generated/internalclientset"
+	buildfake "github.com/openshift/origin/pkg/build/generated/internalclientset/fake"
 	buildinternalfakeclient "github.com/openshift/origin/pkg/build/generated/internalclientset/fake"
 	buildutil "github.com/openshift/origin/pkg/build/util"
-	"github.com/openshift/origin/pkg/client"
-	"github.com/openshift/origin/pkg/client/testclient"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
 	imageinformersinternal "github.com/openshift/origin/pkg/image/generated/informers/internalversion"
 	imageinternalclientset "github.com/openshift/origin/pkg/image/generated/internalclientset"
@@ -132,7 +132,6 @@ func TestHandleBuild(t *testing.T) {
 		expectPodCreated bool
 		expectPodDeleted bool
 		expectError      bool
-		expectOnComplete bool
 	}{
 		{
 			name:  "cancel running build",
@@ -144,7 +143,6 @@ func TestHandleBuild(t *testing.T) {
 				completionTime(now).
 				startTime(now).update,
 			expectPodDeleted: true,
-			expectOnComplete: true,
 		},
 		{
 			name:         "cancel build in terminal state",
@@ -194,7 +192,6 @@ func TestHandleBuild(t *testing.T) {
 				startTime(now).
 				completionTime(now).
 				update,
-			expectOnComplete: true,
 		},
 		{
 			name:         "new not runnable by policy",
@@ -230,10 +227,9 @@ func TestHandleBuild(t *testing.T) {
 			expectError:        true,
 		},
 		{
-			name:             "pending -> failed",
-			build:            build(buildapi.BuildPhasePending),
-			pod:              pod(v1.PodFailed),
-			expectOnComplete: true,
+			name:  "pending -> failed",
+			build: build(buildapi.BuildPhasePending),
+			pod:   pod(v1.PodFailed),
 			expectUpdate: newUpdate().
 				phase(buildapi.BuildPhaseFailed).
 				reason(buildapi.StatusReasonGenericBuildFailed).
@@ -249,10 +245,9 @@ func TestHandleBuild(t *testing.T) {
 			expectUpdate: nil,
 		},
 		{
-			name:             "running -> complete",
-			build:            build(buildapi.BuildPhaseRunning),
-			pod:              pod(v1.PodSucceeded),
-			expectOnComplete: true,
+			name:  "running -> complete",
+			build: build(buildapi.BuildPhaseRunning),
+			pod:   pod(v1.PodSucceeded),
 			expectUpdate: newUpdate().
 				phase(buildapi.BuildPhaseComplete).
 				reason("").
@@ -268,9 +263,8 @@ func TestHandleBuild(t *testing.T) {
 			expectUpdate: nil,
 		},
 		{
-			name:             "running with missing pod",
-			build:            build(buildapi.BuildPhaseRunning),
-			expectOnComplete: true,
+			name:  "running with missing pod",
+			build: build(buildapi.BuildPhaseRunning),
 			expectUpdate: newUpdate().
 				phase(buildapi.BuildPhaseError).
 				reason(buildapi.StatusReasonBuildPodDeleted).
@@ -280,10 +274,9 @@ func TestHandleBuild(t *testing.T) {
 				update,
 		},
 		{
-			name:             "failed -> failed with no completion timestamp",
-			build:            build(buildapi.BuildPhaseFailed),
-			pod:              pod(v1.PodFailed),
-			expectOnComplete: true,
+			name:  "failed -> failed with no completion timestamp",
+			build: build(buildapi.BuildPhaseFailed),
+			pod:   pod(v1.PodFailed),
 			expectUpdate: newUpdate().
 				startTime(now).
 				completionTime(now).
@@ -293,18 +286,15 @@ func TestHandleBuild(t *testing.T) {
 			name:  "failed -> failed with completion timestamp+message and no logsnippet",
 			build: withCompletionTS(build(buildapi.BuildPhaseFailed)),
 			pod:   withTerminationMessage(pod(v1.PodFailed)),
-			// no oncomplete call because the completion timestamp is already set.
-			expectOnComplete: false,
 			expectUpdate: newUpdate().
 				startTime(now).
 				logSnippet("termination message").
 				update,
 		},
 		{
-			name:             "failed -> failed with completion timestamp+message and logsnippet",
-			build:            withLogSnippet(withCompletionTS(build(buildapi.BuildPhaseFailed))),
-			pod:              withTerminationMessage(pod(v1.PodFailed)),
-			expectOnComplete: false,
+			name:  "failed -> failed with completion timestamp+message and logsnippet",
+			build: withLogSnippet(withCompletionTS(build(buildapi.BuildPhaseFailed))),
+			pod:   withTerminationMessage(pod(v1.PodFailed)),
 		},
 	}
 
@@ -312,8 +302,8 @@ func TestHandleBuild(t *testing.T) {
 		func() {
 			var patchedBuild *buildapi.Build
 			var appliedPatch string
-			openshiftClient := fakeOpenshiftClient(tc.build)
-			openshiftClient.(*testclient.Fake).PrependReactor("patch", "builds",
+			buildClient := fakeBuildClient(tc.build)
+			buildClient.(*buildfake.Clientset).PrependReactor("patch", "builds",
 				func(action clientgotesting.Action) (bool, runtime.Object, error) {
 					if tc.errorOnBuildUpdate {
 						return true, nil, fmt.Errorf("error")
@@ -352,7 +342,7 @@ func TestHandleBuild(t *testing.T) {
 					return true, nil, nil
 				})
 
-			bc := newFakeBuildController(openshiftClient, nil, nil, kubeClient, nil)
+			bc := newFakeBuildController(buildClient, nil, kubeClient, nil)
 			defer bc.stop()
 
 			runPolicy := tc.runPolicy
@@ -375,9 +365,6 @@ func TestHandleBuild(t *testing.T) {
 			}
 			if tc.expectPodCreated != podCreated {
 				t.Errorf("%s: pod created. expected: %v, actual: %v", tc.name, tc.expectPodCreated, podCreated)
-			}
-			if tc.expectOnComplete != runPolicy.onCompleteCalled {
-				t.Errorf("%s: on complete called. expected: %v, actual: %v", tc.name, tc.expectOnComplete, runPolicy.onCompleteCalled)
 			}
 			if tc.expectUpdate != nil {
 				if patchedBuild == nil {
@@ -414,17 +401,16 @@ func TestHandleBuild(t *testing.T) {
 func TestWorkWithNewBuild(t *testing.T) {
 	build := dockerStrategy(mockBuild(buildapi.BuildPhaseNew, buildapi.BuildOutput{}))
 	var patchedBuild *buildapi.Build
-	openshiftClient := fakeOpenshiftClient()
-	openshiftClient.(*testclient.Fake).PrependReactor("patch", "builds", applyBuildPatchReaction(t, build, &patchedBuild))
 	buildClient := fakeBuildClient(build)
+	buildClient.(*buildfake.Clientset).PrependReactor("patch", "builds", applyBuildPatchReaction(t, build, &patchedBuild))
 
-	bc := newFakeBuildController(openshiftClient, buildClient, nil, nil, nil)
+	bc := newFakeBuildController(buildClient, nil, nil, nil)
 	defer bc.stop()
 	bc.enqueueBuild(build)
 
-	bc.work()
+	bc.buildWork()
 
-	if bc.queue.Len() > 0 {
+	if bc.buildQueue.Len() > 0 {
 		t.Errorf("Expected queue to be empty")
 	}
 	if patchedBuild == nil {
@@ -438,7 +424,7 @@ func TestWorkWithNewBuild(t *testing.T) {
 
 func TestCreateBuildPod(t *testing.T) {
 	kubeClient := fakeKubeExternalClientSet()
-	bc := newFakeBuildController(nil, nil, nil, kubeClient, nil)
+	bc := newFakeBuildController(nil, nil, kubeClient, nil)
 	defer bc.stop()
 	build := dockerStrategy(mockBuild(buildapi.BuildPhaseNew, buildapi.BuildOutput{}))
 
@@ -455,7 +441,6 @@ func TestCreateBuildPod(t *testing.T) {
 	expected.setPhase(buildapi.BuildPhasePending)
 	expected.setReason("")
 	expected.setMessage("")
-	expected.setOutputRef("")
 	validateUpdate(t, "create build pod", expected, update)
 	// Make sure that a pod was created
 	_, err = kubeClient.Core().Pods("namespace").Get(podName, metav1.GetOptions{})
@@ -469,18 +454,16 @@ func TestCreateBuildPodWithImageStreamOutput(t *testing.T) {
 	imageStream.Namespace = "isnamespace"
 	imageStream.Name = "isname"
 	imageStream.Status.DockerImageRepository = "namespace/image-name"
-	imageStreamRef := &kapi.ObjectReference{Name: "isname:latest", Namespace: "isnamespace", Kind: "ImageStreamTag"}
 	imageClient := fakeImageClient(imageStream)
-	bc := newFakeBuildController(nil, nil, imageClient, nil, nil)
+	imageStreamRef := &kapi.ObjectReference{Name: "isname:latest", Namespace: "isnamespace", Kind: "ImageStreamTag"}
+	bc := newFakeBuildController(nil, imageClient, nil, nil)
 	defer bc.stop()
 	build := dockerStrategy(mockBuild(buildapi.BuildPhaseNew, buildapi.BuildOutput{To: imageStreamRef}))
 	podName := buildapi.GetBuildPodName(build)
 
 	update, err := bc.createBuildPod(build)
-
 	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-		return
+		t.Fatalf("unexpected error: %v", err)
 	}
 	expected := &buildUpdate{}
 	expected.setPodNameAnnotation(podName)
@@ -489,23 +472,74 @@ func TestCreateBuildPodWithImageStreamOutput(t *testing.T) {
 	expected.setMessage("")
 	expected.setOutputRef("namespace/image-name:latest")
 	validateUpdate(t, "create build pod with imagestream output", expected, update)
+	if len(bc.imageStreamQueue.Pop("isnamespace/isname")) > 0 {
+		t.Errorf("should not have queued build update")
+	}
 }
 
-func TestCreateBuildPodWithImageStreamError(t *testing.T) {
+func TestCreateBuildPodWithOutputImageStreamMissing(t *testing.T) {
 	imageStreamRef := &kapi.ObjectReference{Name: "isname:latest", Namespace: "isnamespace", Kind: "ImageStreamTag"}
-	bc := newFakeBuildController(nil, nil, nil, nil, nil)
+	bc := newFakeBuildController(nil, nil, nil, nil)
+	defer bc.stop()
+	build := dockerStrategy(mockBuild(buildapi.BuildPhaseNew, buildapi.BuildOutput{To: imageStreamRef}))
+
+	update, err := bc.createBuildPod(build)
+
+	if err != nil {
+		t.Fatalf("Expected no error")
+	}
+	expected := &buildUpdate{}
+	expected.setReason(buildapi.StatusReasonInvalidOutputReference)
+	expected.setMessage(buildapi.StatusMessageInvalidOutputRef)
+	validateUpdate(t, "create build pod with image stream error", expected, update)
+	if !reflect.DeepEqual(bc.imageStreamQueue.Pop("isnamespace/isname"), []string{"namespace/data-build"}) {
+		t.Errorf("should have queued build update: %#v", bc.imageStreamQueue)
+	}
+}
+
+func TestCreateBuildPodWithImageStreamMissing(t *testing.T) {
+	imageStreamRef := &kapi.ObjectReference{Name: "isname:latest", Kind: "DockerImage"}
+	bc := newFakeBuildController(nil, nil, nil, nil)
+	defer bc.stop()
+	build := dockerStrategy(mockBuild(buildapi.BuildPhaseNew, buildapi.BuildOutput{To: imageStreamRef}))
+	build.Spec.Strategy.DockerStrategy.From = &kapi.ObjectReference{Kind: "ImageStreamTag", Name: "isname:latest"}
+
+	update, err := bc.createBuildPod(build)
+	if err != nil {
+		t.Fatalf("Expected no error: %v", err)
+	}
+	expected := &buildUpdate{}
+	expected.setReason(buildapi.StatusReasonInvalidImageReference)
+	expected.setMessage(buildapi.StatusMessageInvalidImageRef)
+	validateUpdate(t, "create build pod with image stream error", expected, update)
+	if !reflect.DeepEqual(bc.imageStreamQueue.Pop("namespace/isname"), []string{"namespace/data-build"}) {
+		t.Errorf("should have queued build update: %#v", bc.imageStreamQueue)
+	}
+}
+
+func TestCreateBuildPodWithImageStreamUnresolved(t *testing.T) {
+	imageStream := &imageapi.ImageStream{}
+	imageStream.Namespace = "isnamespace"
+	imageStream.Name = "isname"
+	imageStream.Status.DockerImageRepository = ""
+	imageClient := fakeImageClient(imageStream)
+	imageStreamRef := &kapi.ObjectReference{Name: "isname:latest", Namespace: "isnamespace", Kind: "ImageStreamTag"}
+	bc := newFakeBuildController(nil, imageClient, nil, nil)
 	defer bc.stop()
 	build := dockerStrategy(mockBuild(buildapi.BuildPhaseNew, buildapi.BuildOutput{To: imageStreamRef}))
 
 	update, err := bc.createBuildPod(build)
 
 	if err == nil {
-		t.Errorf("Expected error")
+		t.Fatalf("Expected error")
 	}
 	expected := &buildUpdate{}
 	expected.setReason(buildapi.StatusReasonInvalidOutputReference)
 	expected.setMessage(buildapi.StatusMessageInvalidOutputRef)
 	validateUpdate(t, "create build pod with image stream error", expected, update)
+	if !reflect.DeepEqual(bc.imageStreamQueue.Pop("isnamespace/isname"), []string{"namespace/data-build"}) {
+		t.Errorf("should have queued build update")
+	}
 }
 
 type errorStrategy struct{}
@@ -515,7 +549,7 @@ func (*errorStrategy) CreateBuildPod(build *buildapi.Build) (*v1.Pod, error) {
 }
 
 func TestCreateBuildPodWithPodSpecCreationError(t *testing.T) {
-	bc := newFakeBuildController(nil, nil, nil, nil, nil)
+	bc := newFakeBuildController(nil, nil, nil, nil)
 	defer bc.stop()
 	bc.createStrategy = &errorStrategy{}
 	build := dockerStrategy(mockBuild(buildapi.BuildPhaseNew, buildapi.BuildOutput{}))
@@ -546,7 +580,7 @@ func TestCreateBuildPodWithNewerExistingPod(t *testing.T) {
 		return true, nil, errors.NewAlreadyExists(schema.GroupResource{Group: "", Resource: "pods"}, existingPod.Name)
 	}
 	kubeClient.(*kexternalclientfake.Clientset).PrependReactor("create", "pods", errorReaction)
-	bc := newFakeBuildController(nil, nil, nil, kubeClient, nil)
+	bc := newFakeBuildController(nil, nil, kubeClient, nil)
 	bc.start()
 	defer bc.stop()
 
@@ -576,7 +610,7 @@ func TestCreateBuildPodWithOlderExistingPod(t *testing.T) {
 		return true, nil, errors.NewAlreadyExists(schema.GroupResource{Group: "", Resource: "pods"}, existingPod.Name)
 	}
 	kubeClient.(*kexternalclientfake.Clientset).PrependReactor("create", "pods", errorReaction)
-	bc := newFakeBuildController(nil, nil, nil, kubeClient, nil)
+	bc := newFakeBuildController(nil, nil, kubeClient, nil)
 	defer bc.stop()
 
 	update, err := bc.createBuildPod(build)
@@ -598,7 +632,7 @@ func TestCreateBuildPodWithPodCreationError(t *testing.T) {
 		return true, nil, fmt.Errorf("error")
 	}
 	kubeClient.(*kexternalclientfake.Clientset).PrependReactor("create", "pods", errorReaction)
-	bc := newFakeBuildController(nil, nil, nil, kubeClient, nil)
+	bc := newFakeBuildController(nil, nil, kubeClient, nil)
 	defer bc.stop()
 	build := dockerStrategy(mockBuild(buildapi.BuildPhaseNew, buildapi.BuildOutput{}))
 
@@ -952,10 +986,6 @@ func pipelineStrategy(build *buildapi.Build) *buildapi.Build {
 	return build
 }
 
-func fakeOpenshiftClient(objects ...runtime.Object) client.Interface {
-	return testclient.NewSimpleFake(objects...)
-}
-
 func fakeImageClient(objects ...runtime.Object) imageinternalclientset.Interface {
 	return imageinternalfakeclient.NewSimpleClientset(objects...)
 }
@@ -997,10 +1027,7 @@ func (c *fakeBuildController) stop() {
 	close(c.stopChan)
 }
 
-func newFakeBuildController(openshiftClient client.Interface, buildClient buildinternalclientset.Interface, imageClient imageinternalclientset.Interface, kubeExternalClient kexternalclientset.Interface, kubeInternalClient kinternalclientset.Interface) *fakeBuildController {
-	if openshiftClient == nil {
-		openshiftClient = fakeOpenshiftClient()
-	}
+func newFakeBuildController(buildClient buildinternalclientset.Interface, imageClient imageinternalclientset.Interface, kubeExternalClient kexternalclientset.Interface, kubeInternalClient kinternalclientset.Interface) *fakeBuildController {
 	if buildClient == nil {
 		buildClient = fakeBuildClient()
 	}
@@ -1011,7 +1038,10 @@ func newFakeBuildController(openshiftClient client.Interface, buildClient buildi
 		kubeExternalClient = fakeKubeExternalClientSet()
 	}
 	if kubeInternalClient == nil {
-		kubeInternalClient = fakeKubeInternalClientSet()
+		builderSA := kapi.ServiceAccount{}
+		builderSA.Name = "builder"
+		builderSA.Namespace = "namespace"
+		kubeInternalClient = fakeKubeInternalClientSet(&builderSA)
 	}
 
 	kubeExternalInformers := fakeKubeExternalInformers(kubeExternalClient)
@@ -1027,7 +1057,7 @@ func newFakeBuildController(openshiftClient client.Interface, buildClient buildi
 		SecretInformer:      kubeExternalInformers.Core().V1().Secrets(),
 		KubeClientExternal:  kubeExternalClient,
 		KubeClientInternal:  kubeInternalClient,
-		OpenshiftClient:     openshiftClient,
+		BuildClientInternal: buildClient,
 		DockerBuildStrategy: &strategy.DockerBuildStrategy{
 			Image: "test/image:latest",
 			Codec: kapi.Codecs.LegacyCodec(buildapi.LegacySchemeGroupVersion),

@@ -404,29 +404,6 @@ func (s *Scheme) RegisterInputDefaults(in interface{}, fn conversion.FieldMappin
 	return s.converter.RegisterInputDefaults(in, fn, defaultFlags)
 }
 
-// AddDefaultingFuncs adds functions to the list of default-value functions.
-// Each of the given functions is responsible for applying default values
-// when converting an instance of a versioned API object into an internal
-// API object.  These functions do not need to handle sub-objects. We deduce
-// how to call these functions from the types of their two parameters.
-//
-// s.AddDefaultingFuncs(
-//	func(obj *v1.Pod) {
-//		if obj.OptionalField == "" {
-//			obj.OptionalField = "DefaultValue"
-//		}
-//	},
-// )
-func (s *Scheme) AddDefaultingFuncs(defaultingFuncs ...interface{}) error {
-	for _, f := range defaultingFuncs {
-		err := s.converter.RegisterDefaultingFunc(f)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // AddTypeDefaultingFuncs registers a function that is passed a pointer to an
 // object and can default fields on the object. These functions will be invoked
 // when Default() is called. The function will never be called unless the
@@ -477,11 +454,11 @@ func (s *Scheme) Convert(in, out interface{}, context interface{}) error {
 // versioned representation to an unversioned one.
 func (s *Scheme) ConvertFieldLabel(version, kind, label, value string) (string, string, error) {
 	if s.fieldLabelConversionFuncs[version] == nil {
-		return "", "", fmt.Errorf("No field label conversion function found for version: %s", version)
+		return DefaultMetaV1FieldSelectorConversion(label, value)
 	}
 	conversionFunc, ok := s.fieldLabelConversionFuncs[version][kind]
 	if !ok {
-		return "", "", fmt.Errorf("No field label conversion function found for version %s and kind %s", version, kind)
+		return DefaultMetaV1FieldSelectorConversion(label, value)
 	}
 	return conversionFunc(label, value)
 }

@@ -4,9 +4,8 @@ import (
 	"k8s.io/apimachinery/pkg/conversion"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	oapi "github.com/openshift/origin/pkg/api"
+	"github.com/openshift/origin/pkg/api/apihelpers"
 	newer "github.com/openshift/origin/pkg/build/apis/build"
-	buildutil "github.com/openshift/origin/pkg/build/util"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
 )
 
@@ -19,7 +18,7 @@ func Convert_v1_BuildConfig_To_build_BuildConfig(in *BuildConfig, out *newer.Bui
 	// Strip off any default imagechange triggers where the buildconfig's
 	// "from" is not an ImageStreamTag, because those triggers
 	// will never be invoked.
-	imageRef := buildutil.GetInputReference(out.Spec.Strategy)
+	imageRef := newer.GetInputReference(out.Spec.Strategy)
 	hasIST := imageRef != nil && imageRef.Kind == "ImageStreamTag"
 	for _, trigger := range out.Spec.Triggers {
 		if trigger.Type != newer.ImageChangeBuildTriggerType {
@@ -151,7 +150,7 @@ func Convert_build_BuildStrategy_To_v1_BuildStrategy(in *newer.BuildStrategy, ou
 }
 
 func addConversionFuncs(scheme *runtime.Scheme) error {
-	if err := scheme.AddConversionFuncs(
+	return scheme.AddConversionFuncs(
 		Convert_v1_BuildConfig_To_build_BuildConfig,
 		Convert_build_BuildConfig_To_v1_BuildConfig,
 		Convert_v1_SourceBuildStrategy_To_build_SourceBuildStrategy,
@@ -170,30 +169,42 @@ func addConversionFuncs(scheme *runtime.Scheme) error {
 		Convert_build_BuildSource_To_v1_BuildSource,
 		Convert_v1_BuildStrategy_To_build_BuildStrategy,
 		Convert_build_BuildStrategy_To_v1_BuildStrategy,
-	); err != nil {
-		return err
-	}
+	)
+}
 
-	if err := scheme.AddFieldLabelConversionFunc("v1", "Build",
-		oapi.GetFieldLabelConversionFunc(newer.BuildToSelectableFields(&newer.Build{}), map[string]string{"name": "metadata.name"}),
-	); err != nil {
+func addLegacyFieldSelectorKeyConversions(scheme *runtime.Scheme) error {
+	if err := scheme.AddFieldLabelConversionFunc(LegacySchemeGroupVersion.String(), "Build", legacyBuildFieldSelectorKeyConversionFunc); err != nil {
 		return err
 	}
-	if err := scheme.AddFieldLabelConversionFunc(SchemeGroupVersion.String(), "Build",
-		oapi.GetFieldLabelConversionFunc(newer.BuildToSelectableFields(&newer.Build{}), nil),
-	); err != nil {
-		return err
-	}
-
-	if err := scheme.AddFieldLabelConversionFunc("v1", "BuildConfig",
-		oapi.GetFieldLabelConversionFunc(newer.BuildConfigToSelectableFields(&newer.BuildConfig{}), map[string]string{"name": "metadata.name"}),
-	); err != nil {
-		return err
-	}
-	if err := scheme.AddFieldLabelConversionFunc(SchemeGroupVersion.String(), "BuildConfig",
-		oapi.GetFieldLabelConversionFunc(newer.BuildConfigToSelectableFields(&newer.BuildConfig{}), nil),
-	); err != nil {
+	if err := scheme.AddFieldLabelConversionFunc(LegacySchemeGroupVersion.String(), "BuildConfig", apihelpers.LegacyMetaV1FieldSelectorConversionWithName); err != nil {
 		return err
 	}
 	return nil
+}
+
+func addFieldSelectorKeyConversions(scheme *runtime.Scheme) error {
+	return scheme.AddFieldLabelConversionFunc(SchemeGroupVersion.String(), "Build", buildFieldSelectorKeyConversionFunc)
+}
+
+// because field selectors can vary in support by version they are exposed under, we have one function for each
+// groupVersion we're registering for
+
+func legacyBuildFieldSelectorKeyConversionFunc(label, value string) (internalLabel, internalValue string, err error) {
+	switch label {
+	case "status",
+		"podName":
+		return label, value, nil
+	default:
+		return apihelpers.LegacyMetaV1FieldSelectorConversionWithName(label, value)
+	}
+}
+
+func buildFieldSelectorKeyConversionFunc(label, value string) (internalLabel, internalValue string, err error) {
+	switch label {
+	case "status",
+		"podName":
+		return label, value, nil
+	default:
+		return runtime.DefaultMetaV1FieldSelectorConversion(label, value)
+	}
 }

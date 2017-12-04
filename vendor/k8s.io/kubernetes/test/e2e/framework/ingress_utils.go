@@ -78,9 +78,6 @@ const (
 	// Name of the default http backend service
 	defaultBackendName = "default-http-backend"
 
-	// GCEL7SrcRange is the IP src range from which the GCE L7 performs health checks.
-	GCEL7SrcRange = "130.211.0.0/22"
-
 	// Cloud resources created by the ingress controller older than this
 	// are automatically purged to prevent running out of quota.
 	// TODO(37335): write soak tests and bump this up to a week.
@@ -481,7 +478,7 @@ func (cont *GCEIngressController) deleteURLMap(del bool) (msg string) {
 
 func (cont *GCEIngressController) deleteBackendService(del bool) (msg string) {
 	gceCloud := cont.Cloud.Provider.(*gcecloud.GCECloud)
-	beList, err := gceCloud.ListBackendServices()
+	beList, err := gceCloud.ListGlobalBackendServices()
 	if err != nil {
 		if cont.isHTTPErrorCode(err, http.StatusNotFound) {
 			return msg
@@ -498,7 +495,7 @@ func (cont *GCEIngressController) deleteBackendService(del bool) (msg string) {
 		}
 		if del {
 			Logf("Deleting backed-service: %s", be.Name)
-			if err := gceCloud.DeleteBackendService(be.Name); err != nil &&
+			if err := gceCloud.DeleteGlobalBackendService(be.Name); err != nil &&
 				!cont.isHTTPErrorCode(err, http.StatusNotFound) {
 				msg += fmt.Sprintf("Failed to delete backend service %v: %v\n", be.Name, err)
 			}
@@ -720,17 +717,23 @@ func (cont *GCEIngressController) Init() {
 // invoking deleteStaticIPs.
 func (cont *GCEIngressController) CreateStaticIP(name string) string {
 	gceCloud := cont.Cloud.Provider.(*gcecloud.GCECloud)
-	ip, err := gceCloud.ReserveGlobalStaticIP(name, "")
-	if err != nil {
-		if delErr := gceCloud.DeleteGlobalStaticIP(name); delErr != nil {
+	addr := &compute.Address{Name: name}
+	if err := gceCloud.ReserveGlobalAddress(addr); err != nil {
+		if delErr := gceCloud.DeleteGlobalAddress(name); delErr != nil {
 			if cont.isHTTPErrorCode(delErr, http.StatusNotFound) {
 				Logf("Static ip with name %v was not allocated, nothing to delete", name)
 			} else {
 				Logf("Failed to delete static ip %v: %v", name, delErr)
 			}
 		}
-		Failf("Failed to allocated static ip %v: %v", name, err)
+		Failf("Failed to allocate static ip %v: %v", name, err)
 	}
+
+	ip, err := gceCloud.GetGlobalAddress(name)
+	if err != nil {
+		Failf("Failed to get newly created static ip %v: %v", name, err)
+	}
+
 	cont.staticIPName = ip.Name
 	Logf("Reserved static ip %v: %v", cont.staticIPName, ip.Address)
 	return ip.Address
@@ -763,7 +766,7 @@ func gcloudComputeResourceList(resource, regex, project string, out interface{})
 	// so we only look at stdout.
 	command := []string{
 		"compute", resource, "list",
-		fmt.Sprintf("--regexp=%q", regex),
+		fmt.Sprintf("--filter='name ~ \"%q\"'", regex),
 		fmt.Sprintf("--project=%v", project),
 		"-q", "--format=json",
 	}
@@ -885,9 +888,12 @@ func (j *IngressTestJig) GetRootCA(secretName string) (rootCA []byte) {
 	return
 }
 
-// DeleteIngress deletes the ingress resource
-func (j *IngressTestJig) DeleteIngress() {
-	ExpectNoError(j.Client.Extensions().Ingresses(j.Ingress.Namespace).Delete(j.Ingress.Name, nil))
+// TryDeleteIngress attempts to delete the ingress resource and logs errors if they occur.
+func (j *IngressTestJig) TryDeleteIngress() {
+	err := j.Client.Extensions().Ingresses(j.Ingress.Namespace).Delete(j.Ingress.Name, nil)
+	if err != nil {
+		Logf("Error while deleting the ingress %v/%v: %v", j.Ingress.Namespace, j.Ingress.Name, err)
+	}
 }
 
 // WaitForIngress waits till the ingress acquires an IP, then waits for its
@@ -982,7 +988,7 @@ func (j *IngressTestJig) ConstructFirewallForIngress(gceController *GCEIngressCo
 
 	fw := compute.Firewall{}
 	fw.Name = gceController.GetFirewallRuleName()
-	fw.SourceRanges = []string{GCEL7SrcRange}
+	fw.SourceRanges = gcecloud.LoadBalancerSrcRanges()
 	fw.TargetTags = nodeTags.Items
 	fw.Allowed = []*compute.FirewallAllowed{
 		{

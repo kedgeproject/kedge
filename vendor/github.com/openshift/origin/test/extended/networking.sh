@@ -16,7 +16,7 @@ export SHELLOPTS
 #
 # The EmptyDir test is a canary; it will fail if mount propagation is
 # not properly configured on the host.
-NETWORKING_E2E_FOCUS="${NETWORKING_E2E_FOCUS:-etworking|Services should be able to create a functioning NodePort service|EmptyDir volumes should support \(root,0644,tmpfs\)}"
+NETWORKING_E2E_FOCUS="${NETWORKING_E2E_FOCUS:-etworking|Services should be able to create a functioning NodePort service|Feature:OSNetworkPolicy|EmptyDir volumes should support \(root,0644,tmpfs\)}"
 NETWORKING_E2E_SKIP="${NETWORKING_E2E_SKIP:-}"
 
 DEFAULT_SKIP_LIST=(
@@ -232,6 +232,12 @@ function run-extended-tests() {
   local test_args="--test.v '--ginkgo.skip=${skip_regex}' \
 '--ginkgo.focus=${focus_regex}' ${TEST_EXTRA_ARGS}"
 
+  # this ${FOCUS} value will override the $focus_regex in the same way that
+  # the --ginkgo.focus argument did previously.
+  if [[ -n "${FOCUS:-}" ]]; then
+    test_args="${test_args} --ginkgo.focus=${FOCUS}"
+  fi
+
   if [[ -n "${dlv_debug}" ]]; then
     # run tests using delve debugger
     local extended_test; extended_test="$( os::util::find::built_binary extended.test )"
@@ -283,6 +289,10 @@ esac
 
 TEST_EXTRA_ARGS="$@"
 
+if [[ "$@[@]" =~ "ginkgo.focus" ]]; then
+      os::log::fatal "the --ginkgo.focus flag is no longer supported, use FOCUS=foo <suite.sh> instead."
+fi
+
 if [[ -n "${OPENSHIFT_SKIP_BUILD:-}" ]] &&
      os::util::find::built_binary 'extended.test' >/dev/null 2>&1; then
   os::log::warning "Skipping rebuild of test binary due to OPENSHIFT_SKIP_BUILD=1"
@@ -313,6 +323,25 @@ function disable-selinux() {
   fi
 }
 
+function kernel-supports-networkpolicy() {
+  # There's really no good way to test this "correctly" if OVS isn't installed.
+  # The mainline kernel got support for OVS NAT support in 4.6. RHEL kernels have
+  # it in 3.10.0-514 and later.
+  version="$(uname -r)"
+  case "${version}" in
+    3.10.0-*.el7.*)
+      build=$(sed -e 's/.*-\([0-9]*\)\..*/\1/' <<< "${version}")
+      if [[ "${build}" -lt 514 ]]; then
+        return 1
+      fi
+      ;;
+    [0-3].*|4.[0-5].*)
+      return 1
+      ;;
+  esac
+  return 0
+}
+
 os::log::info "Starting 'networking' extended tests"
 if [[ -n "${CONFIG_ROOT}" ]]; then
   KUBECONFIG="$(get-kubeconfig-from-root "${CONFIG_ROOT}")"
@@ -339,9 +368,9 @@ else
 
   # Allow setting $JUNIT_REPORT to toggle output behavior
   if [[ -n "${JUNIT_REPORT:-}" ]]; then
-    export JUNIT_REPORT_OUTPUT="${LOG_DIR}/raw_test_output.log"
     # the Ginkgo tests also generate jUnit but expect different envars
-    export TEST_REPORT_DIR="${ARTIFACT_DIR}"
+    export TEST_REPORT_DIR="${ARTIFACT_DIR}/junit"
+    mkdir -p $TEST_REPORT_DIR
   fi
 
   os::log::system::start
@@ -377,11 +406,16 @@ else
   # Docker-in-docker is not compatible with selinux
   disable-selinux
 
-  # Skip the subnet tests during a minimal test run
+  # Skip subnet and networkpolicy tests during a minimal test run
   if [[ -z "${NETWORKING_E2E_MINIMAL}" ]]; then
     # Ignore deployment errors for a given plugin to allow other plugins
     # to be tested.
     test-osdn-plugin "subnet" "redhat/openshift-ovs-subnet" "false" "false" || true
+    if kernel-supports-networkpolicy; then
+      test-osdn-plugin "networkpolicy" "redhat/openshift-ovs-networkpolicy" "false" "true" || true
+    else
+      os::log::warning "Skipping networkpolicy tests due to kernel version"
+    fi
   fi
 
   test-osdn-plugin "multitenant" "redhat/openshift-ovs-multitenant" "true" "false" || true

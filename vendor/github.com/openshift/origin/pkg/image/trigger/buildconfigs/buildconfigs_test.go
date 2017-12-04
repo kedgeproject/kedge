@@ -5,14 +5,12 @@ import (
 	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/sets"
-	testingcore "k8s.io/client-go/testing"
 	kapi "k8s.io/kubernetes/pkg/api"
+	kapihelper "k8s.io/kubernetes/pkg/api/helper"
 
 	buildapi "github.com/openshift/origin/pkg/build/apis/build"
-	"github.com/openshift/origin/pkg/client/testclient"
 )
 
 type fakeTagResponse struct {
@@ -247,22 +245,14 @@ func TestBuildConfigReactor(t *testing.T) {
 	}
 
 	for i, test := range testCases {
-		c := &testclient.Fake{}
-		var actualUpdate runtime.Object
-		if test.response != nil {
-			c.AddReactor("update", "*", func(action testingcore.Action) (handled bool, ret runtime.Object, err error) {
-				actualUpdate = action.(testingcore.UpdateAction).GetObject()
-				return true, test.response, nil
-			})
-		}
 		instantiator := &instantiator{build: test.response}
-		r := BuildConfigReactor{Instantiator: instantiator}
+		r := buildConfigReactor{instantiator: instantiator}
 		initial, err := kapi.Scheme.DeepCopy(test.obj)
 		if err != nil {
 			t.Fatal(err)
 		}
 		err = r.ImageChanged(test.obj, fakeTagRetriever(test.tags))
-		if !kapi.Semantic.DeepEqual(initial, test.obj) {
+		if !kapihelper.Semantic.DeepEqual(initial, test.obj) {
 			t.Errorf("%d: should not have mutated: %s", i, diff.ObjectReflectDiff(initial, test.obj))
 		}
 		switch {

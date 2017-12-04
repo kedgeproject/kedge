@@ -19,17 +19,18 @@ set -o nounset
 set -o pipefail
 
 # this script resides in the `test/` folder at the root of the project
-KUBE_ROOT=$(realpath $(dirname "${BASH_SOURCE}")/../vendor/k8s.io/kubernetes)
+KUBE_ROOT=$(realpath $(dirname "${BASH_SOURCE}")/../pkg/kubernetes)
 source "${KUBE_ROOT}/hack/lib/init.sh"
 
 runTests() {
   kube::etcd::start
 
-  go test -race -v github.com/kubernetes-incubator/service-catalog/test/integration/... --args -v 10 -logtostderr
+  go test -race -i github.com/kubernetes-incubator/service-catalog/test/integration/... -c \
+      && ./integration.test -test.v $@
 }
 
 # Run cleanup to stop etcd on interrupt or other kill signal.
 trap kube::etcd::cleanup EXIT
 
-runTests
+runTests $@
 

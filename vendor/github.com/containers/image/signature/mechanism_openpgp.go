@@ -1,4 +1,4 @@
-// +build containers_image_openpgp !cgo !linux
+// +build containers_image_openpgp
 
 package signature
 
@@ -140,6 +140,8 @@ func (m *openpgpSigningMechanism) Verify(unverifiedSignature []byte) (contents [
 			}
 		}
 	} else if md.SignatureV3 == nil {
+		// Coverage: If md.SignedBy != nil, the final md.UnverifiedBody.Read() either sets one of md.Signature or md.SignatureV3,
+		// or sets md.SignatureError.
 		return nil, "", InvalidSignatureError{msg: "Unexpected openpgp.MessageDetails: neither Signature nor SignatureV3 is set"}
 	}
 

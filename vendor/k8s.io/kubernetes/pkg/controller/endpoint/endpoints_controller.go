@@ -35,10 +35,11 @@ import (
 	"k8s.io/kubernetes/pkg/api/v1"
 	"k8s.io/kubernetes/pkg/api/v1/endpoints"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
-	utilpod "k8s.io/kubernetes/pkg/api/v1/pod"
 	"k8s.io/kubernetes/pkg/client/clientset_generated/clientset"
 	coreinformers "k8s.io/kubernetes/pkg/client/informers/informers_generated/externalversions/core/v1"
+	"k8s.io/kubernetes/pkg/client/leaderelection/resourcelock"
 	corelisters "k8s.io/kubernetes/pkg/client/listers/core/v1"
+	"k8s.io/kubernetes/pkg/controller"
 	"k8s.io/kubernetes/pkg/util/metrics"
 
 	"github.com/golang/glog"
@@ -140,17 +141,19 @@ func (e *EndpointController) Run(workers int, stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer e.queue.ShutDown()
 
-	if !cache.WaitForCacheSync(stopCh, e.podsSynced, e.servicesSynced, e.endpointsSynced) {
-		utilruntime.HandleError(fmt.Errorf("timed out waiting for caches to sync"))
+	glog.Infof("Starting endpoint controller")
+	defer glog.Infof("Shutting down endpoint controller")
+
+	if !controller.WaitForCacheSync("endpoint", stopCh, e.podsSynced, e.servicesSynced, e.endpointsSynced) {
 		return
 	}
 
 	for i := 0; i < workers; i++ {
 		go wait.Until(e.worker, e.workerLoopPeriod, stopCh)
 	}
+
 	go func() {
 		defer utilruntime.HandleCrash()
-		time.Sleep(5 * time.Minute) // give time for our cache to fill
 		e.checkLeftoverEndpoints()
 	}()
 
@@ -203,11 +206,15 @@ func podToEndpointAddress(pod *v1.Pod) *v1.EndpointAddress {
 }
 
 func podChanged(oldPod, newPod *v1.Pod) bool {
+	// If the pod's deletion timestamp is set, remove endpoint from ready address.
+	if newPod.DeletionTimestamp != oldPod.DeletionTimestamp {
+		return true
+	}
 	// If the pod's readiness has changed, the associated endpoint address
 	// will move from the unready endpoints set to the ready endpoints.
 	// So for the purposes of an endpoint, a readiness change on a pod
 	// means we have a changed pod.
-	if v1.IsPodReady(oldPod) != v1.IsPodReady(newPod) {
+	if podutil.IsPodReady(oldPod) != podutil.IsPodReady(newPod) {
 		return true
 	}
 	// Convert the pod to an EndpointAddress, clear inert fields,
@@ -287,28 +294,8 @@ func (e *EndpointController) updatePod(old, cur interface{}) {
 }
 
 func hostNameAndDomainAreEqual(pod1, pod2 *v1.Pod) bool {
-	return getHostname(pod1) == getHostname(pod2) &&
-		getSubdomain(pod1) == getSubdomain(pod2)
-}
-
-func getHostname(pod *v1.Pod) string {
-	if len(pod.Spec.Hostname) > 0 {
-		return pod.Spec.Hostname
-	}
-	if pod.Annotations != nil {
-		return pod.Annotations[utilpod.PodHostnameAnnotation]
-	}
-	return ""
-}
-
-func getSubdomain(pod *v1.Pod) string {
-	if len(pod.Spec.Subdomain) > 0 {
-		return pod.Spec.Subdomain
-	}
-	if pod.Annotations != nil {
-		return pod.Annotations[utilpod.PodSubdomainAnnotation]
-	}
-	return ""
+	return pod1.Spec.Hostname == pod2.Spec.Hostname &&
+		pod1.Spec.Subdomain == pod2.Spec.Subdomain
 }
 
 // When a pod is deleted, enqueue the services the pod used to be a member of.
@@ -459,14 +446,14 @@ func (e *EndpointController) syncService(key string) error {
 			epp := v1.EndpointPort{Name: portName, Port: int32(portNum), Protocol: portProto}
 			epa := *podToEndpointAddress(pod)
 
-			hostname := getHostname(pod)
+			hostname := pod.Spec.Hostname
 			if len(hostname) > 0 &&
-				getSubdomain(pod) == service.Name &&
+				pod.Spec.Subdomain == service.Name &&
 				service.Namespace == pod.Namespace {
 				epa.Hostname = hostname
 			}
 
-			if tolerateUnreadyEndpoints || v1.IsPodReady(pod) {
+			if tolerateUnreadyEndpoints || podutil.IsPodReady(pod) {
 				subsets = append(subsets, v1.EndpointSubset{
 					Addresses: []v1.EndpointAddress{epa},
 					Ports:     []v1.EndpointPort{epp},
@@ -552,6 +539,14 @@ func (e *EndpointController) checkLeftoverEndpoints() {
 		return
 	}
 	for _, ep := range list {
+		if _, ok := ep.Annotations[resourcelock.LeaderElectionRecordAnnotationKey]; ok {
+			// when there are multiple controller-manager instances,
+			// we observe that it will delete leader-election endpoints after 5min
+			// and cause re-election
+			// so skip the delete here
+			// as leader-election only have endpoints without service
+			continue
+		}
 		key, err := keyFunc(ep)
 		if err != nil {
 			utilruntime.HandleError(fmt.Errorf("Unable to get key for endpoint %#v", ep))

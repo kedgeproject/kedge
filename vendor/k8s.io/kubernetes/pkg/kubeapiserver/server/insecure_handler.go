@@ -22,10 +22,13 @@ import (
 
 	"github.com/golang/glog"
 
+	"k8s.io/apiserver/pkg/authentication/user"
 	genericapifilters "k8s.io/apiserver/pkg/endpoints/filters"
 	apirequest "k8s.io/apiserver/pkg/endpoints/request"
+	"k8s.io/apiserver/pkg/features"
 	"k8s.io/apiserver/pkg/server"
 	genericfilters "k8s.io/apiserver/pkg/server/filters"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/rest"
 )
 
@@ -34,10 +37,16 @@ import (
 // InsecureServingInfo *ServingInfo
 
 func BuildInsecureHandlerChain(apiHandler http.Handler, c *server.Config) http.Handler {
-	handler := genericapifilters.WithAudit(apiHandler, c.RequestContextMapper, c.AuditWriter)
+	handler := apiHandler
+	if utilfeature.DefaultFeatureGate.Enabled(features.AdvancedAuditing) {
+		handler = genericapifilters.WithAudit(handler, c.RequestContextMapper, c.AuditBackend, c.AuditPolicyChecker, c.LongRunningFunc)
+	} else {
+		handler = genericapifilters.WithLegacyAudit(handler, c.RequestContextMapper, c.LegacyAuditWriter)
+	}
+	handler = genericapifilters.WithAuthentication(handler, c.RequestContextMapper, insecureSuperuser{}, nil)
 	handler = genericfilters.WithCORS(handler, c.CorsAllowedOriginList, nil, nil, nil, "true")
 	handler = genericfilters.WithPanicRecovery(handler)
-	handler = genericfilters.WithTimeoutForNonLongRunningRequests(handler, c.RequestContextMapper, c.LongRunningFunc)
+	handler = genericfilters.WithTimeoutForNonLongRunningRequests(handler, c.RequestContextMapper, c.LongRunningFunc, c.RequestTimeout)
 	handler = genericfilters.WithMaxInFlightLimit(handler, c.MaxRequestsInFlight, c.MaxMutatingRequestsInFlight, c.RequestContextMapper, c.LongRunningFunc)
 	handler = genericapifilters.WithRequestInfo(handler, server.NewRequestInfoResolver(c), c.RequestContextMapper)
 	handler = apirequest.WithRequestContext(handler, c.RequestContextMapper)
@@ -110,4 +119,16 @@ func serveInsecurely(insecureServingInfo *InsecureServingInfo, insecureHandler h
 	var err error
 	_, err = server.RunServer(insecureServer, insecureServingInfo.BindNetwork, stopCh)
 	return err
+}
+
+// insecureSuperuser implements authenticator.Request to always return a superuser.
+// This is functionally equivalent to skipping authentication and authorization,
+// but allows apiserver code to stop special-casing a nil user to skip authorization checks.
+type insecureSuperuser struct{}
+
+func (insecureSuperuser) AuthenticateRequest(req *http.Request) (user.Info, bool, error) {
+	return &user.DefaultInfo{
+		Name:   "system:unsecured",
+		Groups: []string{user.SystemPrivilegedGroup, user.AllAuthenticated},
+	}, true, nil
 }

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	dockerfileparser "github.com/docker/docker/builder/dockerfile/parser"
+	"github.com/docker/go-connections/nat"
 	"github.com/fsouza/go-dockerclient"
 	"github.com/golang/glog"
 
@@ -28,15 +29,18 @@ import (
 	authapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
 	buildapi "github.com/openshift/origin/pkg/build/apis/build"
 	buildutil "github.com/openshift/origin/pkg/build/util"
-	"github.com/openshift/origin/pkg/client"
 	cmdutil "github.com/openshift/origin/pkg/cmd/util"
-	"github.com/openshift/origin/pkg/dockerregistry"
 	"github.com/openshift/origin/pkg/generate"
 	"github.com/openshift/origin/pkg/generate/app"
 	"github.com/openshift/origin/pkg/generate/dockerfile"
 	"github.com/openshift/origin/pkg/generate/jenkinsfile"
 	"github.com/openshift/origin/pkg/generate/source"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
+	imageclient "github.com/openshift/origin/pkg/image/generated/internalclientset/typed/image/internalversion"
+	dockerregistry "github.com/openshift/origin/pkg/image/importer/dockerv1client"
+	routeclient "github.com/openshift/origin/pkg/route/generated/internalclientset/typed/route/internalversion"
+	templateinternalclient "github.com/openshift/origin/pkg/template/client/internalversion"
+	templateclient "github.com/openshift/origin/pkg/template/generated/internalclientset/typed/template/internalversion"
 	outil "github.com/openshift/origin/pkg/util"
 	dockerfileutil "github.com/openshift/origin/pkg/util/docker/dockerfile"
 )
@@ -62,7 +66,8 @@ type GenerationInputs struct {
 	EnvironmentFiles       []string
 	BuildEnvironmentFiles  []string
 
-	InsecureRegistry bool
+	IgnoreUnknownParameters bool
+	InsecureRegistry        bool
 
 	Strategy generate.Strategy
 
@@ -99,6 +104,7 @@ type AppConfig struct {
 	SkipGeneration bool
 
 	AllowSecretUse              bool
+	SourceSecret                string
 	AllowNonNumericExposedPorts bool
 	SecretAccessor              app.SecretAccessor
 
@@ -110,15 +116,18 @@ type AppConfig struct {
 	Out    io.Writer
 	ErrOut io.Writer
 
-	KubeClient kclientset.Interface
+	KubeClient     kclientset.Interface
+	ImageClient    imageclient.ImageInterface
+	RouteClient    routeclient.RouteInterface
+	TemplateClient templateclient.TemplateInterface
 
 	Resolvers
 
-	Typer        runtime.ObjectTyper
-	Mapper       meta.RESTMapper
-	ClientMapper resource.ClientMapper
+	Typer            runtime.ObjectTyper
+	Mapper           meta.RESTMapper
+	CategoryExpander resource.CategoryExpander
+	ClientMapper     resource.ClientMapper
 
-	OSClient        client.Interface
 	OriginNamespace string
 
 	ArgumentClassificationErrors []ArgumentClassificationError
@@ -186,30 +195,36 @@ func (c *AppConfig) ensureDockerSearch() {
 }
 
 // SetOpenShiftClient sets the passed OpenShift client in the application configuration
-func (c *AppConfig) SetOpenShiftClient(osclient client.Interface, OriginNamespace string, dockerclient *docker.Client) {
-	c.OSClient = osclient
+func (c *AppConfig) SetOpenShiftClient(imageClient imageclient.ImageInterface, templateClient templateclient.TemplateInterface, routeClient routeclient.RouteInterface, OriginNamespace string, dockerclient *docker.Client) {
 	c.OriginNamespace = OriginNamespace
 	namespaces := []string{OriginNamespace}
 	if openshiftNamespace := "openshift"; OriginNamespace != openshiftNamespace {
 		namespaces = append(namespaces, openshiftNamespace)
 	}
+	c.ImageClient = imageClient
+	c.RouteClient = routeClient
+	c.TemplateClient = templateClient
 	c.ImageStreamSearcher = app.ImageStreamSearcher{
-		Client:            osclient,
-		ImageStreamImages: osclient,
+		Client:            c.ImageClient,
+		ImageStreamImages: c.ImageClient,
 		Namespaces:        namespaces,
 		AllowMissingTags:  c.AllowMissingImageStreamTags,
 	}
-	c.ImageStreamByAnnotationSearcher = app.NewImageStreamByAnnotationSearcher(osclient, osclient, namespaces)
+	c.ImageStreamByAnnotationSearcher = app.NewImageStreamByAnnotationSearcher(
+		c.ImageClient,
+		c.ImageClient,
+		namespaces,
+	)
 	c.TemplateSearcher = app.TemplateSearcher{
-		Client: osclient,
-		TemplateConfigsNamespacer: osclient,
-		Namespaces:                namespaces,
+		Client:     c.TemplateClient,
+		Namespaces: namespaces,
 	}
 	c.TemplateFileSearcher = &app.TemplateFileSearcher{
-		Typer:        c.Typer,
-		Mapper:       c.Mapper,
-		ClientMapper: c.ClientMapper,
-		Namespace:    OriginNamespace,
+		Typer:            c.Typer,
+		Mapper:           c.Mapper,
+		ClientMapper:     c.ClientMapper,
+		CategoryExpander: c.CategoryExpander,
+		Namespace:        OriginNamespace,
 	}
 	// the hierarchy of docker searching is:
 	// 1) if we have an openshift client - query docker registries via openshift,
@@ -222,7 +237,7 @@ func (c *AppConfig) SetOpenShiftClient(osclient client.Interface, OriginNamespac
 		Insecure:           c.InsecureRegistry,
 		AllowMissingImages: c.AllowMissingImages,
 		RegistrySearcher: app.ImageImportSearcher{
-			Client:        osclient.ImageStreams(OriginNamespace),
+			Client:        c.ImageClient.ImageStreamImports(OriginNamespace),
 			AllowInsecure: c.InsecureRegistry,
 			Fallback:      c.DockerRegistrySearcher(),
 		},
@@ -412,7 +427,7 @@ func (c *AppConfig) buildPipelines(components app.ComponentReferences, environme
 				}
 
 				glog.V(4).Infof("will use %q as the base image for a source build of %q", ref, refInput.Uses)
-				if pipeline, err = pipelineBuilder.NewBuildPipeline(from, image, refInput.Uses); err != nil {
+				if pipeline, err = pipelineBuilder.NewBuildPipeline(from, image, refInput.Uses, c.BinaryBuild); err != nil {
 					return nil, fmt.Errorf("can't build %q: %v", refInput.Uses, err)
 				}
 			default:
@@ -466,7 +481,7 @@ func (c *AppConfig) buildPipelines(components app.ComponentReferences, environme
 }
 
 // buildTemplates converts a set of resolved, valid references into references to template objects.
-func (c *AppConfig) buildTemplates(components app.ComponentReferences, parameters app.Environment, environment app.Environment, buildEnvironment app.Environment) (string, []runtime.Object, error) {
+func (c *AppConfig) buildTemplates(components app.ComponentReferences, parameters app.Environment, environment app.Environment, buildEnvironment app.Environment, templateProcessor templateinternalclient.TemplateProcessorInterface) (string, []runtime.Object, error) {
 	objects := []runtime.Object{}
 	name := ""
 	for _, ref := range components {
@@ -476,7 +491,7 @@ func (c *AppConfig) buildTemplates(components app.ComponentReferences, parameter
 		if len(c.ContextDir) > 0 {
 			return "", nil, fmt.Errorf("--context-dir is not supported when using a template")
 		}
-		result, err := TransformTemplate(tpl, c.OSClient, c.OriginNamespace, parameters)
+		result, err := TransformTemplate(tpl, templateProcessor, c.OriginNamespace, parameters, c.IgnoreUnknownParameters)
 		if err != nil {
 			return name, nil, err
 		}
@@ -814,7 +829,8 @@ func (c *AppConfig) Run() (*AppResult, error) {
 
 	objects = app.AddServices(objects, false)
 
-	templateName, templateObjects, err := c.buildTemplates(components.TemplateComponentRefs(), parameters, env, buildenv)
+	templateProcessor := templateinternalclient.NewTemplateProcessorClient(c.TemplateClient.RESTClient(), c.OriginNamespace)
+	templateName, templateObjects, err := c.buildTemplates(components.TemplateComponentRefs(), parameters, env, buildenv, templateProcessor)
 	if err != nil {
 		return nil, err
 	}
@@ -876,6 +892,15 @@ func (c *AppConfig) Run() (*AppResult, error) {
 		for _, obj := range objects {
 			if bc, ok := obj.(*buildapi.BuildConfig); ok {
 				name = bc.Name
+				break
+			}
+		}
+	}
+	if len(c.SourceSecret) > 0 {
+		for _, obj := range objects {
+			if bc, ok := obj.(*buildapi.BuildConfig); ok {
+				glog.V(4).Infof("Setting source secret for build config to: %v", c.SourceSecret)
+				bc.Spec.Source.SourceSecret = &kapi.LocalObjectReference{Name: c.SourceSecret}
 				break
 			}
 		}
@@ -949,6 +974,9 @@ func (c *AppConfig) followRefToDockerImage(ref *kapi.ObjectReference, isContext 
 		isName = isContext.Name
 		isTag = ref.Name
 	} else {
+		// Search for a new image stream context based on the name and tag
+		isContext = nil
+
 		// The imagestream is usually being created alongside the buildconfig
 		// when new-build is being used, so scan objects being created for it.
 		for _, check := range objects {
@@ -962,7 +990,7 @@ func (c *AppConfig) followRefToDockerImage(ref *kapi.ObjectReference, isContext 
 
 		if isContext == nil {
 			var err error
-			isContext, err = c.OSClient.ImageStreams(isNS).Get(isName, metav1.GetOptions{})
+			isContext, err = c.ImageClient.ImageStreams(isNS).Get(isName, metav1.GetOptions{})
 			if err != nil {
 				return nil, fmt.Errorf("Unable to check for circular build input/outputs: %v", err)
 			}
@@ -1001,7 +1029,7 @@ func (c *AppConfig) checkCircularReferences(objects app.Objects) error {
 		}
 
 		if bc, ok := obj.(*buildapi.BuildConfig); ok {
-			input := buildutil.GetInputReference(bc.Spec.Strategy)
+			input := buildapi.GetInputReference(bc.Spec.Strategy)
 			output := bc.Spec.Output.To
 
 			if output == nil || input == nil {
@@ -1073,7 +1101,7 @@ func optionallyValidateExposedPorts(config *AppConfig, repositories app.SourceRe
 	for _, repo := range repositories {
 		if repoInfo := repo.Info(); repoInfo != nil && repoInfo.Dockerfile != nil {
 			node := repoInfo.Dockerfile.AST()
-			if err := exposedPortsAreNumeric(node); err != nil {
+			if err := exposedPortsAreValid(node); err != nil {
 				return fmt.Errorf("the Dockerfile has an invalid EXPOSE instruction: %v", err)
 			}
 		}
@@ -1082,11 +1110,38 @@ func optionallyValidateExposedPorts(config *AppConfig, repositories app.SourceRe
 	return nil
 }
 
-func exposedPortsAreNumeric(node *dockerfileparser.Node) error {
+func exposedPortsAreValid(node *dockerfileparser.Node) error {
+	allErrs := make([]error, 0)
+
 	for _, port := range dockerfileutil.LastExposedPorts(node) {
-		if _, err := strconv.ParseInt(port, 10, 32); err != nil {
-			return fmt.Errorf("could not parse %q: must be numeric", port)
+		errs := make([]string, 0)
+
+		if strings.HasPrefix(port, "$") {
+			errs = append(errs, "args are not supported for port numbers")
 		}
+
+		proto, port := nat.SplitProtoPort(port)
+
+		_, err := strconv.ParseUint(port, 10, 16)
+		if err != nil {
+			if numError, ok := err.(*strconv.NumError); ok {
+				if numError.Err == strconv.ErrRange || numError.Err == strconv.ErrSyntax {
+					errs = append(errs, "port number must be in range 0 - 65535")
+				}
+			}
+		}
+		if len(proto) > 0 && !(strings.ToLower(proto) == "tcp" || strings.ToLower(proto) == "udp") {
+			errs = append(errs, "protocol must be tcp or udp")
+		}
+		if len(errs) > 0 {
+			allErrs = append(allErrs, fmt.Errorf("could not parse %q: [%v]", port, strings.Join(errs, ", ")))
+		}
+
 	}
+
+	if len(allErrs) > 0 {
+		return kutilerrors.NewAggregate(allErrs)
+	}
+
 	return nil
 }

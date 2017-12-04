@@ -20,24 +20,24 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"os"
 	"path/filepath"
 
 	"github.com/renstrom/dedent"
 	"github.com/spf13/cobra"
 
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/pkg/api"
 	certutil "k8s.io/client-go/util/cert"
 	kubeadmapi "k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm"
 	kubeadmapiext "k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm/v1alpha1"
 	"k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm/validation"
 	kubeadmconstants "k8s.io/kubernetes/cmd/kubeadm/app/constants"
 	"k8s.io/kubernetes/cmd/kubeadm/app/discovery"
-	kubenode "k8s.io/kubernetes/cmd/kubeadm/app/node"
+	kubeadmnode "k8s.io/kubernetes/cmd/kubeadm/app/node"
 	"k8s.io/kubernetes/cmd/kubeadm/app/preflight"
 	kubeadmutil "k8s.io/kubernetes/cmd/kubeadm/app/util"
 	kubeconfigutil "k8s.io/kubernetes/cmd/kubeadm/app/util/kubeconfig"
+	"k8s.io/kubernetes/pkg/api"
+	nodeutil "k8s.io/kubernetes/pkg/util/node"
 )
 
 var (
@@ -63,31 +63,30 @@ func NewCmdJoin(out io.Writer) *cobra.Command {
 		Use:   "join <flags> [DiscoveryTokenAPIServers]",
 		Short: "Run this on any machine you wish to join an existing cluster",
 		Long: dedent.Dedent(`
-		When joining a kubeadm initialized cluster, we need to establish 
-		bidirectional trust. This is split into discovery (having the Node 
-		trust the Kubernetes Master) and TLS bootstrap (having the Kubernetes 
+		When joining a kubeadm initialized cluster, we need to establish
+		bidirectional trust. This is split into discovery (having the Node
+		trust the Kubernetes Master) and TLS bootstrap (having the Kubernetes
 		Master trust the Node).
 
-		There are 2 main schemes for discovery. The first is to use a shared 
-		token along with the IP address of the API server. The second is to 
-		provide a file (a subset of the standard kubeconfig file). This file 
-		can be a local file or downloaded via an HTTPS URL. The forms are 
-		kubeadm join --discovery-token abcdef.1234567890abcdef 1.2.3.4:6443, 
-		kubeadm join --discovery-file path/to/file.conf or kubeadm join 
-		--discovery-file https://url/file.conf. Only one form can be used. If 
-		the discovery information is loaded from a URL, HTTPS must be used and 
+		There are 2 main schemes for discovery. The first is to use a shared
+		token along with the IP address of the API server. The second is to
+		provide a file (a subset of the standard kubeconfig file). This file
+		can be a local file or downloaded via an HTTPS URL. The forms are
+		kubeadm join --discovery-token abcdef.1234567890abcdef 1.2.3.4:6443,
+		kubeadm join --discovery-file path/to/file.conf, or kubeadm join
+		--discovery-file https://url/file.conf. Only one form can be used. If
+		the discovery information is loaded from a URL, HTTPS must be used and
 		the host installed CA bundle is used to verify the connection.
 
-		The TLS bootstrap mechanism is also driven via a shared token. This is 
+		The TLS bootstrap mechanism is also driven via a shared token. This is
 		used to temporarily authenticate with the Kubernetes Master to submit a
-		certificate signing request (CSR) for a locally created key pair. By 
-		default kubeadm will set up the Kubernetes Master to automatically 
-		approve these signing requests. This token is passed in with the 
+		certificate signing request (CSR) for a locally created key pair. By
+		default kubeadm will set up the Kubernetes Master to automatically
+		approve these signing requests. This token is passed in with the
 		--tls-bootstrap-token abcdef.1234567890abcdef flag.
 
-		Often times the same token is use for both parts. In this case, the 
-		--token flag can be used instead of specifying the each token 
-		individually.
+		Often times the same token is used for both parts. In this case, the
+		--token flag can be used instead of specifying each token individually.
 		`),
 		Run: func(cmd *cobra.Command, args []string) {
 			cfg.DiscoveryTokenAPIServers = args
@@ -98,7 +97,7 @@ func NewCmdJoin(out io.Writer) *cobra.Command {
 
 			j, err := NewJoin(cfgPath, args, internalcfg, skipPreFlight)
 			kubeadmutil.CheckErr(err)
-			kubeadmutil.CheckErr(j.Validate())
+			kubeadmutil.CheckErr(j.Validate(cmd))
 			kubeadmutil.CheckErr(j.Run(out))
 		},
 	}
@@ -114,6 +113,9 @@ func NewCmdJoin(out io.Writer) *cobra.Command {
 		&cfg.DiscoveryToken, "discovery-token", "",
 		"A token used to validate cluster information fetched from the master")
 	cmd.PersistentFlags().StringVar(
+		&cfg.NodeName, "node-name", "",
+		"Specify the node name")
+	cmd.PersistentFlags().StringVar(
 		&cfg.TLSBootstrapToken, "tls-bootstrap-token", "",
 		"A token used for TLS bootstrapping")
 	cmd.PersistentFlags().StringVar(
@@ -122,7 +124,7 @@ func NewCmdJoin(out io.Writer) *cobra.Command {
 
 	cmd.PersistentFlags().BoolVar(
 		&skipPreFlight, "skip-preflight-checks", false,
-		"skip preflight checks normally run before modifying the system",
+		"Skip preflight checks normally run before modifying the system",
 	)
 
 	return cmd
@@ -134,6 +136,10 @@ type Join struct {
 
 func NewJoin(cfgPath string, args []string, cfg *kubeadmapi.NodeConfiguration, skipPreFlight bool) (*Join, error) {
 	fmt.Println("[kubeadm] WARNING: kubeadm is in beta, please do not use it for production clusters.")
+
+	if cfg.NodeName == "" {
+		cfg.NodeName = nodeutil.GetHostname("")
+	}
 
 	if cfgPath != "" {
 		b, err := ioutil.ReadFile(cfgPath)
@@ -157,17 +163,20 @@ func NewJoin(cfgPath string, args []string, cfg *kubeadmapi.NodeConfiguration, s
 		if err := preflight.RunJoinNodeChecks(cfg); err != nil {
 			return nil, err
 		}
+
+		// Try to start the kubelet service in case it's inactive
+		preflight.TryStartKubelet()
 	} else {
 		fmt.Println("[preflight] Skipping pre-flight checks")
 	}
 
-	// Try to start the kubelet service in case it's inactive
-	preflight.TryStartKubelet()
-
 	return &Join{cfg: cfg}, nil
 }
 
-func (j *Join) Validate() error {
+func (j *Join) Validate(cmd *cobra.Command) error {
+	if err := validation.ValidateMixedArguments(cmd.PersistentFlags()); err != nil {
+		return err
+	}
 	return validation.ValidateNodeConfiguration(j.cfg).ToAggregate()
 }
 
@@ -178,18 +187,17 @@ func (j *Join) Run(out io.Writer) error {
 		return err
 	}
 
-	hostname, err := os.Hostname()
-	if err != nil {
-		return err
-	}
+	// Use j.cfg.NodeName if set, otherwise get that from os.Hostname(). This also makes sure the hostname is lower-cased
+	hostname := nodeutil.GetHostname(j.cfg.NodeName)
+
 	client, err := kubeconfigutil.KubeConfigToClientSet(cfg)
 	if err != nil {
 		return err
 	}
-	if err := kubenode.ValidateAPIServer(client); err != nil {
+	if err := kubeadmnode.ValidateAPIServer(client); err != nil {
 		return err
 	}
-	if err := kubenode.PerformTLSBootstrap(cfg, hostname); err != nil {
+	if err := kubeadmnode.PerformTLSBootstrap(cfg, hostname); err != nil {
 		return err
 	}
 

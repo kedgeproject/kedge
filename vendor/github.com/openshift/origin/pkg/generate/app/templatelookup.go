@@ -14,17 +14,16 @@ import (
 	kapi "k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/kubectl/resource"
 
-	"github.com/openshift/origin/pkg/client"
 	"github.com/openshift/origin/pkg/template"
 	templateapi "github.com/openshift/origin/pkg/template/apis/template"
+	templateclient "github.com/openshift/origin/pkg/template/generated/internalclientset/typed/template/internalversion"
 )
 
 // TemplateSearcher resolves stored template arguments into template objects
 type TemplateSearcher struct {
-	Client                    client.TemplatesNamespacer
-	TemplateConfigsNamespacer client.TemplateConfigsNamespacer
-	Namespaces                []string
-	StopOnExactMatch          bool
+	Client           templateclient.TemplatesGetter
+	Namespaces       []string
+	StopOnExactMatch bool
 }
 
 // Search searches for a template and returns matches with the object representation
@@ -102,10 +101,11 @@ func IsPossibleTemplateFile(value string) (bool, error) {
 
 // TemplateFileSearcher resolves template files into template objects
 type TemplateFileSearcher struct {
-	Mapper       meta.RESTMapper
-	Typer        runtime.ObjectTyper
-	ClientMapper resource.ClientMapper
-	Namespace    string
+	Mapper           meta.RESTMapper
+	Typer            runtime.ObjectTyper
+	ClientMapper     resource.ClientMapper
+	CategoryExpander resource.CategoryExpander
+	Namespace        string
 }
 
 // Search attempts to read template files and transform it into template objects
@@ -119,7 +119,7 @@ func (r *TemplateFileSearcher) Search(precise bool, terms ...string) (ComponentM
 		}
 
 		var isSingleItemImplied bool
-		obj, err := resource.NewBuilder(r.Mapper, r.Typer, r.ClientMapper, kapi.Codecs.UniversalDecoder()).
+		obj, err := resource.NewBuilder(r.Mapper, r.CategoryExpander, r.Typer, r.ClientMapper, kapi.Codecs.UniversalDecoder()).
 			NamespaceParam(r.Namespace).RequireNamespace().
 			FilenameParam(false, &resource.FilenameOptions{Recursive: false, Filenames: terms}).
 			Do().

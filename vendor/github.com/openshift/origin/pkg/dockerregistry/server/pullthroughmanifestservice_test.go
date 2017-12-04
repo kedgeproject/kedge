@@ -16,8 +16,10 @@ import (
 	"github.com/docker/distribution/registry/handlers"
 	_ "github.com/docker/distribution/registry/storage/driver/inmemory"
 
+	registryclient "github.com/openshift/origin/pkg/dockerregistry/server/client"
 	registrytest "github.com/openshift/origin/pkg/dockerregistry/testutil"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
+	imageapiv1 "github.com/openshift/origin/pkg/image/apis/image/v1"
 )
 
 func createTestRegistryServer(t *testing.T, ctx context.Context) *httptest.Server {
@@ -65,7 +67,10 @@ func TestPullthroughManifests(t *testing.T) {
 	installFakeAccessController(t)
 	setPassthroughBlobDescriptorServiceFactory()
 
-	remoteRegistryServer := createTestRegistryServer(t, context.Background())
+	backgroundCtx := context.Background()
+	backgroundCtx = registrytest.WithTestLogger(backgroundCtx, t)
+
+	remoteRegistryServer := createTestRegistryServer(t, backgroundCtx)
 	defer remoteRegistryServer.Close()
 
 	serverURL, err := url.Parse(remoteRegistryServer.URL)
@@ -74,7 +79,7 @@ func TestPullthroughManifests(t *testing.T) {
 	}
 
 	ms1dgst, ms1canonical, _, ms1manifest, err := registrytest.CreateAndUploadTestManifest(
-		registrytest.ManifestSchema1, 2, serverURL, nil, repoName, "schema1")
+		backgroundCtx, registrytest.ManifestSchema1, 2, serverURL, nil, repoName, "schema1")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -91,7 +96,7 @@ func TestPullthroughManifests(t *testing.T) {
 	image.DockerImageReference = fmt.Sprintf("%s/%s/%s@%s", serverURL.Host, namespace, repo, image.Name)
 	image.DockerImageManifest = ""
 
-	fos, client := registrytest.NewFakeOpenShiftWithClient()
+	fos, imageClient := registrytest.NewFakeOpenShiftWithClient(backgroundCtx)
 	registrytest.AddImageStream(t, fos, namespace, repo, map[string]string{
 		imageapi.InsecureRepositoryAnnotation: "true",
 	})
@@ -133,8 +138,8 @@ func TestPullthroughManifests(t *testing.T) {
 	} {
 		localManifestService := newTestManifestService(repoName, tc.localData)
 
-		repo := newTestRepository(t, namespace, repo, testRepositoryOptions{
-			client:            client,
+		repo := newTestRepository(backgroundCtx, t, namespace, repo, testRepositoryOptions{
+			client:            registryclient.NewFakeRegistryAPIClient(nil, imageClient),
 			enablePullThrough: true,
 		})
 
@@ -143,7 +148,7 @@ func TestPullthroughManifests(t *testing.T) {
 			repo:            repo,
 		}
 
-		ctx := WithTestPassthroughToUpstream(context.Background(), false)
+		ctx := WithTestPassthroughToUpstream(backgroundCtx, false)
 		manifestResult, err := ptms.Get(ctx, tc.manifestDigest)
 		switch err.(type) {
 		case distribution.ErrManifestUnknownRevision:
@@ -187,7 +192,10 @@ func TestPullthroughManifestInsecure(t *testing.T) {
 	installFakeAccessController(t)
 	setPassthroughBlobDescriptorServiceFactory()
 
-	remoteRegistryServer := createTestRegistryServer(t, context.Background())
+	backgroundCtx := context.Background()
+	backgroundCtx = registrytest.WithTestLogger(backgroundCtx, t)
+
+	remoteRegistryServer := createTestRegistryServer(t, backgroundCtx)
 	defer remoteRegistryServer.Close()
 
 	serverURL, err := url.Parse(remoteRegistryServer.URL)
@@ -196,7 +204,7 @@ func TestPullthroughManifestInsecure(t *testing.T) {
 	}
 
 	ms1dgst, ms1canonical, _, ms1manifest, err := registrytest.CreateAndUploadTestManifest(
-		registrytest.ManifestSchema1, 2, serverURL, nil, repoName, "schema1")
+		backgroundCtx, registrytest.ManifestSchema1, 2, serverURL, nil, repoName, "schema1")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -206,7 +214,7 @@ func TestPullthroughManifestInsecure(t *testing.T) {
 	}
 	t.Logf("ms1dgst=%s, ms1manifest: %s", ms1dgst, ms1canonical)
 	ms2dgst, ms2canonical, ms2config, ms2manifest, err := registrytest.CreateAndUploadTestManifest(
-		registrytest.ManifestSchema2, 2, serverURL, nil, repoName, "schema2")
+		backgroundCtx, registrytest.ManifestSchema2, 2, serverURL, nil, repoName, "schema2")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -310,9 +318,9 @@ func TestPullthroughManifestInsecure(t *testing.T) {
 
 				registrytest.AddUntaggedImage(t, fos, image)
 				registrytest.AddImageStream(t, fos, namespace, repo, nil)
-				registrytest.AddImageStreamTag(t, fos, ms1img, namespace, repo, &imageapi.TagReference{
+				registrytest.AddImageStreamTag(t, fos, ms1img, namespace, repo, &imageapiv1.TagReference{
 					Name:         "schema1",
-					ImportPolicy: imageapi.TagImportPolicy{Insecure: true},
+					ImportPolicy: imageapiv1.TagImportPolicy{Insecure: true},
 				})
 			},
 			expectedManifest: ms1manifest,
@@ -336,11 +344,11 @@ func TestPullthroughManifestInsecure(t *testing.T) {
 				registrytest.AddImageStream(t, fos, namespace, repo, map[string]string{
 					imageapi.InsecureRepositoryAnnotation: "true",
 				})
-				registrytest.AddImageStreamTag(t, fos, image, namespace, repo, &imageapi.TagReference{
+				registrytest.AddImageStreamTag(t, fos, image, namespace, repo, &imageapiv1.TagReference{
 					Name: "schema2",
 					// the value doesn't override is annotation because we cannot determine whether the
 					// value is explicit or just the default
-					ImportPolicy: imageapi.TagImportPolicy{Insecure: false},
+					ImportPolicy: imageapiv1.TagImportPolicy{Insecure: false},
 				})
 			},
 			expectedManifest: ms2manifest,
@@ -349,59 +357,59 @@ func TestPullthroughManifestInsecure(t *testing.T) {
 			},
 		},
 	} {
-		fos, client := registrytest.NewFakeOpenShiftWithClient()
+		t.Run(tc.name, func(t *testing.T) {
+			fos, imageClient := registrytest.NewFakeOpenShiftWithClient(backgroundCtx)
 
-		tc.fakeOpenShiftInit(fos)
+			tc.fakeOpenShiftInit(fos)
 
-		localManifestService := newTestManifestService(repoName, tc.localData)
+			localManifestService := newTestManifestService(repoName, tc.localData)
 
-		ctx := WithTestPassthroughToUpstream(context.Background(), false)
-		repo := newTestRepository(t, namespace, repo, testRepositoryOptions{
-			client:            client,
-			enablePullThrough: true,
-		})
-		ctx = withRepository(ctx, repo)
+			ctx := WithTestPassthroughToUpstream(backgroundCtx, false)
+			repo := newTestRepository(ctx, t, namespace, repo, testRepositoryOptions{
+				client:            registryclient.NewFakeRegistryAPIClient(nil, imageClient),
+				enablePullThrough: true,
+			})
+			ctx = withRepository(ctx, repo)
 
-		ptms := &pullthroughManifestService{
-			ManifestService: localManifestService,
-			repo:            repo,
-		}
-
-		manifestResult, err := ptms.Get(ctx, tc.manifestDigest)
-		switch err.(type) {
-		case nil:
-			if len(tc.expectedErrorString) > 0 {
-				t.Errorf("[%s] unexpected successful response", tc.name)
-				continue
+			ptms := &pullthroughManifestService{
+				ManifestService: localManifestService,
+				repo:            repo,
 			}
-		default:
-			if len(tc.expectedErrorString) > 0 {
-				if !strings.Contains(err.Error(), tc.expectedErrorString) {
-					t.Fatalf("expected error string %q, got instead: %s (%#+v)", tc.expectedErrorString, err.Error(), err)
+
+			manifestResult, err := ptms.Get(ctx, tc.manifestDigest)
+			switch err.(type) {
+			case nil:
+				if len(tc.expectedErrorString) > 0 {
+					t.Fatalf("unexpected successful response")
 				}
-				break
+			default:
+				if len(tc.expectedErrorString) > 0 {
+					if !strings.Contains(err.Error(), tc.expectedErrorString) {
+						t.Fatalf("expected error string %q, got instead: %s (%#+v)", tc.expectedErrorString, err.Error(), err)
+					}
+					break
+				}
+				t.Fatalf("unexpected error: %#+v (%s)", err, err.Error())
 			}
-			t.Fatalf("[%s] unexpected error: %#+v (%s)", tc.name, err, err.Error())
-		}
 
-		if tc.localData != nil {
-			if manifestResult != nil && manifestResult != tc.localData[tc.manifestDigest] {
-				t.Errorf("[%s] unexpected result returned", tc.name)
-				continue
+			if tc.localData != nil {
+				if manifestResult != nil && manifestResult != tc.localData[tc.manifestDigest] {
+					t.Fatalf("unexpected result returned")
+				}
 			}
-		}
 
-		registrytest.AssertManifestsEqual(t, tc.name, manifestResult, tc.expectedManifest)
+			registrytest.AssertManifestsEqual(t, tc.name, manifestResult, tc.expectedManifest)
 
-		for name, count := range localManifestService.calls {
-			expectCount, exists := tc.expectedLocalCalls[name]
-			if !exists {
-				t.Errorf("[%s] expected no calls to method %s of local manifest service, got %d", tc.name, name, count)
+			for name, count := range localManifestService.calls {
+				expectCount, exists := tc.expectedLocalCalls[name]
+				if !exists {
+					t.Errorf("expected no calls to method %s of local manifest service, got %d", name, count)
+				}
+				if count != expectCount {
+					t.Errorf("unexpected number of calls to method %s of local manifest service, got %d", name, count)
+				}
 			}
-			if count != expectCount {
-				t.Errorf("[%s] unexpected number of calls to method %s of local manifest service, got %d", tc.name, name, count)
-			}
-		}
+		})
 	}
 }
 
@@ -457,7 +465,10 @@ func TestPullthroughManifestDockerReference(t *testing.T) {
 	image2 := *img
 	image2.DockerImageReference = dockerImageReference(server2, "foo/bar")
 
-	fos, client := registrytest.NewFakeOpenShiftWithClient()
+	backgroundCtx := context.Background()
+	backgroundCtx = registrytest.WithTestLogger(backgroundCtx, t)
+
+	fos, imageClient := registrytest.NewFakeOpenShiftWithClient(backgroundCtx)
 	registrytest.AddImageStream(t, fos, namespace, repo1, map[string]string{
 		imageapi.InsecureRepositoryAnnotation: "true",
 	})
@@ -490,8 +501,8 @@ func TestPullthroughManifestDockerReference(t *testing.T) {
 			s.touched = false
 		}
 
-		r := newTestRepository(t, namespace, tc.repoName, testRepositoryOptions{
-			client:            client,
+		r := newTestRepository(backgroundCtx, t, namespace, tc.repoName, testRepositoryOptions{
+			client:            registryclient.NewFakeRegistryAPIClient(nil, imageClient),
 			enablePullThrough: true,
 		})
 
@@ -500,8 +511,7 @@ func TestPullthroughManifestDockerReference(t *testing.T) {
 			repo:            r,
 		}
 
-		ctx := context.Background()
-		ctx = withRepository(ctx, r)
+		ctx := withRepository(backgroundCtx, r)
 		ptms.Get(ctx, digest.Digest(img.Name))
 
 		for _, s := range tc.touchedServers {

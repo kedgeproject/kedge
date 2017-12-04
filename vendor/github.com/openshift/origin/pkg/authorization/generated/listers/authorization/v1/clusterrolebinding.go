@@ -3,10 +3,8 @@
 package v1
 
 import (
-	authorization "github.com/openshift/origin/pkg/authorization/apis/authorization"
 	v1 "github.com/openshift/origin/pkg/authorization/apis/authorization/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/cache"
 )
@@ -40,13 +38,12 @@ func (s *clusterRoleBindingLister) List(selector labels.Selector) (ret []*v1.Clu
 
 // Get retrieves the ClusterRoleBinding from the index for a given name.
 func (s *clusterRoleBindingLister) Get(name string) (*v1.ClusterRoleBinding, error) {
-	key := &v1.ClusterRoleBinding{ObjectMeta: meta_v1.ObjectMeta{Name: name}}
-	obj, exists, err := s.indexer.Get(key)
+	obj, exists, err := s.indexer.GetByKey(name)
 	if err != nil {
 		return nil, err
 	}
 	if !exists {
-		return nil, errors.NewNotFound(authorization.Resource("clusterrolebinding"), name)
+		return nil, errors.NewNotFound(v1.Resource("clusterrolebinding"), name)
 	}
 	return obj.(*v1.ClusterRoleBinding), nil
 }

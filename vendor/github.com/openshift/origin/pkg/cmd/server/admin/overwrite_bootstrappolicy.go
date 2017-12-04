@@ -18,13 +18,31 @@ import (
 	"k8s.io/kubernetes/pkg/kubectl/resource"
 
 	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
-	"github.com/openshift/origin/pkg/authorization/util"
 
-	"github.com/openshift/origin/pkg/cmd/cli/describe"
 	configapilatest "github.com/openshift/origin/pkg/cmd/server/api/latest"
 	originrest "github.com/openshift/origin/pkg/cmd/server/origin/rest"
+	"github.com/openshift/origin/pkg/oc/cli/describe"
 	templateapi "github.com/openshift/origin/pkg/template/apis/template"
 	"github.com/openshift/origin/pkg/util/restoptions"
+
+	"github.com/openshift/origin/pkg/authorization/rulevalidation"
+	clusterpolicyregistry "github.com/openshift/origin/pkg/cmd/server/admin/legacyetcd/clusterpolicy"
+	clusterpolicyetcd "github.com/openshift/origin/pkg/cmd/server/admin/legacyetcd/clusterpolicy/etcd"
+	clusterpolicybindingregistry "github.com/openshift/origin/pkg/cmd/server/admin/legacyetcd/clusterpolicybinding"
+	clusterpolicybindingetcd "github.com/openshift/origin/pkg/cmd/server/admin/legacyetcd/clusterpolicybinding/etcd"
+	"github.com/openshift/origin/pkg/cmd/server/admin/legacyetcd/clusterrole"
+	clusterrolestorage "github.com/openshift/origin/pkg/cmd/server/admin/legacyetcd/clusterrole/proxy"
+	"github.com/openshift/origin/pkg/cmd/server/admin/legacyetcd/clusterrolebinding"
+	clusterrolebindingstorage "github.com/openshift/origin/pkg/cmd/server/admin/legacyetcd/clusterrolebinding/proxy"
+	policyregistry "github.com/openshift/origin/pkg/cmd/server/admin/legacyetcd/policy"
+	policyetcd "github.com/openshift/origin/pkg/cmd/server/admin/legacyetcd/policy/etcd"
+	policybindingregistry "github.com/openshift/origin/pkg/cmd/server/admin/legacyetcd/policybinding"
+	policybindingetcd "github.com/openshift/origin/pkg/cmd/server/admin/legacyetcd/policybinding/etcd"
+	"github.com/openshift/origin/pkg/cmd/server/admin/legacyetcd/role"
+	rolestorage "github.com/openshift/origin/pkg/cmd/server/admin/legacyetcd/role/policybased"
+	"github.com/openshift/origin/pkg/cmd/server/admin/legacyetcd/rolebinding"
+	rolebindingstorage "github.com/openshift/origin/pkg/cmd/server/admin/legacyetcd/rolebinding/policybased"
+	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
 )
 
 const OverwriteBootstrapPolicyCommandName = "overwrite-policy"
@@ -38,7 +56,7 @@ type OverwriteBootstrapPolicyOptions struct {
 	CreateBootstrapPolicyCommand string
 }
 
-func NewCommandOverwriteBootstrapPolicy(commandName string, fullName string, createBootstrapPolicyCommand string, out io.Writer) *cobra.Command {
+func NewCommandOverwriteBootstrapPolicy(commandName string, fullName string, createBootstrapPolicyCommand string, f *clientcmd.Factory, out io.Writer) *cobra.Command {
 	options := &OverwriteBootstrapPolicyOptions{Out: out}
 	options.CreateBootstrapPolicyCommand = createBootstrapPolicyCommand
 
@@ -46,14 +64,13 @@ func NewCommandOverwriteBootstrapPolicy(commandName string, fullName string, cre
 		Use:   commandName,
 		Short: "Reset the policy to the default values",
 		Run: func(cmd *cobra.Command, args []string) {
+			kcmdutil.CheckErr(options.Complete(f))
 			if err := options.Validate(args); err != nil {
 				kcmdutil.CheckErr(kcmdutil.UsageError(cmd, err.Error()))
 			}
-
-			if err := options.OverwriteBootstrapPolicy(); err != nil {
-				kcmdutil.CheckErr(err)
-			}
+			kcmdutil.CheckErr(options.OverwriteBootstrapPolicy())
 		},
+		Deprecated: fmt.Sprintf("will not work against 3.7 servers"),
 	}
 
 	flags := cmd.Flags()
@@ -83,6 +100,15 @@ func (o OverwriteBootstrapPolicyOptions) Validate(args []string) error {
 	return nil
 }
 
+func (o OverwriteBootstrapPolicyOptions) Complete(f *clientcmd.Factory) error {
+	kclient, err := f.ClientSet()
+	if err != nil {
+		return err
+	}
+
+	return clientcmd.LegacyPolicyResourceGate(kclient.Discovery())
+}
+
 func (o OverwriteBootstrapPolicyOptions) OverwriteBootstrapPolicy() error {
 	masterConfig, err := configapilatest.ReadAndResolveMasterConfig(o.MasterConfigFile)
 	if err != nil {
@@ -98,6 +124,63 @@ func (o OverwriteBootstrapPolicyOptions) OverwriteBootstrapPolicy() error {
 	return OverwriteBootstrapPolicy(optsGetter, o.File, o.CreateBootstrapPolicyCommand, o.Force, o.Out)
 }
 
+type authorizationStorage struct {
+	Role               role.Storage
+	RoleBinding        rolebinding.Storage
+	ClusterRole        clusterrole.Storage
+	ClusterRoleBinding clusterrolebinding.Storage
+}
+
+func newLiveRuleResolver(policyRegistry policyregistry.Registry, policyBindingRegistry policybindingregistry.Registry, clusterPolicyRegistry clusterpolicyregistry.Registry, clusterBindingRegistry clusterpolicybindingregistry.Registry) rulevalidation.AuthorizationRuleResolver {
+	return rulevalidation.NewDefaultRuleResolver(
+		&policyregistry.ReadOnlyPolicyListerNamespacer{
+			Registry: policyRegistry,
+		},
+		&policybindingregistry.ReadOnlyPolicyBindingListerNamespacer{
+			Registry: policyBindingRegistry,
+		},
+		&clusterpolicyregistry.ReadOnlyClusterPolicyClientShim{
+			ReadOnlyClusterPolicy: clusterpolicyregistry.ReadOnlyClusterPolicy{Registry: clusterPolicyRegistry},
+		},
+		&clusterpolicybindingregistry.ReadOnlyClusterPolicyBindingClientShim{
+			ReadOnlyClusterPolicyBinding: clusterpolicybindingregistry.ReadOnlyClusterPolicyBinding{Registry: clusterBindingRegistry},
+		},
+	)
+}
+
+func getAuthorizationStorage(optsGetter restoptions.Getter) (*authorizationStorage, error) {
+	policyStorage, err := policyetcd.NewREST(optsGetter)
+	if err != nil {
+		return nil, err
+	}
+	policyBindingStorage, err := policybindingetcd.NewREST(optsGetter)
+	if err != nil {
+		return nil, err
+	}
+	clusterPolicyStorage, err := clusterpolicyetcd.NewREST(optsGetter)
+	if err != nil {
+		return nil, err
+	}
+	clusterPolicyBindingStorage, err := clusterpolicybindingetcd.NewREST(optsGetter)
+	if err != nil {
+		return nil, err
+	}
+
+	policyRegistry := policyregistry.NewRegistry(policyStorage)
+	policyBindingRegistry := policybindingregistry.NewRegistry(policyBindingStorage)
+	clusterPolicyRegistry := clusterpolicyregistry.NewRegistry(clusterPolicyStorage)
+	clusterPolicyBindingRegistry := clusterpolicybindingregistry.NewRegistry(clusterPolicyBindingStorage)
+
+	liveRuleResolver := newLiveRuleResolver(policyRegistry, policyBindingRegistry, clusterPolicyRegistry, clusterPolicyBindingRegistry)
+
+	return &authorizationStorage{
+		Role:               rolestorage.NewVirtualStorage(policyRegistry, liveRuleResolver, nil),
+		RoleBinding:        rolebindingstorage.NewVirtualStorage(policyBindingRegistry, liveRuleResolver, nil),
+		ClusterRole:        clusterrolestorage.NewClusterRoleStorage(clusterPolicyRegistry, liveRuleResolver, nil),
+		ClusterRoleBinding: clusterrolebindingstorage.NewClusterRoleBindingStorage(clusterPolicyBindingRegistry, liveRuleResolver, nil),
+	}, nil
+}
+
 func OverwriteBootstrapPolicy(optsGetter restoptions.Getter, policyFile, createBootstrapPolicyCommand string, change bool, out io.Writer) error {
 	if !change {
 		fmt.Fprintf(out, "Performing a dry run of policy overwrite:\n\n")
@@ -109,7 +192,7 @@ func OverwriteBootstrapPolicy(optsGetter restoptions.Getter, policyFile, createB
 		return nil, nil
 	})
 
-	r := resource.NewBuilder(mapper, typer, clientMapper, kapi.Codecs.UniversalDecoder()).
+	r := resource.NewBuilder(mapper, resource.SimpleCategoryExpander{}, typer, clientMapper, kapi.Codecs.UniversalDecoder()).
 		FilenameParam(false, &resource.FilenameOptions{Recursive: false, Filenames: []string{policyFile}}).
 		Flatten().
 		Do()
@@ -118,7 +201,7 @@ func OverwriteBootstrapPolicy(optsGetter restoptions.Getter, policyFile, createB
 		return r.Err()
 	}
 
-	authStorage, err := util.GetAuthorizationStorage(optsGetter, nil)
+	authStorage, err := getAuthorizationStorage(optsGetter)
 	if err != nil {
 		return err
 	}

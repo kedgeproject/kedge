@@ -7,9 +7,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/diff"
 	kapi "k8s.io/kubernetes/pkg/api"
+	kapihelper "k8s.io/kubernetes/pkg/api/helper"
+	kcontroller "k8s.io/kubernetes/pkg/controller"
 
-	client "github.com/openshift/origin/pkg/client/testclient"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
+	imageinformer "github.com/openshift/origin/pkg/image/generated/informers/internalversion"
+	imageclient "github.com/openshift/origin/pkg/image/generated/internalclientset/fake"
 
 	_ "github.com/openshift/origin/pkg/api/install"
 )
@@ -229,13 +232,13 @@ func TestHandleImageStream(t *testing.T) {
 	}
 
 	for i, test := range testCases {
-		fake := &client.Fake{}
+		fake := imageclient.NewSimpleClientset()
 		other, err := kapi.Scheme.DeepCopy(test.stream)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		if err := handleImageStream(test.stream, fake, nil); err != nil {
+		if err := handleImageStream(test.stream, fake.Image(), nil); err != nil {
 			t.Errorf("%d: unexpected error: %v", i, err)
 		}
 		if test.run {
@@ -248,12 +251,42 @@ func TestHandleImageStream(t *testing.T) {
 				t.Errorf("expected a create action: %#v", actions)
 			}
 		} else {
-			if !kapi.Semantic.DeepEqual(test.stream, other) {
+			if !kapihelper.Semantic.DeepEqual(test.stream, other) {
 				t.Errorf("%d: did not expect change to stream: %s", i, diff.ObjectGoPrintDiff(test.stream, other))
 			}
 			if len(fake.Actions()) != 0 {
 				t.Errorf("%d: did not expect remote calls", i)
 			}
 		}
+	}
+}
+
+func TestProcessNextWorkItemOnRemovedStream(t *testing.T) {
+	clientset := imageclient.NewSimpleClientset()
+	informer := imageinformer.NewSharedInformerFactory(imageclient.NewSimpleClientset(), 0)
+	isc := NewImageStreamController(clientset, informer.Image().InternalVersion().ImageStreams())
+	isc.queue.Add("other/test")
+	isc.processNextWorkItem()
+	if isc.queue.Len() != 0 {
+		t.Errorf("Unexpected queue length, expected 0, got %d", isc.queue.Len())
+	}
+}
+
+func TestProcessNextWorkItem(t *testing.T) {
+	stream := &imageapi.ImageStream{
+		ObjectMeta: metav1.ObjectMeta{
+			Annotations: map[string]string{imageapi.DockerImageRepositoryCheckAnnotation: metav1.Now().UTC().Format(time.RFC3339)},
+			Name:        "test",
+			Namespace:   "other",
+		},
+	}
+	clientset := imageclient.NewSimpleClientset(stream)
+	informer := imageinformer.NewSharedInformerFactory(imageclient.NewSimpleClientset(stream), 0)
+	isc := NewImageStreamController(clientset, informer.Image().InternalVersion().ImageStreams())
+	key, _ := kcontroller.KeyFunc(stream)
+	isc.queue.Add(key)
+	isc.processNextWorkItem()
+	if isc.queue.Len() != 0 {
+		t.Errorf("Unexpected queue length, expected 0, got %d", isc.queue.Len())
 	}
 }

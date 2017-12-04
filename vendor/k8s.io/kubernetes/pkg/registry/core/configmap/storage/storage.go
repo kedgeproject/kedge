@@ -22,7 +22,6 @@ import (
 	genericregistry "k8s.io/apiserver/pkg/registry/generic/registry"
 	"k8s.io/apiserver/pkg/registry/rest"
 	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/registry/cachesize"
 	"k8s.io/kubernetes/pkg/registry/core/configmap"
 )
 
@@ -34,15 +33,11 @@ type REST struct {
 // NewREST returns a RESTStorage object that will work with ConfigMap objects.
 func NewREST(optsGetter generic.RESTOptionsGetter) *REST {
 	store := &genericregistry.Store{
-		Copier:      api.Scheme,
-		NewFunc:     func() runtime.Object { return &api.ConfigMap{} },
-		NewListFunc: func() runtime.Object { return &api.ConfigMapList{} },
-		ObjectNameFunc: func(obj runtime.Object) (string, error) {
-			return obj.(*api.ConfigMap).Name, nil
-		},
-		PredicateFunc:     configmap.MatchConfigMap,
-		QualifiedResource: api.Resource("configmaps"),
-		WatchCacheSize:    cachesize.GetWatchCacheSizeByResource("configmaps"),
+		Copier:                   api.Scheme,
+		NewFunc:                  func() runtime.Object { return &api.ConfigMap{} },
+		NewListFunc:              func() runtime.Object { return &api.ConfigMapList{} },
+		PredicateFunc:            configmap.MatchConfigMap,
+		DefaultQualifiedResource: api.Resource("configmaps"),
 
 		CreateStrategy: configmap.Strategy,
 		UpdateStrategy: configmap.Strategy,

@@ -24,7 +24,6 @@ import (
 	genericregistry "k8s.io/apiserver/pkg/registry/generic/registry"
 	"k8s.io/apiserver/pkg/registry/rest"
 	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/registry/cachesize"
 	"k8s.io/kubernetes/pkg/registry/core/service"
 )
 
@@ -35,15 +34,11 @@ type REST struct {
 // NewREST returns a RESTStorage object that will work against services.
 func NewREST(optsGetter generic.RESTOptionsGetter) (*REST, *StatusREST) {
 	store := &genericregistry.Store{
-		Copier:      api.Scheme,
-		NewFunc:     func() runtime.Object { return &api.Service{} },
-		NewListFunc: func() runtime.Object { return &api.ServiceList{} },
-		ObjectNameFunc: func(obj runtime.Object) (string, error) {
-			return obj.(*api.Service).Name, nil
-		},
-		PredicateFunc:     service.MatchServices,
-		QualifiedResource: api.Resource("services"),
-		WatchCacheSize:    cachesize.GetWatchCacheSizeByResource("services"),
+		Copier:                   api.Scheme,
+		NewFunc:                  func() runtime.Object { return &api.Service{} },
+		NewListFunc:              func() runtime.Object { return &api.ServiceList{} },
+		PredicateFunc:            service.MatchServices,
+		DefaultQualifiedResource: api.Resource("services"),
 
 		CreateStrategy: service.Strategy,
 		UpdateStrategy: service.Strategy,
@@ -66,6 +61,14 @@ var _ rest.ShortNamesProvider = &REST{}
 // ShortNames implements the ShortNamesProvider interface. Returns a list of short names for a resource.
 func (r *REST) ShortNames() []string {
 	return []string{"svc"}
+}
+
+// Implement CategoriesProvider
+var _ rest.CategoriesProvider = &REST{}
+
+// Categories implements the CategoriesProvider interface. Returns a list of categories a resource is part of.
+func (r *REST) Categories() []string {
+	return []string{"all"}
 }
 
 // StatusREST implements the REST endpoint for changing the status of a service.

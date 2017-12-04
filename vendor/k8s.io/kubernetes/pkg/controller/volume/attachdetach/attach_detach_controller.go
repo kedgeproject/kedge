@@ -37,6 +37,7 @@ import (
 	coreinformers "k8s.io/kubernetes/pkg/client/informers/informers_generated/externalversions/core/v1"
 	corelisters "k8s.io/kubernetes/pkg/client/listers/core/v1"
 	"k8s.io/kubernetes/pkg/cloudprovider"
+	"k8s.io/kubernetes/pkg/controller"
 	"k8s.io/kubernetes/pkg/controller/volume/attachdetach/cache"
 	"k8s.io/kubernetes/pkg/controller/volume/attachdetach/populator"
 	"k8s.io/kubernetes/pkg/controller/volume/attachdetach/reconciler"
@@ -143,7 +144,8 @@ func NewAttachDetachController(
 		adc.desiredStateOfWorld,
 		adc.actualStateOfWorld,
 		adc.attacherDetacher,
-		adc.nodeStatusUpdater)
+		adc.nodeStatusUpdater,
+		recorder)
 
 	adc.desiredStateOfWorldPopulator = populator.NewDesiredStateOfWorldPopulator(
 		desiredStateOfWorldPopulatorLoopSleepPeriod,
@@ -236,10 +238,11 @@ type attachDetachController struct {
 
 func (adc *attachDetachController) Run(stopCh <-chan struct{}) {
 	defer runtime.HandleCrash()
-	glog.Infof("Starting Attach Detach Controller")
 
-	if !kcache.WaitForCacheSync(stopCh, adc.podsSynced, adc.nodesSynced, adc.pvcsSynced, adc.pvsSynced) {
-		runtime.HandleError(fmt.Errorf("timed out waiting for caches to sync"))
+	glog.Infof("Starting attach detach controller")
+	defer glog.Infof("Shutting down attach detach controller")
+
+	if !controller.WaitForCacheSync("attach detach", stopCh, adc.podsSynced, adc.nodesSynced, adc.pvcsSynced, adc.pvsSynced) {
 		return
 	}
 
@@ -255,7 +258,6 @@ func (adc *attachDetachController) Run(stopCh <-chan struct{}) {
 	go adc.desiredStateOfWorldPopulator.Run(stopCh)
 
 	<-stopCh
-	glog.Infof("Shutting down Attach Detach Controller")
 }
 
 func (adc *attachDetachController) populateActualStateOfWorld() error {
@@ -279,7 +281,7 @@ func (adc *attachDetachController) populateActualStateOfWorld() error {
 				glog.Errorf("Failed to mark the volume as attached: %v", err)
 				continue
 			}
-			adc.processVolumesInUse(nodeName, node.Status.VolumesInUse, true /* forceUnmount */)
+			adc.processVolumesInUse(nodeName, node.Status.VolumesInUse)
 			adc.addNodeToDswp(node, types.NodeName(node.Name))
 		}
 	}
@@ -448,7 +450,7 @@ func (adc *attachDetachController) nodeUpdate(oldObj, newObj interface{}) {
 
 	nodeName := types.NodeName(node.Name)
 	adc.addNodeToDswp(node, nodeName)
-	adc.processVolumesInUse(nodeName, node.Status.VolumesInUse, false /* forceUnmount */)
+	adc.processVolumesInUse(nodeName, node.Status.VolumesInUse)
 }
 
 func (adc *attachDetachController) nodeDelete(obj interface{}) {
@@ -459,10 +461,11 @@ func (adc *attachDetachController) nodeDelete(obj interface{}) {
 
 	nodeName := types.NodeName(node.Name)
 	if err := adc.desiredStateOfWorld.DeleteNode(nodeName); err != nil {
-		glog.V(10).Infof("%v", err)
+		// This might happen during drain, but we still want it to appear in our logs
+		glog.Infof("error removing node %q from desired-state-of-world: %v", nodeName, err)
 	}
 
-	adc.processVolumesInUse(nodeName, node.Status.VolumesInUse, false /* forceUnmount */)
+	adc.processVolumesInUse(nodeName, node.Status.VolumesInUse)
 }
 
 // processVolumesInUse processes the list of volumes marked as "in-use"
@@ -470,7 +473,7 @@ func (adc *attachDetachController) nodeDelete(obj interface{}) {
 // corresponding volume in the actual state of the world to indicate that it is
 // mounted.
 func (adc *attachDetachController) processVolumesInUse(
-	nodeName types.NodeName, volumesInUse []v1.UniqueVolumeName, forceUnmount bool) {
+	nodeName types.NodeName, volumesInUse []v1.UniqueVolumeName) {
 	glog.V(4).Infof("processVolumesInUse for node %q", nodeName)
 	for _, attachedVolume := range adc.actualStateOfWorld.GetAttachedVolumesForNode(nodeName) {
 		mounted := false
@@ -480,8 +483,7 @@ func (adc *attachDetachController) processVolumesInUse(
 				break
 			}
 		}
-		err := adc.actualStateOfWorld.SetVolumeMountedByNode(
-			attachedVolume.VolumeName, nodeName, mounted, forceUnmount)
+		err := adc.actualStateOfWorld.SetVolumeMountedByNode(attachedVolume.VolumeName, nodeName, mounted)
 		if err != nil {
 			glog.Warningf(
 				"SetVolumeMountedByNode(%q, %q, %q) returned an error: %v",
@@ -550,6 +552,12 @@ func (adc *attachDetachController) GetSecretFunc() func(namespace, name string) 
 	}
 }
 
+func (adc *attachDetachController) GetConfigMapFunc() func(namespace, name string) (*v1.ConfigMap, error) {
+	return func(_, _ string) (*v1.ConfigMap, error) {
+		return nil, fmt.Errorf("GetConfigMap unsupported in attachDetachController")
+	}
+}
+
 func (adc *attachDetachController) addNodeToDswp(node *v1.Node, nodeName types.NodeName) {
 	if _, exists := node.Annotations[volumehelper.ControllerManagedAttachAnnotation]; exists {
 		keepTerminatedPodVolumes := false
@@ -562,4 +570,8 @@ func (adc *attachDetachController) addNodeToDswp(node *v1.Node, nodeName types.N
 		// detach controller. Add it to desired state of world.
 		adc.desiredStateOfWorld.AddNode(nodeName, keepTerminatedPodVolumes)
 	}
+}
+
+func (adc *attachDetachController) GetNodeLabels() (map[string]string, error) {
+	return nil, fmt.Errorf("GetNodeLabels() unsupported in Attach/Detach controller")
 }

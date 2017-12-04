@@ -21,34 +21,30 @@ import (
 	"k8s.io/kubernetes/pkg/client/retry"
 	serviceaccountadmission "k8s.io/kubernetes/plugin/pkg/admission/serviceaccount"
 
-	"github.com/openshift/origin/pkg/cmd/admin/policy"
+	authorizationclient "github.com/openshift/origin/pkg/authorization/generated/internalclientset"
 	"github.com/openshift/origin/pkg/cmd/server/bootstrappolicy"
+	"github.com/openshift/origin/pkg/oc/admin/policy"
 	"github.com/openshift/origin/pkg/serviceaccounts/controllers"
 	testutil "github.com/openshift/origin/test/util"
 	testserver "github.com/openshift/origin/test/util/server"
 )
 
 func TestServiceAccountAuthorization(t *testing.T) {
-	testutil.RequireEtcd(t)
-	defer testutil.DumpEtcdOnFailure(t)
 	saNamespace := api.NamespaceDefault
 	saName := serviceaccountadmission.DefaultServiceAccountName
 	saUsername := apiserverserviceaccount.MakeUsername(saNamespace, saName)
 
 	// Start one OpenShift master as "cluster1" to play the external kube server
-	_, cluster1AdminConfigFile, err := testserver.StartTestMaster()
+	masterConfig, cluster1AdminConfigFile, err := testserver.StartTestMaster()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	defer testserver.CleanupMasterEtcd(t, masterConfig)
 	cluster1AdminConfig, err := testutil.GetClusterAdminClientConfig(cluster1AdminConfigFile)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	cluster1AdminKubeClientset, err := testutil.GetClusterAdminKubeClient(cluster1AdminConfigFile)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	cluster1AdminOSClient, err := testutil.GetClusterAdminClient(cluster1AdminConfigFile)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -83,11 +79,11 @@ func TestServiceAccountAuthorization(t *testing.T) {
 	// Make the service account a cluster admin on cluster1
 	addRoleOptions := &policy.RoleModificationOptions{
 		RoleName:            bootstrappolicy.ClusterAdminRoleName,
-		RoleBindingAccessor: policy.NewClusterRoleBindingAccessor(cluster1AdminOSClient),
+		RoleBindingAccessor: policy.NewClusterRoleBindingAccessor(authorizationclient.NewForConfigOrDie(cluster1AdminConfig)),
 		Users:               []string{saUsername},
 	}
 	if err := addRoleOptions.AddRole(); err != nil {
-		t.Fatalf("could not add role to service account")
+		t.Fatal(err)
 	}
 
 	// Give the policy cache a second to catch its breath
@@ -169,12 +165,11 @@ func TestAutomaticCreationOfPullSecrets(t *testing.T) {
 	saNamespace := api.NamespaceDefault
 	saName := serviceaccountadmission.DefaultServiceAccountName
 
-	testutil.RequireEtcd(t)
-	defer testutil.DumpEtcdOnFailure(t)
-	_, clusterAdminConfig, err := testserver.StartTestMaster()
+	masterConfig, clusterAdminConfig, err := testserver.StartTestMaster()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	defer testserver.CleanupMasterEtcd(t, masterConfig)
 	clusterAdminKubeClient, err := testutil.GetClusterAdminKubeClient(clusterAdminConfig)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -227,13 +222,12 @@ func getServiceAccountPullSecret(client kclientset.Interface, ns, name string) (
 }
 
 func TestEnforcingServiceAccount(t *testing.T) {
-	testutil.RequireEtcd(t)
-	defer testutil.DumpEtcdOnFailure(t)
 	masterConfig, err := testserver.DefaultMasterOptions()
 	masterConfig.ServiceAccountConfig.LimitSecretReferences = false
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	defer testserver.CleanupMasterEtcd(t, masterConfig)
 
 	clusterAdminConfig, err := testserver.StartConfiguredMaster(masterConfig)
 	if err != nil {
@@ -323,17 +317,11 @@ func TestEnforcingServiceAccount(t *testing.T) {
 }
 
 func TestDockercfgTokenDeletedController(t *testing.T) {
-	testutil.RequireEtcd(t)
-	defer testutil.DumpEtcdOnFailure(t)
-
-	_, clusterAdminConfig, err := testserver.StartTestMaster()
+	masterConfig, clusterAdminConfig, err := testserver.StartTestMaster()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	clusterAdminClient, err := testutil.GetClusterAdminClient(clusterAdminConfig)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	defer testserver.CleanupMasterEtcd(t, masterConfig)
 	clusterAdminClientConfig, err := testutil.GetClusterAdminClientConfig(clusterAdminConfig)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -347,7 +335,7 @@ func TestDockercfgTokenDeletedController(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "sa1", Namespace: "ns1"},
 	}
 
-	if _, err := testserver.CreateNewProject(clusterAdminClient, *clusterAdminClientConfig, sa.Namespace, "ignored"); err != nil {
+	if _, _, err := testserver.CreateNewProject(clusterAdminClientConfig, sa.Namespace, "ignored"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 

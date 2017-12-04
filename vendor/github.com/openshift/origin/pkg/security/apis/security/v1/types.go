@@ -5,8 +5,14 @@ import (
 	kapi "k8s.io/kubernetes/pkg/api/v1"
 )
 
-// +genclient=true
-// +nonNamespaced=true
+// AllowAllCapabilities can be used as a value for the
+// SecurityContextConstraints.AllowAllCapabilities field and means that any
+// capabilities are allowed to be requested.
+var AllowAllCapabilities kapi.Capability = "*"
+
+// +genclient
+// +genclient:nonNamespaced
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // SecurityContextConstraints governs the ability to make requests that affect the SecurityContext
 // that will be applied to a container.
@@ -18,7 +24,10 @@ type SecurityContextConstraints struct {
 
 	// Priority influences the sort order of SCCs when evaluating which SCCs to try first for
 	// a given pod request based on access in the Users and Groups fields.  The higher the int, the
-	// higher priority.  If scores for multiple SCCs are equal they will be sorted by name.
+	// higher priority. An unset value is considered a 0 priority. If scores
+	// for multiple SCCs are equal they will be sorted from most restrictive to
+	// least restrictive. If both priorities and restrictions are equal the
+	// SCCs will be sorted by name.
 	Priority *int32 `json:"priority" protobuf:"varint,2,opt,name=priority"`
 
 	// AllowPrivilegedContainer determines if a container can request to be run as privileged.
@@ -42,6 +51,10 @@ type SecurityContextConstraints struct {
 	// of a VolumeSource (azureFile, configMap, emptyDir).  To allow all volumes you may use "*".
 	// To allow no volumes, set to ["none"].
 	Volumes []FSType `json:"volumes" protobuf:"bytes,8,rep,name=volumes,casttype=FSType"`
+	// AllowedFlexVolumes is a whitelist of allowed Flexvolumes.  Empty or nil indicates that all
+	// Flexvolumes may be used.  This parameter is effective only when the usage of the Flexvolumes
+	// is allowed in the "Volumes" field.
+	AllowedFlexVolumes []AllowedFlexVolume `json:"allowedFlexVolumes" protobuf:"bytes,21,rep,name=allowedFlexVolumes"`
 	// AllowHostNetwork determines if the policy allows the use of HostNetwork in the pod spec.
 	AllowHostNetwork bool `json:"allowHostNetwork" protobuf:"varint,9,opt,name=allowHostNetwork"`
 	// AllowHostPorts determines if the policy allows host ports in the containers.
@@ -66,9 +79,11 @@ type SecurityContextConstraints struct {
 	ReadOnlyRootFilesystem bool `json:"readOnlyRootFilesystem" protobuf:"varint,17,opt,name=readOnlyRootFilesystem"`
 
 	// The users who have permissions to use this security context constraints
-	Users []string `json:"users,omitempty" protobuf:"bytes,18,rep,name=users"`
+	// +optional
+	Users []string `json:"users" protobuf:"bytes,18,rep,name=users"`
 	// The groups that have permission to use this security context constraints
-	Groups []string `json:"groups,omitempty" protobuf:"bytes,19,rep,name=groups"`
+	// +optional
+	Groups []string `json:"groups" protobuf:"bytes,19,rep,name=groups"`
 
 	// SeccompProfiles lists the allowed profiles that may be set for the pod or
 	// container's seccomp annotations.  An unset (nil) or empty value means that no profiles may
@@ -83,6 +98,7 @@ type FSType string
 
 var (
 	FSTypeAzureFile             FSType = "azureFile"
+	FSTypeAzureDisk             FSType = "azureDisk"
 	FSTypeFlocker               FSType = "flocker"
 	FSTypeFlexVolume            FSType = "flexVolume"
 	FSTypeHostPath              FSType = "hostPath"
@@ -101,9 +117,22 @@ var (
 	FSTypeDownwardAPI           FSType = "downwardAPI"
 	FSTypeFC                    FSType = "fc"
 	FSTypeConfigMap             FSType = "configMap"
+	FSTypeVsphereVolume         FSType = "vsphere"
+	FSTypeQuobyte               FSType = "quobyte"
+	FSTypePhotonPersistentDisk  FSType = "photonPersistentDisk"
+	FSProjected                 FSType = "projected"
+	FSPortworxVolume            FSType = "portworxVolume"
+	FSScaleIO                   FSType = "scaleIO"
+	FSStorageOS                 FSType = "storageOS"
 	FSTypeAll                   FSType = "*"
 	FSTypeNone                  FSType = "none"
 )
+
+// AllowedFlexVolume represents a single Flexvolume that is allowed to be used.
+type AllowedFlexVolume struct {
+	// Driver is the name of the Flexvolume driver.
+	Driver string `json:"driver,omitempty" protobuf:"bytes,1,opt,name=driver"`
+}
 
 // SELinuxContextStrategyOptions defines the strategy type and any options used to create the strategy.
 type SELinuxContextStrategyOptions struct {
@@ -195,6 +224,8 @@ const (
 	SupplementalGroupsStrategyRunAsAny SupplementalGroupsStrategyType = "RunAsAny"
 )
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 // SecurityContextConstraintsList is a list of SecurityContextConstraints objects
 type SecurityContextConstraintsList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -205,6 +236,10 @@ type SecurityContextConstraintsList struct {
 	// List of security context constraints.
 	Items []SecurityContextConstraints `json:"items" protobuf:"bytes,2,rep,name=items"`
 }
+
+// +genclient
+// +genclient:onlyVerbs=create
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // PodSecurityPolicySubjectReview checks whether a particular user/SA tuple can create the PodTemplateSpec.
 type PodSecurityPolicySubjectReview struct {
@@ -248,6 +283,10 @@ type PodSecurityPolicySubjectReviewStatus struct {
 	Template kapi.PodTemplateSpec `json:"template,omitempty" protobuf:"bytes,3,opt,name=template"`
 }
 
+// +genclient
+// +genclient:onlyVerbs=create
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 // PodSecurityPolicySelfSubjectReview checks whether this user/SA tuple can create the PodTemplateSpec
 type PodSecurityPolicySelfSubjectReview struct {
 	metav1.TypeMeta `json:",inline"`
@@ -264,6 +303,10 @@ type PodSecurityPolicySelfSubjectReviewSpec struct {
 	// template is the PodTemplateSpec to check.
 	Template kapi.PodTemplateSpec `json:"template" protobuf:"bytes,1,opt,name=template"`
 }
+
+// +genclient
+// +genclient:onlyVerbs=create
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // PodSecurityPolicyReview checks which service accounts (not users, since that would be cluster-wide) can create the `PodTemplateSpec` in question.
 type PodSecurityPolicyReview struct {

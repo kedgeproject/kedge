@@ -22,105 +22,74 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 while [[ $# -gt 0 ]]; do
   case "${1}" in
-    --registry)               REGISTRY="${2:-}"; shift ;;
-    --version)                VERSION="${2:-}"; shift ;;
-    --release-name)           CATALOG_RELEASE="${2:-}"; shift ;;
-    --service-catalog-config) SC_KUBECONFIG="${2:-}"; shift ;;
-    --with-tpr)               WITH_TPR=1 ;;
-    --fix-auth)               FIX_CONFIGMAP=1 ;;
+    --registry) REGISTRY="${2:-}"; shift ;;
+    --version)  VERSION="${2:-}"; shift ;;
+    --fix-auth) FIX_CONFIGMAP=true ;;
     *) error_exit "Unrecognized command line parameter: $1" ;;
   esac
   shift
 done
 
-CATALOG_RELEASE="${CATALOG_RELEASE:-"catalog"}"
-
-K8S_KUBECONFIG="${KUBECONFIG:-~/.kube/config}"
-SC_KUBECONFIG="${SC_KUBECONFIG:-"/tmp/sc-kubeconfig"}"
-
-VERSION="${VERSION:-"canary"}"
 REGISTRY="${REGISTRY:-}"
-CONTROLLER_MANAGER_IMAGE="${REGISTRY}controller-manager:${VERSION}"
-APISERVER_IMAGE="${REGISTRY}apiserver:${VERSION}"
+VERSION="${VERSION:-"canary"}"
+CERT_FOLDER="${CERT_FOLDER:-"/tmp/sc-certs/"}"
+FIX_CONFIGMAP="${FIX_CONFIGMAP:-false}"
 
-echo 'INSTALLING CATALOG'
+SERVICE_CATALOG_IMAGE="${REGISTRY}service-catalog:${VERSION}"
+
+echo 'INSTALLING SERVICE CATALOG'
 echo '-------------------'
-echo "Using kubeconfig: ${K8S_KUBECONFIG}"
-echo "Using service catalog kubeconfig: ${SC_KUBECONFIG}"
-echo "Using controller-manager image: ${CONTROLLER_MANAGER_IMAGE}"
-echo "Using apiserver image: ${APISERVER_IMAGE}"
+echo "Using service-catalog image: ${SERVICE_CATALOG_IMAGE}"
 echo '-------------------'
 
 # Deploying to cluster
 
-retry -n 10 \
+echo 'Deploying service catalog...'
+
+retry \
     kubectl --namespace kube-system get configmap extension-apiserver-authentication \
   || error_exit 'Timed out waiting for extension-apiserver-authentication configmap to come up.'
 
 # The API server automatically provisions the configmap, but we need it to contain the requestheader CA as well,
 # which is only provisioned if you pass the appropriate flags to master.  GKE doesn't do this, so we work around it.
-if [[ -n "${FIX_CONFIGMAP:-}" ]] && [[ -z "$(kubectl --namespace kube-system get configmap extension-apiserver-authentication -o jsonpath="{ $.data['requestheader-client-ca-file'] }")" ]]; then
+if [[ "${FIX_CONFIGMAP}" == true ]] && [[ -z "$(kubectl --namespace kube-system get configmap extension-apiserver-authentication -o jsonpath="{ $.data['requestheader-client-ca-file'] }")" ]]; then
     full_configmap=$(kubectl --namespace kube-system get configmap extension-apiserver-authentication -o json)
     echo "$full_configmap" | jq '.data["requestheader-client-ca-file"] = .data["client-ca-file"]' | kubectl --namespace kube-system update configmap extension-apiserver-authentication -f -
     [[ -n "$(kubectl --namespace kube-system get configmap extension-apiserver-authentication -o jsonpath="{ $.data['requestheader-client-ca-file'] }")" ]] || { echo "Could not add requestheader auth CA to extension-apiserver-authentication configmap."; exit 1; }
 fi
 
-VALUES='debug=true'
-VALUES+=',insecure=true'
-VALUES+=",controllerManager.image=${CONTROLLER_MANAGER_IMAGE}"
-VALUES+=",apiserver.image=${APISERVER_IMAGE}"
-VALUES+=',apiserver.service.type=LoadBalancer'
-if [[ -n "${WITH_TPR:-}" ]]; then
-  VALUES+=',apiserver.storage.type=tpr'
-  VALUES+=',apiserver.storage.tpr.globalNamespace=test-ns'
-fi
+PARAMETERS="$(cat <<-EOF
+  --set image=${SERVICE_CATALOG_IMAGE}
+EOF
+)"
 
-retry -n 10 \
+retry \
     helm install "${ROOT}/charts/catalog" \
-    --name "${CATALOG_RELEASE}" \
+    --name "catalog" \
     --namespace "catalog" \
-    --set "${VALUES}" \
+    ${PARAMETERS} \
   || error_exit 'Error deploying service catalog to cluster.'
 
 # Waiting for everything to come up
 
-echo 'Waiting on pods to come up...'
+echo 'Waiting for Service Catalog API Server to be up...'
 
-wait_for_expected_output -x -e 'Pending' -n 10 \
-    kubectl get pods --namespace catalog \
-  || error_exit 'Timed out waiting for service catalog pods to come up.'
-
-wait_for_expected_output -x -e 'ContainerCreating' -n 10 \
-    kubectl get pods --namespace catalog \
-  || error_exit 'Timed out waiting for service catalog pods to come up.'
-
-[[ "$(kubectl get pods --namespace catalog | grep catalog-catalog-apiserver | awk '{print $3}')" == 'Running' ]] \
+retry &> /dev/null \
+  kubectl get clusterservicebrokers,clusterserviceclasses,serviceinstances,servicebindings \
   || {
-    POD_NAME="$(kubectl get pods --namespace catalog | grep catalog-catalog-apiserver | awk '{print $1}')"
-    kubectl get pod "${POD_NAME}" --namespace catalog
-    kubectl describe pod "${POD_NAME}" --namespace catalog
-    error_exit 'API server pod did not come up successfully.'
+    API_SERVER_POD_NAME="$(kubectl get pods --namespace catalog | grep catalog-catalog-apiserver | awk '{print $1}')"
+    kubectl describe pod "${API_SERVER_POD_NAME}" --namespace catalog
+    error_exit 'Timed out waiting for expected response from service catalog API server.'
   }
 
-[[ "$(kubectl get pods --namespace catalog | grep catalog-catalog-controller | awk '{print $3}')" == 'Running' ]] \
+echo 'Waiting for Service Catalog Controller to be up...'
+
+CONTROLLER_POD_NAME="$(kubectl get pods --namespace catalog | grep catalog-catalog-controller | awk '{print $1}')"
+wait_for_expected_output -e 'Running' \
+  kubectl get pods "${CONTROLLER_POD_NAME}" --namespace catalog \
   || {
-    POD_NAME="$(kubectl get pods --namespace catalog | grep catalog-catalog-controller | awk '{print $1}')"
-    kubectl get pod "${POD_NAME}" --namespace catalog
-    kubectl describe pod "${POD_NAME}" --namespace catalog
-    error_exit 'Controller manager pod did not come up successfully.'
+    kubectl describe pod "${CONTROLLER_POD_NAME}" --namespace catalog
+    error_exit 'Timed out waiting for service catalog controller-manager pod to come up.'
   }
 
-echo 'Waiting on external IP for service catalog API Server...'
-
-wait_for_expected_output -x -e 'pending' -n 10 \
-    kubectl get services --namespace catalog \
-  || error_exit 'Timed out waiting for external IP for service catalog API Server.'
-
-# Create kubeconfig for service catalog API server
-
-echo 'Connecting to service catalog API Server...'
-
-${ROOT}/contrib/jenkins/setup-sc-kubectl.sh --service-catalog-config "${SC_KUBECONFIG}" \
-  || error_exit 'Error connecting to service catalog API server.'
-
-echo 'Service catalog successfully installed.'
+echo 'Service Catalog installed successfully.'

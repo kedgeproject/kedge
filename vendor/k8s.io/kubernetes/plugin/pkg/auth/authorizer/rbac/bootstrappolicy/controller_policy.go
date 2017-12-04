@@ -72,8 +72,9 @@ func init() {
 		ObjectMeta: metav1.ObjectMeta{Name: saRolePrefix + "cronjob-controller"},
 		Rules: []rbac.PolicyRule{
 			rbac.NewRule("get", "list", "watch", "update").Groups(batchGroup).Resources("cronjobs").RuleOrDie(),
-			rbac.NewRule("get", "list", "watch", "create", "update", "delete").Groups(batchGroup).Resources("jobs").RuleOrDie(),
+			rbac.NewRule("get", "list", "watch", "create", "update", "delete", "patch").Groups(batchGroup).Resources("jobs").RuleOrDie(),
 			rbac.NewRule("update").Groups(batchGroup).Resources("cronjobs/status").RuleOrDie(),
+			rbac.NewRule("update").Groups(batchGroup).Resources("cronjobs/finalizers").RuleOrDie(),
 			rbac.NewRule("list", "delete").Groups(legacyGroup).Resources("pods").RuleOrDie(),
 			eventsRule(),
 		},
@@ -81,11 +82,13 @@ func init() {
 	addControllerRole(rbac.ClusterRole{
 		ObjectMeta: metav1.ObjectMeta{Name: saRolePrefix + "daemon-set-controller"},
 		Rules: []rbac.PolicyRule{
-			rbac.NewRule("get", "list", "watch").Groups(extensionsGroup).Resources("daemonsets").RuleOrDie(),
-			rbac.NewRule("update").Groups(extensionsGroup).Resources("daemonsets/status").RuleOrDie(),
+			rbac.NewRule("get", "list", "watch").Groups(extensionsGroup, appsGroup).Resources("daemonsets").RuleOrDie(),
+			rbac.NewRule("update").Groups(extensionsGroup, appsGroup).Resources("daemonsets/status").RuleOrDie(),
+			rbac.NewRule("update").Groups(extensionsGroup, appsGroup).Resources("daemonsets/finalizers").RuleOrDie(),
 			rbac.NewRule("list", "watch").Groups(legacyGroup).Resources("nodes").RuleOrDie(),
 			rbac.NewRule("list", "watch", "create", "delete", "patch").Groups(legacyGroup).Resources("pods").RuleOrDie(),
 			rbac.NewRule("create").Groups(legacyGroup).Resources("pods/binding").RuleOrDie(),
+			rbac.NewRule("list", "watch", "create", "delete", "update", "patch").Groups(appsGroup).Resources("controllerrevisions").RuleOrDie(),
 			eventsRule(),
 		},
 	})
@@ -94,6 +97,7 @@ func init() {
 		Rules: []rbac.PolicyRule{
 			rbac.NewRule("get", "list", "watch", "update").Groups(extensionsGroup, appsGroup).Resources("deployments").RuleOrDie(),
 			rbac.NewRule("update").Groups(extensionsGroup, appsGroup).Resources("deployments/status").RuleOrDie(),
+			rbac.NewRule("update").Groups(extensionsGroup, appsGroup).Resources("deployments/finalizers").RuleOrDie(),
 			rbac.NewRule("get", "list", "watch", "create", "update", "patch", "delete").Groups(extensionsGroup).Resources("replicasets").RuleOrDie(),
 			// TODO: remove "update" once
 			// https://github.com/kubernetes/kubernetes/issues/36897 is resolved.
@@ -152,7 +156,8 @@ func init() {
 		Rules: []rbac.PolicyRule{
 			rbac.NewRule("get", "list", "watch", "update").Groups(batchGroup).Resources("jobs").RuleOrDie(),
 			rbac.NewRule("update").Groups(batchGroup).Resources("jobs/status").RuleOrDie(),
-			rbac.NewRule("list", "watch", "create", "delete").Groups(legacyGroup).Resources("pods").RuleOrDie(),
+			rbac.NewRule("update").Groups(batchGroup).Resources("jobs/finalizers").RuleOrDie(),
+			rbac.NewRule("list", "watch", "create", "delete", "patch").Groups(legacyGroup).Resources("pods").RuleOrDie(),
 			eventsRule(),
 		},
 	})
@@ -168,7 +173,7 @@ func init() {
 		ObjectMeta: metav1.ObjectMeta{Name: saRolePrefix + "node-controller"},
 		Rules: []rbac.PolicyRule{
 			rbac.NewRule("get", "list", "update", "delete", "patch").Groups(legacyGroup).Resources("nodes").RuleOrDie(),
-			rbac.NewRule("update").Groups(legacyGroup).Resources("nodes/status").RuleOrDie(),
+			rbac.NewRule("patch", "update").Groups(legacyGroup).Resources("nodes/status").RuleOrDie(),
 			// used for pod eviction
 			rbac.NewRule("update").Groups(legacyGroup).Resources("pods/status").RuleOrDie(),
 			rbac.NewRule("list", "delete").Groups(legacyGroup).Resources("pods").RuleOrDie(),
@@ -209,6 +214,7 @@ func init() {
 		Rules: []rbac.PolicyRule{
 			rbac.NewRule("get", "list", "watch", "update").Groups(extensionsGroup).Resources("replicasets").RuleOrDie(),
 			rbac.NewRule("update").Groups(extensionsGroup).Resources("replicasets/status").RuleOrDie(),
+			rbac.NewRule("update").Groups(extensionsGroup).Resources("replicasets/finalizers").RuleOrDie(),
 			rbac.NewRule("list", "watch", "patch", "create", "delete").Groups(legacyGroup).Resources("pods").RuleOrDie(),
 			eventsRule(),
 		},
@@ -219,6 +225,7 @@ func init() {
 			// 1.0 controllers needed get, update, so without these old controllers break on new servers
 			rbac.NewRule("get", "list", "watch", "update").Groups(legacyGroup).Resources("replicationcontrollers").RuleOrDie(),
 			rbac.NewRule("update").Groups(legacyGroup).Resources("replicationcontrollers/status").RuleOrDie(),
+			rbac.NewRule("update").Groups(legacyGroup).Resources("replicationcontrollers/finalizers").RuleOrDie(),
 			rbac.NewRule("list", "watch", "patch", "create", "delete").Groups(legacyGroup).Resources("pods").RuleOrDie(),
 			eventsRule(),
 		},
@@ -262,7 +269,9 @@ func init() {
 			rbac.NewRule("list", "watch").Groups(legacyGroup).Resources("pods").RuleOrDie(),
 			rbac.NewRule("get", "list", "watch").Groups(appsGroup).Resources("statefulsets").RuleOrDie(),
 			rbac.NewRule("update").Groups(appsGroup).Resources("statefulsets/status").RuleOrDie(),
+			rbac.NewRule("update").Groups(appsGroup).Resources("statefulsets/finalizers").RuleOrDie(),
 			rbac.NewRule("get", "create", "delete", "update", "patch").Groups(legacyGroup).Resources("pods").RuleOrDie(),
+			rbac.NewRule("get", "create", "delete", "update", "patch", "list", "watch").Groups(appsGroup).Resources("controllerrevisions").RuleOrDie(),
 			rbac.NewRule("get", "create").Groups(legacyGroup).Resources("persistentvolumeclaims").RuleOrDie(),
 			eventsRule(),
 		},
@@ -279,6 +288,7 @@ func init() {
 		Rules: []rbac.PolicyRule{
 			rbac.NewRule("get", "list", "watch").Groups(certificatesGroup).Resources("certificatesigningrequests").RuleOrDie(),
 			rbac.NewRule("update").Groups(certificatesGroup).Resources("certificatesigningrequests/status", "certificatesigningrequests/approval").RuleOrDie(),
+			rbac.NewRule("create").Groups(authorizationGroup).Resources("subjectaccessreviews").RuleOrDie(),
 			eventsRule(),
 		},
 	})

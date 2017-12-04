@@ -14,6 +14,7 @@ import (
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/config"
 	"github.com/onsi/ginkgo/reporters"
+	"github.com/onsi/ginkgo/types"
 	"github.com/onsi/gomega"
 
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
@@ -25,12 +26,12 @@ import (
 	"k8s.io/kubernetes/pkg/client/retry"
 	e2e "k8s.io/kubernetes/test/e2e/framework"
 
-	"github.com/openshift/origin/pkg/client"
-	"github.com/openshift/origin/pkg/cmd/admin/policy"
-	configapi "github.com/openshift/origin/pkg/cmd/server/api"
+	authorizationclient "github.com/openshift/origin/pkg/authorization/generated/internalclientset"
 	"github.com/openshift/origin/pkg/cmd/server/bootstrappolicy"
-	"github.com/openshift/origin/pkg/security/legacyclient"
+	"github.com/openshift/origin/pkg/oc/admin/policy"
+	securityclient "github.com/openshift/origin/pkg/security/generated/internalclientset"
 	"github.com/openshift/origin/pkg/version"
+	testutil "github.com/openshift/origin/test/util"
 )
 
 var (
@@ -53,7 +54,7 @@ func InitTest() {
 
 	e2e.RegisterCommonFlags()
 	e2e.RegisterClusterFlags()
-	flag.StringVar(&syntheticSuite, "suite", "", "Optional suite selector to filter which tests are run.")
+	flag.StringVar(&syntheticSuite, "suite", "", "DEPRECATED: Optional suite selector to filter which tests are run. Use focus.")
 
 	extendedOutputDir := filepath.Join(os.TempDir(), "openshift-extended-tests")
 	os.MkdirAll(extendedOutputDir, 0777)
@@ -103,15 +104,54 @@ func ExecuteTest(t *testing.T, suite string) {
 		defer e2e.CoreDump(reportDir)
 	}
 
-	// Disable density test unless it's explicitly requested.
+	switch syntheticSuite {
+	case "parallel.conformance.openshift.io":
+		if len(config.GinkgoConfig.FocusString) > 0 {
+			config.GinkgoConfig.FocusString += "|"
+		}
+		config.GinkgoConfig.FocusString = "\\[Suite:openshift/conformance/parallel\\]"
+	case "serial.conformance.openshift.io":
+		if len(config.GinkgoConfig.FocusString) > 0 {
+			config.GinkgoConfig.FocusString += "|"
+		}
+		config.GinkgoConfig.FocusString = "\\[Suite:openshift/conformance/serial\\]"
+	}
 	if config.GinkgoConfig.FocusString == "" && config.GinkgoConfig.SkipString == "" {
 		config.GinkgoConfig.SkipString = "Skipped"
 	}
+
 	gomega.RegisterFailHandler(ginkgo.Fail)
 
 	if reportDir != "" {
 		r = append(r, reporters.NewJUnitReporter(path.Join(reportDir, fmt.Sprintf("%s_%02d.xml", reportFileName, config.GinkgoConfig.ParallelNode))))
 	}
+
+	ginkgo.WalkTests(func(name string, node types.TestNode) {
+		isSerial := serialTestsFilter.MatchString(name)
+		if isSerial {
+			if !strings.Contains(name, "[Serial]") {
+				node.SetText(node.Text() + " [Serial]")
+			}
+		}
+
+		if !excludedTestsFilter.MatchString(name) {
+			include := conformanceTestsFilter.MatchString(name)
+			switch {
+			case !include:
+				// do nothing
+			case isSerial:
+				node.SetText(node.Text() + " [Suite:openshift/conformance/serial]")
+			case include:
+				node.SetText(node.Text() + " [Suite:openshift/conformance/parallel]")
+			}
+		}
+		if strings.Contains(node.CodeLocation().FileName, "/origin/test/") && !strings.Contains(node.Text(), "[Suite:openshift") {
+			node.SetText(node.Text() + " [Suite:openshift]")
+		}
+		if strings.Contains(node.CodeLocation().FileName, "/kubernetes/test/e2e/") {
+			node.SetText(node.Text() + " [Suite:k8s]")
+		}
+	})
 
 	if quiet {
 		r = append(r, NewSimpleReporter())
@@ -172,25 +212,33 @@ func createTestingNS(baseName string, c kclientset.Interface, labels map[string]
 
 	// Add anyuid and privileged permissions for upstream tests
 	if isKubernetesE2ETest() && !skipTestNamespaceCustomization() {
-		e2e.Logf("About to run a Kube e2e test, ensuring namespace is privileged")
-		// add the "privileged" scc to ensure pods that explicitly
-		// request extra capabilities are not rejected
-		addE2EServiceAccountsToSCC(c, []kapiv1.Namespace{*ns}, "privileged")
-		// add the "anyuid" scc to ensure pods that don't specify a
-		// uid don't get forced into a range (mimics upstream
-		// behavior)
-		addE2EServiceAccountsToSCC(c, []kapiv1.Namespace{*ns}, "anyuid")
-		// add the "hostmount-anyuid" scc to ensure pods using hostPath
-		// can execute tests
-		addE2EServiceAccountsToSCC(c, []kapiv1.Namespace{*ns}, "hostmount-anyuid")
-
-		// The intra-pod test requires that the service account have
-		// permission to retrieve service endpoints.
-		osClient, _, err := configapi.GetOpenShiftClient(KubeConfigPath(), nil)
+		clientConfig, err := testutil.GetClusterAdminClientConfig(KubeConfigPath())
 		if err != nil {
 			return ns, err
 		}
-		addRoleToE2EServiceAccounts(osClient, []kapiv1.Namespace{*ns}, bootstrappolicy.ViewRoleName)
+		securityClient, err := securityclient.NewForConfig(clientConfig)
+		if err != nil {
+			return ns, err
+		}
+		e2e.Logf("About to run a Kube e2e test, ensuring namespace is privileged")
+		// add the "privileged" scc to ensure pods that explicitly
+		// request extra capabilities are not rejected
+		addE2EServiceAccountsToSCC(securityClient, []kapiv1.Namespace{*ns}, "privileged")
+		// add the "anyuid" scc to ensure pods that don't specify a
+		// uid don't get forced into a range (mimics upstream
+		// behavior)
+		addE2EServiceAccountsToSCC(securityClient, []kapiv1.Namespace{*ns}, "anyuid")
+		// add the "hostmount-anyuid" scc to ensure pods using hostPath
+		// can execute tests
+		addE2EServiceAccountsToSCC(securityClient, []kapiv1.Namespace{*ns}, "hostmount-anyuid")
+
+		// The intra-pod test requires that the service account have
+		// permission to retrieve service endpoints.
+		authorizationClient, err := authorizationclient.NewForConfig(clientConfig)
+		if err != nil {
+			return ns, err
+		}
+		addRoleToE2EServiceAccounts(authorizationClient, []kapiv1.Namespace{*ns}, bootstrappolicy.ViewRoleName)
 	}
 
 	// some test suites assume they can schedule to all nodes
@@ -210,15 +258,11 @@ func createTestingNS(baseName string, c kclientset.Interface, labels map[string]
 var (
 	excludedTests = []string{
 		`\[Skipped\]`,
-		`\[Disruptive\]`,
 		`\[Slow\]`,
 		`\[Flaky\]`,
-		`\[Compatibility\]`,
-
-		`\[Feature:Performance\]`,
 
 		// not enabled in Origin yet
-		`\[Feature:GarbageCollector\]`,
+		//`\[Feature:GarbageCollector\]`,
 
 		// Depends on external components, may not need yet
 		`Monitoring`,            // Not installed, should be
@@ -234,7 +278,7 @@ var (
 		`Cinder`,                                                       // requires an OpenStack cluster
 		`should support r/w`,                                           // hostPath: This test expects that host's tmp dir is WRITABLE by a container.  That isn't something we need to guarantee for openshift.
 		`should check that the kubernetes-dashboard instance is alive`, // we don't create this
-		`\[Feature:ManualPerformance\]`,                                // requires /resetMetrics which we don't expose
+		//		`\[Feature:ManualPerformance\]`,                                // requires /resetMetrics which we don't expose
 
 		// See the CanSupport implementation in upstream to determine wether these work.
 		`Ceph RBD`,           // Works if ceph-common Binary installed (but we can't guarantee this on all clusters).
@@ -242,44 +286,44 @@ var (
 		`should support r/w`, // hostPath: This test expects that host's tmp dir is WRITABLE by a container.  That isn't something we need to guarantee for openshift.
 
 		// Failing because of https://github.com/openshift/origin/issues/12365 against a real cluster
-		`should allow starting 95 pods per node`,
+		//`should allow starting 95 pods per node`,
 
 		// Need fixing
-		`Horizontal pod autoscaling`,                              // needs heapster
-		`PersistentVolume`,                                        // https://github.com/openshift/origin/pull/6884 for recycler
+		`Horizontal pod autoscaling`, // needs heapster
+		//`PersistentVolume`,                                        // https://github.com/openshift/origin/pull/6884 for recycler
 		`mount an API token into pods`,                            // We add 6 secrets, not 1
 		`ServiceAccounts should ensure a single API token exists`, // We create lots of secrets
 		`Networking should function for intra-pod`,                // Needs two nodes, add equiv test for 1 node, then use networking suite
 		`should test kube-proxy`,                                  // needs 2 nodes
 		`authentication: OpenLDAP`,                                // needs separate setup and bucketing for openldap bootstrapping
 		`NFS`, // no permissions https://github.com/openshift/origin/pull/6884
-		`\[Feature:Example\]`,                                      // may need to pre-pull images
-		`NodeProblemDetector`,                                      // requires a non-master node to run on
-		`unchanging, static URL paths for kubernetes api services`, // the test needs to exclude URLs that are not part of conformance (/logs)
+		`\[Feature:Example\]`, // has cleanup issues
+		`NodeProblemDetector`, // requires a non-master node to run on
+		//`unchanging, static URL paths for kubernetes api services`, // the test needs to exclude URLs that are not part of conformance (/logs)
 
 		// Needs triage to determine why it is failing
 		`Addon update`, // TRIAGE
 		`SSH`,          // TRIAGE
-		`\[Feature:Upgrade\]`,                                                // TRIAGE
-		`SELinux relabeling`,                                                 // started failing
-		`openshift mongodb replication creating from a template`,             // flaking on deployment
-		`Update Demo should do a rolling update of a replication controller`, // this is flaky and needs triaging
+		`\[Feature:Upgrade\]`,                                    // TRIAGE
+		`SELinux relabeling`,                                     // https://github.com/openshift/origin/issues/7287
+		`openshift mongodb replication creating from a template`, // flaking on deployment
+		//`Update Demo should do a rolling update of a replication controller`, // this is flaky and needs triaging
 
 		// Test will never work
 		`should proxy to cadvisor`, // we don't expose cAdvisor port directly for security reasons
 
 		// Need to relax security restrictions
-		`validates that InterPod Affinity and AntiAffinity is respected if matching`, // this *may* now be safe
+		//`validates that InterPod Affinity and AntiAffinity is respected if matching`, // this *may* now be safe
 
 		// Requires too many pods per node for the per core defaults
-		`should ensure that critical pod is scheduled in case there is no resources available`,
+		//`should ensure that critical pod is scheduled in case there is no resources available`,
 
 		// Need multiple nodes
 		`validates that InterPodAntiAffinity is respected if matching 2`,
 
 		// Inordinately slow tests
 		`should create and stop a working application`,
-		`should always delete fast`, // will be uncommented in etcd3
+		//`should always delete fast`, // will be uncommented in etcd3
 
 		// tested by networking.sh and requires the environment that script sets up
 		`\[networking\] OVS`,
@@ -294,13 +338,25 @@ var (
 		`\[Feature:Downgrade\]`,
 
 		// upstream flakes
-		`should provide basic identity`,                             // Basic StatefulSet functionality
-		`validates resource limits of pods that are allowed to run`, // SchedulerPredicates
-		`should idle the service and DeploymentConfig properly`,     // idling with a single service and DeploymentConfig [Conformance]
+		`validates resource limits of pods that are allowed to run`, // can't schedule to master due to node label limits, also fiddly
+
+		// TODO undisable:
+		`should provide basic identity`,                               // needs a persistent volume provisioner in single node, host path not working
+		"should adopt matching orphans and release non-matching pods", // stateful set, broken?
+		"should not deadlock when a pod's predecessor fails",          // stateful set, broken?
+		`should idle the service and DeploymentConfig properly`,       // idling with a single service and DeploymentConfig [Conformance]
+
+		// slow as sin and twice as ugly (11m each)
+		"Pod should avoid to schedule to node that have avoidPod annotation",
+		"Pod should be schedule to node that satisify the PodAffinity",
+		"Pod should be prefer scheduled to node that satisify the NodeAffinity",
 	}
 	excludedTestsFilter = regexp.MustCompile(strings.Join(excludedTests, `|`))
 
-	parallelConformanceTests = []string{
+	// The list of tests to run for the OpenShift conformance suite. Any test
+	// in this group which cannot be run in parallel must be identified with the
+	// [Serial] tag or added to the serialTests filter.
+	conformanceTests = []string{
 		`\[Conformance\]`,
 		`Services.*NodePort`,
 		`ResourceQuota should`,
@@ -316,7 +372,7 @@ var (
 		`Job should run a job to completion when tasks succeed`,
 		`Variable Expansion`,
 		`init containers`,
-		`Clean up pods on node kubelet`,
+		`Clean up pods on node kubelet`, // often catches issues
 		`\[Feature\:SecurityContext\]`,
 		`should create a LimitRange with defaults`,
 		`Generated release_1_2 clientset`,
@@ -324,47 +380,35 @@ var (
 		`should create a pod that prints his name and namespace`,
 		`ImageLookup`,
 		`DNS for pods for Hostname and Subdomain Annotation`,
+		`Garbage collector`,
+		`Kubectl apply should apply a new configuration to an existing RC`,
+		`Simple pod should handle in-cluster config`,
+		`Simple pod should support exec`,
+		`Namespaces .* should delete fast enough`,
 	}
-	parallelConformanceTestsFilter = regexp.MustCompile(strings.Join(parallelConformanceTests, `|`))
+	conformanceTestsFilter = regexp.MustCompile(strings.Join(conformanceTests, `|`))
 
-	serialConformanceTests = []string{
+	// Identifies any tests that by nature must be run in isolation. Every test in this
+	// category will be given the [Serial] tag if it does not already have it.
+	serialTests = []string{
 		`\[Serial\]`,
+		`\[Disruptive\]`,
 		`\[Feature:ManualPerformance\]`,      // requires isolation
-		`Service endpoints latency`,          // requires low latency
 		`\[Feature:HighDensityPerformance\]`, // requires no other namespaces
-		`Clean up pods on node`,              // schedules max pods per node
+		`Service endpoints latency`,          // requires low latency
+		`Clean up pods on node`,              // schedules up to max pods per node
+		`should allow starting 95 pods per node`,
 	}
-	serialConformanceTestsFilter = regexp.MustCompile(strings.Join(serialConformanceTests, `|`))
+	serialTestsFilter = regexp.MustCompile(strings.Join(serialTests, `|`))
 )
 
 // checkSyntheticInput selects tests based on synthetic skips or focuses
 func checkSyntheticInput() {
-	checkSuiteFocuses()
 	checkSuiteSkips()
 }
 
-// checkSuiteFocuses ensures Origin conformance suite synthetic labels are applied
-func checkSuiteFocuses() {
-	if !strings.Contains(syntheticSuite, "conformance.openshift.io") {
-		return
-	}
-
-	testName := []byte(ginkgo.CurrentGinkgoTestDescription().FullTestText)
-	testFocused := false
-	textExcluded := excludedTestsFilter.Match(testName)
-	if syntheticSuite == "parallel.conformance.openshift.io" {
-		testFocused = parallelConformanceTestsFilter.Match(testName)
-		textExcluded = textExcluded || serialConformanceTestsFilter.Match(testName)
-	} else if syntheticSuite == "serial.conformance.openshift.io" {
-		testFocused = serialConformanceTestsFilter.Match(testName)
-	}
-
-	if !testFocused || textExcluded {
-		ginkgo.Skip("skipping tests not in the Origin conformance suite")
-	}
-}
-
 // checkSuiteSkips ensures Origin/Kubernetes synthetic skip labels are applied
+// DEPRECATED: remove in a future release
 func checkSuiteSkips() {
 	switch {
 	case isOriginTest():
@@ -399,11 +443,11 @@ func allowAllNodeScheduling(c kclientset.Interface, namespace string) {
 	}
 }
 
-func addE2EServiceAccountsToSCC(c kclientset.Interface, namespaces []kapiv1.Namespace, sccName string) {
+func addE2EServiceAccountsToSCC(securityClient securityclient.Interface, namespaces []kapiv1.Namespace, sccName string) {
 	// Because updates can race, we need to set the backoff retries to be > than the number of possible
 	// parallel jobs starting at once. Set very high to allow future high parallelism.
 	err := retry.RetryOnConflict(longRetry, func() error {
-		scc, err := legacyclient.NewVersionedFromClient(c.Core().RESTClient()).Get(sccName, metav1.GetOptions{})
+		scc, err := securityClient.Security().SecurityContextConstraints().Get(sccName, metav1.GetOptions{})
 		if err != nil {
 			if apierrs.IsNotFound(err) {
 				return nil
@@ -416,7 +460,7 @@ func addE2EServiceAccountsToSCC(c kclientset.Interface, namespaces []kapiv1.Name
 				scc.Groups = append(scc.Groups, fmt.Sprintf("system:serviceaccounts:%s", ns.Name))
 			}
 		}
-		if _, err := legacyclient.NewVersionedFromClient(c.Core().RESTClient()).Update(scc); err != nil {
+		if _, err := securityClient.Security().SecurityContextConstraints().Update(scc); err != nil {
 			return err
 		}
 		return nil
@@ -426,7 +470,7 @@ func addE2EServiceAccountsToSCC(c kclientset.Interface, namespaces []kapiv1.Name
 	}
 }
 
-func addRoleToE2EServiceAccounts(c *client.Client, namespaces []kapiv1.Namespace, roleName string) {
+func addRoleToE2EServiceAccounts(c authorizationclient.Interface, namespaces []kapiv1.Namespace, roleName string) {
 	err := retry.RetryOnConflict(longRetry, func() error {
 		for _, ns := range namespaces {
 			if strings.HasPrefix(ns.Name, "e2e-") && ns.Status.Phase != kapiv1.NamespaceTerminating {
@@ -434,7 +478,7 @@ func addRoleToE2EServiceAccounts(c *client.Client, namespaces []kapiv1.Namespace
 				addRole := &policy.RoleModificationOptions{
 					RoleNamespace:       "",
 					RoleName:            roleName,
-					RoleBindingAccessor: policy.NewLocalRoleBindingAccessor(ns.Name, c),
+					RoleBindingAccessor: policy.NewLocalRoleBindingAccessor(ns.Name, c.Authorization()),
 					Users:               []string{sa},
 				}
 				if err := addRole.AddRole(); err != nil {

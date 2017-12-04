@@ -1,3 +1,5 @@
+// +build go1.8
+
 /*
 Copyright 2016 The Kubernetes Authors.
 
@@ -18,6 +20,7 @@ package net
 
 import (
 	"crypto/tls"
+	"fmt"
 	"net"
 	"net/http"
 	"net/url"
@@ -106,6 +109,32 @@ func TestGetClientIP(t *testing.T) {
 	}
 }
 
+func TestAppendForwardedForHeader(t *testing.T) {
+	testCases := []struct {
+		addr, forwarded, expected string
+	}{
+		{"1.2.3.4:8000", "", "1.2.3.4"},
+		{"1.2.3.4:8000", "8.8.8.8", "8.8.8.8, 1.2.3.4"},
+		{"1.2.3.4:8000", "8.8.8.8, 1.2.3.4", "8.8.8.8, 1.2.3.4, 1.2.3.4"},
+		{"1.2.3.4:8000", "foo,bar", "foo,bar, 1.2.3.4"},
+	}
+	for i, test := range testCases {
+		req := &http.Request{
+			RemoteAddr: test.addr,
+			Header:     make(http.Header),
+		}
+		if test.forwarded != "" {
+			req.Header.Set("X-Forwarded-For", test.forwarded)
+		}
+
+		AppendForwardedForHeader(req)
+		actual := req.Header.Get("X-Forwarded-For")
+		if actual != test.expected {
+			t.Errorf("[%d] Expected %q, Got %q", i, test.expected, actual)
+		}
+	}
+}
+
 func TestProxierWithNoProxyCIDR(t *testing.T) {
 	testCases := []struct {
 		name    string
@@ -188,5 +217,42 @@ func TestTLSClientConfigHolder(t *testing.T) {
 
 	if !rt.called {
 		t.Errorf("didn't find tls config")
+	}
+}
+
+func TestJoinPreservingTrailingSlash(t *testing.T) {
+	tests := []struct {
+		a    string
+		b    string
+		want string
+	}{
+		// All empty
+		{"", "", ""},
+
+		// Empty a
+		{"", "/", "/"},
+		{"", "foo", "foo"},
+		{"", "/foo", "/foo"},
+		{"", "/foo/", "/foo/"},
+
+		// Empty b
+		{"/", "", "/"},
+		{"foo", "", "foo"},
+		{"/foo", "", "/foo"},
+		{"/foo/", "", "/foo/"},
+
+		// Both populated
+		{"/", "/", "/"},
+		{"foo", "foo", "foo/foo"},
+		{"/foo", "/foo", "/foo/foo"},
+		{"/foo/", "/foo/", "/foo/foo/"},
+	}
+	for _, tt := range tests {
+		name := fmt.Sprintf("%q+%q=%q", tt.a, tt.b, tt.want)
+		t.Run(name, func(t *testing.T) {
+			if got := JoinPreservingTrailingSlash(tt.a, tt.b); got != tt.want {
+				t.Errorf("JoinPreservingTrailingSlash() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }

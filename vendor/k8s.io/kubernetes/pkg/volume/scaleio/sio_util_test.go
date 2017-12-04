@@ -115,10 +115,10 @@ func TestUtilApplyConfigDefaults(t *testing.T) {
 	if data[confKey.system] != "sio" {
 		t.Error("Unexpected system value")
 	}
-	if data[confKey.protectionDomain] != "default" {
+	if data[confKey.protectionDomain] != "" {
 		t.Error("Unexpected protection domain value")
 	}
-	if data[confKey.storagePool] != "default" {
+	if data[confKey.storagePool] != "" {
 		t.Error("Unexpected storage pool value")
 	}
 	if data[confKey.volumeName] != "sio-vol" {
@@ -167,6 +167,7 @@ func TestUtilSaveConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal("failed to open conf file: ", file)
 	}
+	defer file.Close()
 	dataRcvd := map[string]string{}
 	if err := gob.NewDecoder(file).Decode(&dataRcvd); err != nil {
 		t.Fatal(err)

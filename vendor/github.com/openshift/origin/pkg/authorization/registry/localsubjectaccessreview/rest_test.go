@@ -12,8 +12,8 @@ import (
 	apirequest "k8s.io/apiserver/pkg/endpoints/request"
 
 	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
-	"github.com/openshift/origin/pkg/authorization/authorizer"
 	"github.com/openshift/origin/pkg/authorization/registry/subjectaccessreview"
+	"github.com/openshift/origin/pkg/authorization/registry/util"
 )
 
 type subjectAccessTest struct {
@@ -86,7 +86,7 @@ func TestConflictingNamespace(t *testing.T) {
 
 	storage := NewREST(subjectaccessreview.NewRegistry(subjectaccessreview.NewREST(authorizer)))
 	ctx := apirequest.WithNamespace(apirequest.NewContext(), "bar")
-	_, err := storage.Create(ctx, reviewRequest)
+	_, err := storage.Create(ctx, reviewRequest, false)
 	if err == nil {
 		t.Fatalf("unexpected non-error: %v", err)
 	}
@@ -271,7 +271,7 @@ func (r *subjectAccessTest) runTest(t *testing.T) {
 		ctx = apirequest.WithUser(ctx, &user.DefaultInfo{Name: "dummy"})
 	}
 
-	obj, err := storage.Create(ctx, r.reviewRequest)
+	obj, err := storage.Create(ctx, r.reviewRequest, false)
 	switch {
 	case err == nil && len(r.expectedError) == 0:
 	case err == nil && len(r.expectedError) != 0:
@@ -295,7 +295,7 @@ func (r *subjectAccessTest) runTest(t *testing.T) {
 		t.Errorf("Unexpected obj type: %v", obj)
 	}
 
-	expectedAttributes := authorizer.ToDefaultAuthorizationAttributes(r.expectedUserInfo, r.reviewRequest.Action.Namespace, r.reviewRequest.Action)
+	expectedAttributes := util.ToDefaultAuthorizationAttributes(r.expectedUserInfo, r.reviewRequest.Action.Namespace, r.reviewRequest.Action)
 	if !reflect.DeepEqual(expectedAttributes, r.authorizer.actualAttributes) {
 		t.Errorf("diff %v", diff.ObjectGoPrintDiff(expectedAttributes, r.authorizer.actualAttributes))
 	}

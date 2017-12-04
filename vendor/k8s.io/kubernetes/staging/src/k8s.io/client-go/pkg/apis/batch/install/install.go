@@ -26,9 +26,6 @@ import (
 	"k8s.io/client-go/pkg/apis/batch"
 	"k8s.io/client-go/pkg/apis/batch/v1"
 	"k8s.io/client-go/pkg/apis/batch/v2alpha1"
-
-	// force determinstic ordering when loading these packages
-	_ "k8s.io/client-go/pkg/apis/extensions/install"
 )
 
 func init() {
@@ -41,7 +38,6 @@ func Install(groupFactoryRegistry announced.APIGroupFactoryRegistry, registry *r
 		&announced.GroupMetaFactoryArgs{
 			GroupName:                  batch.GroupName,
 			VersionPreferenceOrder:     []string{v1.SchemeGroupVersion.Version, v2alpha1.SchemeGroupVersion.Version},
-			ImportPrefix:               "k8s.io/client-go/pkg/apis/batch",
 			AddInternalObjectsToScheme: batch.AddToScheme,
 		},
 		announced.VersionToSchemeFunc{

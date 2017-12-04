@@ -5,6 +5,7 @@ licenses(["notice"])
 load(
     "@io_bazel_rules_go//go:def.bzl",
     "go_library",
+    "go_test",
 )
 
 go_library(
@@ -18,11 +19,11 @@ go_library(
     ],
     tags = ["automanaged"],
     deps = [
-        "//vendor:k8s.io/apimachinery/pkg/apis/meta/v1",
-        "//vendor:k8s.io/apimachinery/pkg/conversion",
-        "//vendor:k8s.io/apimachinery/pkg/runtime",
-        "//vendor:k8s.io/apimachinery/pkg/runtime/schema",
-        "//vendor:k8s.io/apimachinery/pkg/util/sets",
+        "//vendor/k8s.io/apimachinery/pkg/apis/meta/v1:go_default_library",
+        "//vendor/k8s.io/apimachinery/pkg/conversion:go_default_library",
+        "//vendor/k8s.io/apimachinery/pkg/runtime:go_default_library",
+        "//vendor/k8s.io/apimachinery/pkg/runtime/schema:go_default_library",
+        "//vendor/k8s.io/apimachinery/pkg/util/sets:go_default_library",
     ],
 )
 
@@ -43,4 +44,17 @@ filegroup(
         "//pkg/apis/rbac/validation:all-srcs",
     ],
     tags = ["automanaged"],
+)
+
+go_test(
+    name = "go_default_xtest",
+    srcs = ["helpers_test.go"],
+    deps = [
+        ":go_default_library",
+        "//pkg/api:go_default_library",
+        "//pkg/apis/rbac/install:go_default_library",
+        "//pkg/apis/rbac/v1beta1:go_default_library",
+        "//vendor/k8s.io/apimachinery/pkg/runtime:go_default_library",
+        "//vendor/k8s.io/apimachinery/pkg/util/diff:go_default_library",
+    ],
 )

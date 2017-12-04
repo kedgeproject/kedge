@@ -4,7 +4,7 @@ Table of Contents
 - [Overview](#overview)
 - [Working on Issues](#working-on-issues)
 - [Prerequisites](#prerequisites)
-- [Cloning the Repo](#cloning-the-repo)
+- [Workflow](#workflow)
 - [Building](#building)
 - [Testing](#testing)
 - [Advanced Build Steps](#advanced-build-steps)
@@ -21,9 +21,13 @@ layout:
     ├── .glide                  # Glide cache (untracked)
     ├── bin                     # Destination for binaries compiled for linux/amd64 (untracked)
     ├── build                   # Contains build-related scripts and subdirectories containing Dockerfiles
+    ├── charts                  # Helm charts for deployment
+    │   └── catalog             # Helm chart for deploying the service catalog
+    │   └── ups-broker          # Helm chart for deploying the user-provided service broker
     ├── cmd                     # Contains "main" Go packages for each service catalog component binary
-    │   └── apiserver           # The service catalog API server binary
-    │   └── controller-manager  # The service catalog controller manager binary
+    │   └── apiserver           # The service catalog API server service-catalog command
+    │   └── controller-manager  # The service catalog controller manager service-catalog command
+    │   └── service-catalog     # The service catalog binary, which is used to run commands
     ├── contrib                 # Contains examples, non-essential golang source, CI configurations, etc
     │   └── build               # Dockerfiles for contrib images (example: ups-broker)
     │   └── cmd                 # Entrypoints for contrib binaries
@@ -31,11 +35,11 @@ layout:
     │   └── hack                # Non-build related scripts
     │   └── jenkins             # Jenkins configuration
     │   └── pkg                 # Contrib golang code
-    ├── charts                  # Helm charts for deployment
-    │   └── catalog             # Helm chart for deploying the catalog
-    │   └── ups-broker          # Helm chart for deploying the user-provided service broker
+    │   └── travis              # Travis configuration
     ├── docs                    # Documentation
     ├── pkg                     # Contains all non-"main" Go packages
+    ├── plugin                  # Plugins for API server
+    ├── test                    # Integration and e2e tests
     └── vendor                  # Glide-managed dependencies
 
 ## Working on Issues
@@ -78,7 +82,7 @@ also need:
 
 * A working Kubernetes cluster and `kubectl` installed in your local `PATH`,
   properly configured to access that cluster. The version of Kubernetes and
-  `kubectl` must be >= 1.6. See below for instructions on how to download these
+  `kubectl` must be >= 1.7. See below for instructions on how to download these
   versions of `kubectl`
 * [Helm](https://helm.sh) (Tiller) installed in your Kubernetes cluster and the
   `helm` binary in your `PATH`
@@ -88,14 +92,54 @@ also need:
 a Kubernetes cluster. As such, our build process only supports compilation of
 linux/amd64 binaries suitable for execution within a Docker container.
 
-## Cloning the Repo
+## Workflow
+We can set up the repo by following a process similar to the [dev guide for k8s]( https://github.com/kubernetes/community/blob/master/contributors/devel/development.md#1-fork-in-the-cloud)
 
-The Service Catalog github repository can be found
-[here](https://github.com/kubernetes-incubator/service-catalog.git).
+### 1 Fork in the Cloud
+1. Visit https://github.com/kubernetes-incubator/service-catalog
+2. Click Fork button (top right) to establish a cloud-based fork.
 
-To clone the repository:
+### 2 Clone fork to local storage
 
-    $ git clone https://github.com/kubernetes-incubator/service-catalog.git
+Per Go's workspace instructions, place Service Catalog's code on your GOPATH
+using the following cloning procedure.
+
+Define a local working directory:
+
+> If your GOPATH has multiple paths, pick
+> just one and use it instead of $GOPATH.
+
+> You must follow exactly this pattern,
+> neither `$GOPATH/src/github.com/${your github profile name}/`
+> nor any other pattern will work.
+
+From your shell:
+```bash
+# Run the following only if `echo $GOPATH` shows nothing.
+export GOPATH=$(go env GOPATH)
+
+# Set your working directory
+working_dir=$GOPATH/src/github.com/kubernetes-incubator
+
+# Set user to match your github profile name
+user={your github profile name}
+
+# Create your clone:
+mkdir -p $working_dir
+cd $working_dir
+git clone https://github.com/$user/service-catalog.git
+# or: git clone git@github.com:$user/service-catalog.git
+
+cd service-catalog
+git remote add upstream https://github.com/kubernetes-incubator/service-catalog.git
+# or: git remote add upstream git@github.com:kubernetes-incubator/service-catalog.git
+
+# Never push to upstream master
+git remote set-url --push upstream no_push
+
+# Confirm that your remotes make sense:
+git remote -v
+```
 
 ## Building
 
@@ -123,8 +167,8 @@ To deploy to Kubernetes, see the
 
     * `pkg/client/*_generated`
     * `pkg/apis/servicecatalog/zz_*`
-    * `pkg/apis/servicecatalog/v1alpha1/zz_*`
-    * `pkg/apis/servicecatalog/v1alpha1/types.generated.go`
+    * `pkg/apis/servicecatalog/v1beta1/zz_*`
+    * `pkg/apis/servicecatalog/v1beta1/types.generated.go`
     * `pkg/openapi/openapi_generated.go`
 
 * Running `make clean` or `make clean-generated` will roll back (via
@@ -170,6 +214,15 @@ or you can specify a regexp expression for the test name:
 
     $ UNIT_TESTS=TestBar* make test
 
+a regexp expression also works for integration test names:
+
+    $ INT_TESTS=TestIntegrateBar* make test
+
+You can also set the log level for the tests, which is useful for
+debugging using the `TEST_LOG_LEVEL` env variable. Log level 5 e.g.:
+
+    $ TEST_LOG_LEVEL=5 make test-integration
+
 To see how well these tests cover the source code, you can use:
 
     $ make coverage
@@ -186,14 +239,14 @@ most contributors who hack on service catalog components will wish to produce
 custom-built images, but will be unable to push to this location, it can be
 overridden through use of the `REGISTRY` environment variable.
 
-Examples of apiserver image names:
+Examples of service-catalog image names:
 
 | `REGISTRY` | Fully Qualified Image Name | Notes |
 |----------|----------------------------|-------|
-| Unset; default | `quay.io/kubernetes-service-catalog/apiserver` | You probably don't have permissions to push to here |
-| Dockerhub username + trailing slash, e.g. `krancour/` | `krancour/apiserver` | Missing hostname == Dockerhub |
-| Dockerhub username + slash + some prefix, e.g. `krancour/sc-` | `krancour/sc-apiserver` | The prefix is useful for disambiguating similarly names images within a single namespace. |
-| 192.168.99.102:5000/ | `192.168.99.102:5000/apiserver` | A local registry |
+| Unset; default | `quay.io/kubernetes-service-catalog/service-catalog` | You probably don't have permissions to push to here |
+| Dockerhub username + trailing slash, e.g. `krancour/` | `krancour/service-catalog` | Missing hostname == Dockerhub |
+| Dockerhub username + slash + some prefix, e.g. `krancour/sc-` | `krancour/sc-service-catalog` | The prefix is useful for disambiguating similarly names images within a single namespace. |
+| 192.168.99.102:5000/ | `192.168.99.102:5000/service-catalog` | A local registry |
 
 With `REGISTRY` set appropriately:
 
@@ -217,7 +270,24 @@ cluster you regularly use and are familiar with.  One of the choices you can
 make when deploying the catalog is whether to make the API server store its
 resources in an external etcd server, or in third party resources.
 
-If you choose etcd storage, the helm chart will launch an etcd server for you 
+If you have recently merged changes that haven't yet made it into a
+release, you probably want to deploy the canary images. Always use the
+canary images when testing local changes.
+
+For more information see the
+[installation instructions](./install.md). The last two lines of
+the following `helm install` example show the canary images being
+installed with the other standard installation options.
+
+From the root of this repository:
+
+```
+helm install charts/catalog \
+    --name catalog --namespace catalog \
+    --set image=quay.io/kubernetes-service-catalog/service-catalog:canary
+```
+
+If you choose etcd storage, the helm chart will launch an etcd server for you
 in the same pod as the service-catalog API server. You will be responsible for
 the data in the etcd server container.
 
@@ -227,5 +297,5 @@ the Kubernetes cluster as third party resources.
 
 ## Demo walkthrough
 
-Check out the [walk-through](walkthrough.md) for a detailed guide of an example
-deployment.
+Check out the [introduction](./introduction.md) to get started with 
+installation and a self-guided demo.

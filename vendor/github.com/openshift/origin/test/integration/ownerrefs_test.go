@@ -9,29 +9,26 @@ import (
 	kapi "k8s.io/kubernetes/pkg/api"
 
 	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
+	authorizationclient "github.com/openshift/origin/pkg/authorization/generated/internalclientset"
 	testutil "github.com/openshift/origin/test/util"
 	testserver "github.com/openshift/origin/test/util/server"
 )
 
 func TestOwnerRefRestriction(t *testing.T) {
 	// functionality of the plugin has a unit test, we just need to make sure its called.
-	testutil.RequireEtcd(t)
-	defer testutil.DumpEtcdOnFailure(t)
-	_, clusterAdminKubeConfig, err := testserver.StartTestMasterAPI()
+	masterConfig, clusterAdminKubeConfig, err := testserver.StartTestMasterAPI()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	defer testserver.CleanupMasterEtcd(t, masterConfig)
 
 	clientConfig, err := testutil.GetClusterAdminClientConfig(clusterAdminKubeConfig)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	originClient, err := testutil.GetClusterAdminClient(clusterAdminKubeConfig)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	clusterAdminAuthorizationClient := authorizationclient.NewForConfigOrDie(clientConfig)
 
-	_, err = originClient.ClusterRoles().Create(&authorizationapi.ClusterRole{
+	_, err = clusterAdminAuthorizationClient.ClusterRoles().Create(&authorizationapi.ClusterRole{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "create-svc",
 		},
@@ -43,15 +40,15 @@ func TestOwnerRefRestriction(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if _, err := testserver.CreateNewProject(originClient, *clientConfig, "foo", "admin-user"); err != nil {
+	if _, _, err := testserver.CreateNewProject(clientConfig, "foo", "admin-user"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	_, creatorClient, _, err := testutil.GetClientForUser(*clientConfig, "creator")
+	creatorClient, _, err := testutil.GetClientForUser(clientConfig, "creator")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	_, err = originClient.RoleBindings("foo").Create(&authorizationapi.RoleBinding{
+	_, err = clusterAdminAuthorizationClient.RoleBindings("foo").Create(&authorizationapi.RoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "create-svc",
 		},
@@ -61,7 +58,7 @@ func TestOwnerRefRestriction(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if err := testutil.WaitForPolicyUpdate(originClient, "foo", "create", kapi.Resource("services"), true); err != nil {
+	if err := testutil.WaitForPolicyUpdate(creatorClient.Authorization(), "foo", "create", kapi.Resource("services"), true); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 

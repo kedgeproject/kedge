@@ -1,5 +1,3 @@
-// +build integration,!no-etcd
-
 /*
 Copyright 2015 The Kubernetes Authors.
 
@@ -126,10 +124,10 @@ func newOwnerRC(name, namespace string) *v1.ReplicationController {
 	}
 }
 
-func setup(t *testing.T, stop chan struct{}) (*httptest.Server, *garbagecollector.GarbageCollector, clientset.Interface) {
+func setup(t *testing.T, stop chan struct{}) (*httptest.Server, framework.CloseFunc, *garbagecollector.GarbageCollector, clientset.Interface) {
 	masterConfig := framework.NewIntegrationTestMasterConfig()
 	masterConfig.EnableCoreControllers = false
-	_, s := framework.RunAMaster(masterConfig)
+	_, s, closeFn := framework.RunAMaster(masterConfig)
 
 	clientSet, err := clientset.NewForConfig(&restclient.Config{Host: s.URL})
 	if err != nil {
@@ -150,6 +148,8 @@ func setup(t *testing.T, stop chan struct{}) (*httptest.Server, *garbagecollecto
 	config.ContentConfig.NegotiatedSerializer = nil
 	clientPool := dynamic.NewClientPool(config, api.Registry.RESTMapper(), dynamic.LegacyAPIPathResolverFunc)
 	sharedInformers := informers.NewSharedInformerFactory(clientSet, 0)
+	alwaysStarted := make(chan struct{})
+	close(alwaysStarted)
 	gc, err := garbagecollector.NewGarbageCollector(
 		metaOnlyClientPool,
 		clientPool,
@@ -157,6 +157,7 @@ func setup(t *testing.T, stop chan struct{}) (*httptest.Server, *garbagecollecto
 		deletableGroupVersionResources,
 		garbagecollector.DefaultIgnoredResources(),
 		sharedInformers,
+		alwaysStarted,
 	)
 	if err != nil {
 		t.Fatalf("Failed to create garbage collector")
@@ -164,7 +165,7 @@ func setup(t *testing.T, stop chan struct{}) (*httptest.Server, *garbagecollecto
 
 	go sharedInformers.Start(stop)
 
-	return s, gc, clientSet
+	return s, closeFn, gc, clientSet
 }
 
 // This test simulates the cascading deletion.
@@ -173,12 +174,12 @@ func TestCascadingDeletion(t *testing.T) {
 
 	glog.V(6).Infof("TestCascadingDeletion starts")
 	defer glog.V(6).Infof("TestCascadingDeletion ends")
-	s, gc, clientSet := setup(t, stopCh)
+	s, closeFn, gc, clientSet := setup(t, stopCh)
 	defer func() {
 		// We have to close the stop channel first, so the shared informers can terminate their watches;
-		// otherwise s.Close() will hang waiting for active client connections to finish.
+		// otherwise closeFn() will hang waiting for active client connections to finish.
 		close(stopCh)
-		s.Close()
+		closeFn()
 	}()
 
 	ns := framework.CreateTestingNamespace("gc-cascading-deletion", s, t)
@@ -265,12 +266,12 @@ func TestCascadingDeletion(t *testing.T) {
 // doesn't exist. It verifies the GC will delete such an object.
 func TestCreateWithNonExistentOwner(t *testing.T) {
 	stopCh := make(chan struct{})
-	s, gc, clientSet := setup(t, stopCh)
+	s, closeFn, gc, clientSet := setup(t, stopCh)
 	defer func() {
 		// We have to close the stop channel first, so the shared informers can terminate their watches;
-		// otherwise s.Close() will hang waiting for active client connections to finish.
+		// otherwise closeFn() will hang waiting for active client connections to finish.
 		close(stopCh)
-		s.Close()
+		closeFn()
 	}()
 
 	ns := framework.CreateTestingNamespace("gc-non-existing-owner", s, t)
@@ -365,12 +366,13 @@ func verifyRemainingObjects(t *testing.T, clientSet clientset.Interface, namespa
 func TestStressingCascadingDeletion(t *testing.T) {
 	t.Logf("starts garbage collector stress test")
 	stopCh := make(chan struct{})
-	s, gc, clientSet := setup(t, stopCh)
+	s, closeFn, gc, clientSet := setup(t, stopCh)
+
 	defer func() {
 		// We have to close the stop channel first, so the shared informers can terminate their watches;
-		// otherwise s.Close() will hang waiting for active client connections to finish.
+		// otherwise closeFn() will hang waiting for active client connections to finish.
 		close(stopCh)
-		s.Close()
+		closeFn()
 	}()
 
 	ns := framework.CreateTestingNamespace("gc-stressing-cascading-deletion", s, t)
@@ -430,12 +432,13 @@ func TestStressingCascadingDeletion(t *testing.T) {
 
 func TestOrphaning(t *testing.T) {
 	stopCh := make(chan struct{})
-	s, gc, clientSet := setup(t, stopCh)
+	s, closeFn, gc, clientSet := setup(t, stopCh)
+
 	defer func() {
 		// We have to close the stop channel first, so the shared informers can terminate their watches;
-		// otherwise s.Close() will hang waiting for active client connections to finish.
+		// otherwise closeFn() will hang waiting for active client connections to finish.
 		close(stopCh)
-		s.Close()
+		closeFn()
 	}()
 
 	ns := framework.CreateTestingNamespace("gc-orphaning", s, t)
@@ -505,12 +508,13 @@ func TestOrphaning(t *testing.T) {
 
 func TestSolidOwnerDoesNotBlockWaitingOwner(t *testing.T) {
 	stopCh := make(chan struct{})
-	s, gc, clientSet := setup(t, stopCh)
+	s, closeFn, gc, clientSet := setup(t, stopCh)
+
 	defer func() {
 		// We have to close the stop channel first, so the shared informers can terminate their watches;
-		// otherwise s.Close() will hang waiting for active client connections to finish.
+		// otherwise closeFn() will hang waiting for active client connections to finish.
 		close(stopCh)
-		s.Close()
+		closeFn()
 	}()
 
 	ns := framework.CreateTestingNamespace("gc-foreground1", s, t)
@@ -571,12 +575,13 @@ func TestSolidOwnerDoesNotBlockWaitingOwner(t *testing.T) {
 
 func TestNonBlockingOwnerRefDoesNotBlock(t *testing.T) {
 	stopCh := make(chan struct{})
-	s, gc, clientSet := setup(t, stopCh)
+	s, closeFn, gc, clientSet := setup(t, stopCh)
+
 	defer func() {
 		// We have to close the stop channel first, so the shared informers can terminate their watches;
-		// otherwise s.Close() will hang waiting for active client connections to finish.
+		// otherwise closeFn() will hang waiting for active client connections to finish.
 		close(stopCh)
-		s.Close()
+		closeFn()
 	}()
 
 	ns := framework.CreateTestingNamespace("gc-foreground2", s, t)
@@ -643,12 +648,13 @@ func TestNonBlockingOwnerRefDoesNotBlock(t *testing.T) {
 
 func TestBlockingOwnerRefDoesBlock(t *testing.T) {
 	stopCh := make(chan struct{})
-	s, gc, clientSet := setup(t, stopCh)
+	s, closeFn, gc, clientSet := setup(t, stopCh)
+
 	defer func() {
 		// We have to close the stop channel first, so the shared informers can terminate their watches;
-		// otherwise s.Close() will hang waiting for active client connections to finish.
+		// otherwise closeFn() will hang waiting for active client connections to finish.
 		close(stopCh)
-		s.Close()
+		closeFn()
 	}()
 
 	ns := framework.CreateTestingNamespace("gc-foreground3", s, t)

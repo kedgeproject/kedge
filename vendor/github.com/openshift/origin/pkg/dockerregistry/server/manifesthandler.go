@@ -9,19 +9,23 @@ import (
 	"github.com/docker/distribution/manifest/schema1"
 	"github.com/docker/distribution/manifest/schema2"
 
-	imageapi "github.com/openshift/origin/pkg/image/apis/image"
+	imageapiv1 "github.com/openshift/origin/pkg/image/apis/image/v1"
 )
 
 // A ManifestHandler defines a common set of operations on all versions of manifest schema.
 type ManifestHandler interface {
-	// FillImageMetadata fills a given image with metadata parsed from manifest. It also corrects layer sizes
-	// with blob sizes. Newer Docker client versions don't set layer sizes in the manifest schema 1 at all.
-	// Origin master needs correct layer sizes for proper image quota support. That's why we need to fill the
-	// metadata in the registry.
-	FillImageMetadata(ctx context.Context, image *imageapi.Image) error
+	// Config returns a blob with image configuration associated with the manifest. This applies only to
+	// manifet schema 2.
+	Config(ctx context.Context) ([]byte, error)
+
+	// Digest returns manifest's digest.
+	Digest() (manifestDigest digest.Digest, err error)
 
 	// Manifest returns a deserialized manifest object.
 	Manifest() distribution.Manifest
+
+	// Layers returns image layers and a value for the dockerLayersOrder annotation.
+	Layers(ctx context.Context) (order string, layers []imageapiv1.ImageLayer, err error)
 
 	// Payload returns manifest's media type, complete payload with signatures and canonical payload without
 	// signatures or an error if the information could not be fetched.
@@ -29,9 +33,6 @@ type ManifestHandler interface {
 
 	// Verify returns an error if the contained manifest is not valid or has missing dependencies.
 	Verify(ctx context.Context, skipDependencyVerification bool) error
-
-	// Digest returns manifest's digest
-	Digest() (manifestDigest digest.Digest, err error)
 }
 
 // NewManifestHandler creates a manifest handler for the given manifest.
@@ -47,7 +48,7 @@ func NewManifestHandler(repo *repository, manifest distribution.Manifest) (Manif
 }
 
 // NewManifestHandlerFromImage creates a new manifest handler for a manifest stored in the given image.
-func NewManifestHandlerFromImage(repo *repository, image *imageapi.Image) (ManifestHandler, error) {
+func NewManifestHandlerFromImage(repo *repository, image *imageapiv1.Image) (ManifestHandler, error) {
 	var (
 		manifest distribution.Manifest
 		err      error

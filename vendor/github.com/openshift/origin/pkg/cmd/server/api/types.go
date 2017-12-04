@@ -43,21 +43,25 @@ var (
 	// exposed externally.
 	DeadOpenShiftStorageVersionLevels = []string{"v1beta1", "v1beta3"}
 
-	APIGroupKube              = ""
-	APIGroupExtensions        = "extensions"
-	APIGroupApps              = "apps"
-	APIGroupAuthentication    = "authentication.k8s.io"
-	APIGroupAuthorization     = "authorization.k8s.io"
-	APIGroupImagePolicy       = "imagepolicy.k8s.io"
-	APIGroupAutoscaling       = "autoscaling"
-	APIGroupBatch             = "batch"
-	APIGroupCertificates      = "certificates.k8s.io"
-	APIGroupFederation        = "federation"
-	APIGroupPolicy            = "policy"
-	APIGroupStorage           = "storage.k8s.io"
-	APIGroupComponentConfig   = "componentconfig"
-	APIGroupAuthorizationRbac = "rbac.authorization.k8s.io"
-	APIGroupSettings          = "settings.k8s.io"
+	APIGroupKube                  = ""
+	APIGroupExtensions            = "extensions"
+	APIGroupApps                  = "apps"
+	APIGroupAdmissionRegistration = "admissionregistration.k8s.io"
+	APIGroupAPIExtensions         = "apiextensions.k8s.io"
+	APIGroupAPIRegistration       = "apiregistration.k8s.io"
+	APIGroupAuthentication        = "authentication.k8s.io"
+	APIGroupAuthorization         = "authorization.k8s.io"
+	APIGroupImagePolicy           = "imagepolicy.k8s.io"
+	APIGroupAutoscaling           = "autoscaling"
+	APIGroupBatch                 = "batch"
+	APIGroupCertificates          = "certificates.k8s.io"
+	APIGroupFederation            = "federation"
+	APIGroupNetworking            = "networking.k8s.io"
+	APIGroupPolicy                = "policy"
+	APIGroupStorage               = "storage.k8s.io"
+	APIGroupComponentConfig       = "componentconfig"
+	APIGroupAuthorizationRbac     = "rbac.authorization.k8s.io"
+	APIGroupSettings              = "settings.k8s.io"
 
 	OriginAPIGroupCore                = ""
 	OriginAPIGroupAuthorization       = "authorization.openshift.io"
@@ -76,18 +80,22 @@ var (
 
 	// Map of group names to allowed REST API versions
 	KubeAPIGroupsToAllowedVersions = map[string][]string{
-		APIGroupKube:              {"v1"},
-		APIGroupExtensions:        {"v1beta1"},
-		APIGroupApps:              {"v1beta1"},
-		APIGroupAuthentication:    {"v1", "v1beta1"},
-		APIGroupAuthorization:     {"v1", "v1beta1"},
-		APIGroupAuthorizationRbac: {"v1beta1"},
-		APIGroupAutoscaling:       {"v1"},
-		APIGroupBatch:             {"v1", "v2alpha1"}, // v2alpha1 has to stay on to keep cronjobs on for backwards compatibility
-		APIGroupCertificates:      {"v1beta1"},
-		APIGroupPolicy:            {"v1beta1"},
-		APIGroupStorage:           {"v1", "v1beta1"},
-		APIGroupSettings:          {}, // list the group, but don't enable any versions.  alpha disabled by default, but enablable via arg
+		APIGroupKube:                  {"v1"},
+		APIGroupExtensions:            {"v1beta1"},
+		APIGroupApps:                  {"v1beta1"},
+		APIGroupAdmissionRegistration: {}, // alpha disabled by default
+		APIGroupAPIExtensions:         {"v1beta1"},
+		APIGroupAPIRegistration:       {"v1beta1"},
+		APIGroupAuthentication:        {"v1", "v1beta1"},
+		APIGroupAuthorization:         {"v1", "v1beta1"},
+		APIGroupAuthorizationRbac:     {"v1beta1"},
+		APIGroupAutoscaling:           {"v1"},
+		APIGroupBatch:                 {"v1", "v2alpha1"}, // v2alpha1 has to stay on to keep cronjobs on for backwards compatibility
+		APIGroupCertificates:          {"v1beta1"},
+		APIGroupNetworking:            {"v1"},
+		APIGroupPolicy:                {"v1beta1"},
+		APIGroupStorage:               {"v1", "v1beta1"},
+		APIGroupSettings:              {}, // list the group, but don't enable any versions.  alpha disabled by default, but enablable via arg
 		// TODO: enable as part of a separate binary
 		//APIGroupFederation:  {"v1beta1"},
 	}
@@ -109,14 +117,15 @@ var (
 
 	// Map of group names to known, but disabled REST API versions
 	KubeDefaultDisabledVersions = map[string][]string{
-		APIGroupKube:              {"v1beta3"},
-		APIGroupExtensions:        {},
-		APIGroupAutoscaling:       {"v2alpha1"},
-		APIGroupBatch:             {},
-		APIGroupPolicy:            {},
-		APIGroupApps:              {},
-		APIGroupAuthorizationRbac: {"v1alpha1"},
-		APIGroupSettings:          {"v1alpha1"},
+		APIGroupKube:                  {"v1beta3"},
+		APIGroupExtensions:            {},
+		APIGroupAutoscaling:           {"v2alpha1"},
+		APIGroupBatch:                 {},
+		APIGroupPolicy:                {},
+		APIGroupApps:                  {},
+		APIGroupAdmissionRegistration: {"v1alpha1"},
+		APIGroupAuthorizationRbac:     {"v1alpha1"},
+		APIGroupSettings:              {"v1alpha1"},
 	}
 	KnownKubeAPIGroups   = sets.StringKeySet(KubeAPIGroupsToAllowedVersions)
 	KnownOriginAPIGroups = sets.StringKeySet(OriginAPIGroupsToAllowedVersions)
@@ -149,6 +158,8 @@ var (
 )
 
 type ExtendedArguments map[string][]string
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // NodeConfig is the fully specified config starting an OpenShift node
 type NodeConfig struct {
@@ -314,6 +325,8 @@ const (
 
 type FeatureList []string
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 type MasterConfig struct {
 	metav1.TypeMeta
 
@@ -418,10 +431,9 @@ type MasterConfig struct {
 	// AuditConfig holds information related to auditing capabilities.
 	AuditConfig AuditConfig
 
-	// TemplateServiceBrokerConfig holds information related to the template
-	// service broker.  The broker is enabled if TemplateServiceBrokerConfig is
-	// non-nil.
-	TemplateServiceBrokerConfig *TemplateServiceBrokerConfig
+	// DisableOpenAPI avoids starting the openapi endpoint because it is very expensive.
+	// This option will be removed at a later time.  It is never serialized.
+	DisableOpenAPI bool
 }
 
 // MasterAuthConfig configures authentication options in addition to the standard
@@ -453,10 +465,29 @@ type AggregatorConfig struct {
 	ProxyClientInfo CertInfo
 }
 
+type LogFormatType string
+
+type WebHookModeType string
+
+const (
+	// LogFormatLegacy saves event in 1-line text format.
+	LogFormatLegacy LogFormatType = "legacy"
+	// LogFormatJson saves event in structured json format.
+	LogFormatJson LogFormatType = "json"
+
+	// WebHookModeBatch indicates that the webhook should buffer audit events
+	// internally, sending batch updates either once a certain number of
+	// events have been received or a certain amount of time has passed.
+	WebHookModeBatch WebHookModeType = "batch"
+	// WebHookModeBlocking causes the webhook to block on every attempt to process
+	// a set of events. This causes requests to the API server to wait for a
+	// round trip to the external audit service before sending a response.
+	WebHookModeBlocking WebHookModeType = "blocking"
+)
+
 // AuditConfig holds configuration for the audit capabilities
 type AuditConfig struct {
 	// If this flag is set, audit log will be printed in the logs.
-	// The logs contains, method, user and a requested URL.
 	Enabled bool
 	// All requests coming to the apiserver will be logged to this file.
 	AuditFilePath string
@@ -466,6 +497,21 @@ type AuditConfig struct {
 	MaximumRetainedFiles int
 	// Maximum size in megabytes of the log file before it gets rotated. Defaults to 100MB.
 	MaximumFileSizeMegabytes int
+
+	// PolicyFile is a path to the file that defines the audit policy configuration.
+	PolicyFile string
+	// PolicyConfiguration is an embedded policy configuration object to be used
+	// as the audit policy configuration. If present, it will be used instead of
+	// the path to the policy file.
+	PolicyConfiguration runtime.Object
+
+	// Format of saved audits (legacy or json).
+	LogFormat LogFormatType
+
+	// Path to a .kubeconfig formatted file that defines the audit webhook configuration.
+	WebHookKubeConfig string
+	// Strategy for sending audit events (block or batch).
+	WebHookMode WebHookModeType
 }
 
 // JenkinsPipelineConfig holds configuration for the Jenkins pipeline strategy
@@ -506,6 +552,16 @@ type ImagePolicyConfig struct {
 	// this policy - typically only administrators or system integrations will have those
 	// permissions.
 	AllowedRegistriesForImport *AllowedRegistries
+	// InternalRegistryHostname sets the hostname for the default internal image
+	// registry. The value must be in "hostname[:port]" format.
+	// For backward compatibility, users can still use OPENSHIFT_DEFAULT_REGISTRY
+	// environment variable but this setting overrides the environment variable.
+	InternalRegistryHostname string
+	// ExternalRegistryHostname sets the hostname for the default external image
+	// registry. The external hostname should be set only when the image registry
+	// is exposed externally. The value is used in 'publicDockerImageRepository'
+	// field in ImageStreams. The value must be in "hostname[:port]" format.
+	ExternalRegistryHostname string
 }
 
 // AllowedRegistries represents a list of registries allowed for the image import.
@@ -611,10 +667,12 @@ type UserAgentDenyRule struct {
 
 // MasterNetworkConfig to be passed to the compiled in network plugin
 type MasterNetworkConfig struct {
-	NetworkPluginName  string
-	ClusterNetworkCIDR string
-	HostSubnetLength   uint32
-	ServiceNetworkCIDR string
+	NetworkPluginName            string
+	DeprecatedClusterNetworkCIDR string
+	// ClusterNetworks contains a list of cluster networks that defines the global overlay networks L3 space.
+	ClusterNetworks            []ClusterNetworkEntry
+	DeprecatedHostSubnetLength uint32
+	ServiceNetworkCIDR         string
 	// ExternalIPNetworkCIDRs controls what values are acceptable for the service external IP field. If empty, no externalIP
 	// may be set. It may contain a list of CIDRs which are checked for access. If a CIDR is prefixed with !, IPs in that
 	// CIDR will be rejected. Rejections will be applied first, then the IP checked against one of the allowed CIDRs. You
@@ -625,6 +683,15 @@ type MasterNetworkConfig struct {
 	// For security reasons, you should ensure that this range does not overlap with the CIDRs reserved for external ips,
 	// nodes, pods, or services.
 	IngressIPNetworkCIDR string
+}
+
+// ClusterNetworkEntry defines an individual cluster network. The CIDRs cannot overlap with other cluster network CIDRs, CIDRs
+// reserved for external ips, CIDRs reserved for service networks, and CIDRs reserved for ingress ips.
+type ClusterNetworkEntry struct {
+	// CIDR defines the total range of a cluster networks address space.
+	CIDR string
+	// HostSubnetLength gives the number of address bits reserved for pod IPs on each node.
+	HostSubnetLength uint32
 }
 
 type ImageConfig struct {
@@ -885,6 +952,8 @@ type SessionConfig struct {
 	SessionName string
 }
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 // SessionSecrets list the secrets to use to sign/encrypt and authenticate/decrypt created sessions.
 type SessionSecrets struct {
 	metav1.TypeMeta
@@ -915,6 +984,8 @@ type IdentityProvider struct {
 	Provider runtime.Object
 }
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 type BasicAuthPasswordIdentityProvider struct {
 	metav1.TypeMeta
 
@@ -922,13 +993,19 @@ type BasicAuthPasswordIdentityProvider struct {
 	RemoteConnectionInfo RemoteConnectionInfo
 }
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 type AllowAllPasswordIdentityProvider struct {
 	metav1.TypeMeta
 }
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 type DenyAllPasswordIdentityProvider struct {
 	metav1.TypeMeta
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 type HTPasswdPasswordIdentityProvider struct {
 	metav1.TypeMeta
@@ -936,6 +1013,8 @@ type HTPasswdPasswordIdentityProvider struct {
 	// File is a reference to your htpasswd file
 	File string
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 type LDAPPasswordIdentityProvider struct {
 	metav1.TypeMeta
@@ -974,6 +1053,8 @@ type LDAPAttributeMapping struct {
 	Email []string
 }
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 type KeystonePasswordIdentityProvider struct {
 	metav1.TypeMeta
 	// RemoteConnectionInfo contains information about how to connect to the keystone server
@@ -981,6 +1062,8 @@ type KeystonePasswordIdentityProvider struct {
 	// Domain Name is required for keystone v3
 	DomainName string
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 type RequestHeaderIdentityProvider struct {
 	metav1.TypeMeta
@@ -1016,6 +1099,8 @@ type RequestHeaderIdentityProvider struct {
 	EmailHeaders []string
 }
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 type GitHubIdentityProvider struct {
 	metav1.TypeMeta
 
@@ -1028,6 +1113,8 @@ type GitHubIdentityProvider struct {
 	// Teams optionally restricts which teams are allowed to log in. Format is <org>/<team>.
 	Teams []string
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 type GitLabIdentityProvider struct {
 	metav1.TypeMeta
@@ -1043,6 +1130,8 @@ type GitLabIdentityProvider struct {
 	ClientSecret StringSource
 }
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 type GoogleIdentityProvider struct {
 	metav1.TypeMeta
 
@@ -1054,6 +1143,8 @@ type GoogleIdentityProvider struct {
 	// HostedDomain is the optional Google App domain (e.g. "mycompany.com") to restrict logins to
 	HostedDomain string
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 type OpenIDIdentityProvider struct {
 	metav1.TypeMeta
@@ -1249,6 +1340,8 @@ type StringSourceSpec struct {
 	// KeyFile references a file containing the key to use to decrypt the value.
 	KeyFile string
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 type LDAPSyncConfig struct {
 	metav1.TypeMeta
@@ -1456,6 +1549,8 @@ type ServiceServingCert struct {
 	Signer *CertInfo
 }
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 // DefaultAdmissionConfig can be used to enable or disable various admission plugins.
 // When this type is present as the `configuration` object under `pluginConfig` and *if* the admission plugin supports it,
 // this will cause an "off by default" admission plugin to be enabled
@@ -1464,12 +1559,4 @@ type DefaultAdmissionConfig struct {
 
 	// Disable turns off an admission plugin that is enabled by default.
 	Disable bool
-}
-
-// TemplateServiceBrokerConfig holds information related to the template
-// service broker
-type TemplateServiceBrokerConfig struct {
-	// TemplateNamespaces indicates the namespace(s) in which the template service
-	// broker looks for templates to serve to the catalog.
-	TemplateNamespaces []string
 }

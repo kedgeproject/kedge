@@ -4,6 +4,7 @@ package bootstrappolicy
 const (
 	DefaultOpenShiftSharedResourcesNamespace = "openshift"
 	DefaultOpenShiftInfraNamespace           = "openshift-infra"
+	DefaultOpenShiftNodeNamespace            = "openshift-node"
 )
 
 // users
@@ -12,9 +13,11 @@ const (
 	BuilderServiceAccountName  = "builder"
 	DeployerServiceAccountName = "deployer"
 
-	MasterUnqualifiedUsername = "openshift-master"
+	MasterUnqualifiedUsername     = "openshift-master"
+	AggregatorUnqualifiedUsername = "openshift-aggregator"
 
 	MasterUsername      = "system:" + MasterUnqualifiedUsername
+	AggregatorUsername  = "system:" + AggregatorUnqualifiedUsername
 	SystemAdminUsername = "system:admin"
 
 	// Not granted any API permissions, just an identity for a client certificate for the API proxy to use
@@ -47,6 +50,7 @@ const (
 const (
 	ClusterAdminRoleName       = "cluster-admin"
 	SudoerRoleName             = "sudoer"
+	ScopeImpersonationRoleName = "system:scope-impersonation"
 	ClusterReaderRoleName      = "cluster-reader"
 	StorageAdminRoleName       = "storage-admin"
 	ClusterDebuggerRoleName    = "cluster-debugger"
@@ -94,10 +98,14 @@ const (
 	NodeReaderRoleName = "system:node-reader"
 
 	OpenshiftSharedResourceViewRoleName = "shared-resource-viewer"
+
+	NodeBootstrapRoleName    = "system:node-bootstrapper"
+	NodeConfigReaderRoleName = "system:node-config-reader"
 )
 
 // RoleBindings
 const (
+	// Legacy roles that must continue to have a plural form
 	SelfAccessReviewerRoleBindingName = SelfAccessReviewerRoleName + "s"
 	SelfProvisionerRoleBindingName    = SelfProvisionerRoleName + "s"
 	DeployerRoleBindingName           = DeployerRoleName + "s"
@@ -123,10 +131,11 @@ const (
 	RegistryViewerRoleBindingName     = RegistryViewerRoleName + "s"
 	RegistryEditorRoleBindingName     = RegistryEditorRoleName + "s"
 
+	OpenshiftSharedResourceViewRoleBindingName = OpenshiftSharedResourceViewRoleName + "s"
+
+	// Bindings
 	BuildStrategyDockerRoleBindingName          = BuildStrategyDockerRoleName + "-binding"
 	BuildStrategyCustomRoleBindingName          = BuildStrategyCustomRoleName + "-binding"
 	BuildStrategySourceRoleBindingName          = BuildStrategySourceRoleName + "-binding"
 	BuildStrategyJenkinsPipelineRoleBindingName = BuildStrategyJenkinsPipelineRoleName + "-binding"
-
-	OpenshiftSharedResourceViewRoleBindingName = OpenshiftSharedResourceViewRoleName + "s"
 )

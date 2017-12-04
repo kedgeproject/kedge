@@ -47,10 +47,6 @@ type GroupMetaFactoryArgs struct {
 	// example: 'servicecatalog.k8s.io'
 	GroupName              string
 	VersionPreferenceOrder []string
-	// ImportPrefix is the base go package of the API-Group
-	//
-	// example: 'k8s.io/kubernetes/pkg/apis/autoscaling'
-	ImportPrefix string
 	// RootScopedKinds are resources that are not namespaced.
 	RootScopedKinds sets.String // nil is allowed
 	IgnoredKinds    sets.String // nil is allowed
@@ -78,7 +74,7 @@ func NewGroupMetaFactory(groupArgs *GroupMetaFactoryArgs, versions VersionToSche
 
 // Announce adds this Group factory to the global factory registry. It should
 // only be called if you constructed the GroupMetaFactory yourself via
-// NewGroupMetadFactory.
+// NewGroupMetaFactory.
 // Note that this will panic on an error, since it's expected that you'll be
 // calling this at initialization time and any error is a result of a
 // programmer importing the wrong set of packages. If this assumption doesn't
@@ -179,7 +175,6 @@ func (gmf *GroupMetaFactory) newRESTMapper(scheme *runtime.Scheme, externalVersi
 	return meta.NewDefaultRESTMapperFromScheme(
 		externalVersions,
 		groupMeta.InterfacesFor,
-		gmf.GroupArgs.ImportPrefix,
 		ignoredKinds,
 		rootScoped,
 		scheme,

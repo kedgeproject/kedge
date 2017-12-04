@@ -22,6 +22,7 @@ import (
 	cmdutil "github.com/openshift/origin/pkg/cmd/util"
 	"github.com/openshift/origin/pkg/cmd/util/tokencmd"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
+	imageclient "github.com/openshift/origin/pkg/image/generated/internalclientset"
 	testutil "github.com/openshift/origin/test/util"
 	testserver "github.com/openshift/origin/test/util/server"
 )
@@ -130,26 +131,21 @@ func testPullThroughStatBlob(stream *imageapi.ImageStreamImport, user, token, di
 }
 
 func TestPullThroughInsecure(t *testing.T) {
-	testutil.RequireEtcd(t)
-	defer testutil.DumpEtcdOnFailure(t)
-
-	_, clusterAdminKubeConfig, err := testserver.StartTestMasterAPI()
+	masterConfig, clusterAdminKubeConfig, err := testserver.StartTestMasterAPI()
 	if err != nil {
 		t.Fatalf("error starting master: %v", err)
 	}
-	clusterAdminClient, err := testutil.GetClusterAdminClient(clusterAdminKubeConfig)
-	if err != nil {
-		t.Fatalf("error getting cluster admin client: %v", err)
-	}
+	defer testserver.CleanupMasterEtcd(t, masterConfig)
 	clusterAdminClientConfig, err := testutil.GetClusterAdminClientConfig(clusterAdminKubeConfig)
 	if err != nil {
 		t.Fatalf("error getting cluster admin client config: %v", err)
 	}
 	user := "admin"
-	adminClient, err := testserver.CreateNewProject(clusterAdminClient, *clusterAdminClientConfig, testutil.Namespace(), user)
+	_, adminConfig, err := testserver.CreateNewProject(clusterAdminClientConfig, testutil.Namespace(), user)
 	if err != nil {
 		t.Fatalf("error creating project: %v", err)
 	}
+	adminImageClient := imageclient.NewForConfigOrDie(adminConfig)
 	token, err := tokencmd.RequestToken(clusterAdminClientConfig, nil, user, "password")
 	if err != nil {
 		t.Fatalf("error requesting token: %v", err)
@@ -238,7 +234,7 @@ func TestPullThroughInsecure(t *testing.T) {
 		},
 	}
 
-	isi, err := adminClient.ImageStreams(testutil.Namespace()).Import(&stream)
+	isi, err := adminImageClient.ImageStreamImports(testutil.Namespace()).Create(&stream)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -261,7 +257,7 @@ func TestPullThroughInsecure(t *testing.T) {
 		}
 	}
 
-	istream, err := adminClient.ImageStreams(stream.Namespace).Get(stream.Name, metav1.GetOptions{})
+	istream, err := adminImageClient.ImageStreams(stream.Namespace).Get(stream.Name, metav1.GetOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -271,7 +267,7 @@ func TestPullThroughInsecure(t *testing.T) {
 	}
 	istream.Annotations[imageapi.InsecureRepositoryAnnotation] = "true"
 
-	_, err = adminClient.ImageStreams(istream.Namespace).Update(istream)
+	_, err = adminImageClient.ImageStreams(istream.Namespace).Update(istream)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -298,13 +294,13 @@ func TestPullThroughInsecure(t *testing.T) {
 		}
 	}
 
-	istream, err = adminClient.ImageStreams(stream.Namespace).Get(stream.Name, metav1.GetOptions{})
+	istream, err = adminImageClient.ImageStreams(stream.Namespace).Get(stream.Name, metav1.GetOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	istream.Annotations[imageapi.InsecureRepositoryAnnotation] = "false"
 
-	_, err = adminClient.ImageStreams(istream.Namespace).Update(istream)
+	_, err = adminImageClient.ImageStreams(istream.Namespace).Update(istream)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -316,14 +312,14 @@ func TestPullThroughInsecure(t *testing.T) {
 		}
 	}
 
-	istream, err = adminClient.ImageStreams(stream.Namespace).Get(stream.Name, metav1.GetOptions{})
+	istream, err = adminImageClient.ImageStreams(stream.Namespace).Get(stream.Name, metav1.GetOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	tagRef := istream.Spec.Tags[repotag]
 	tagRef.ImportPolicy.Insecure = false
 	istream.Spec.Tags[repotag] = tagRef
-	_, err = adminClient.ImageStreams(istream.Namespace).Update(istream)
+	_, err = adminImageClient.ImageStreams(istream.Namespace).Update(istream)
 	if err != nil {
 		t.Fatal(err)
 	}

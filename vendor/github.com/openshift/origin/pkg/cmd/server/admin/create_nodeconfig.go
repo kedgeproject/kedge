@@ -5,10 +5,8 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"net"
 	"os"
 	"path"
-	"strconv"
 
 	"github.com/spf13/cobra"
 
@@ -401,7 +399,7 @@ func (o CreateNodeConfigOptions) MakeNodeConfig(serverCertFile, serverKeyFile, n
 		NodeName: o.NodeName,
 
 		ServingInfo: configapi.ServingInfo{
-			BindAddress: net.JoinHostPort(o.ListenAddr.Host, strconv.Itoa(ports.KubeletPort)),
+			BindAddress: o.ListenAddr.HostPort(ports.KubeletPort),
 		},
 
 		VolumeDirectory:     o.VolumeDir,
@@ -456,7 +454,7 @@ func (o CreateNodeConfigOptions) MakeNodeConfig(serverCertFile, serverKeyFile, n
 	if err != nil {
 		return err
 	}
-	kapi.Scheme.Default(ext)
+	configapi.Scheme.Default(ext)
 	internal, err := configapi.Scheme.ConvertToVersion(ext, configapi.SchemeGroupVersion)
 	if err != nil {
 		return err

@@ -18,6 +18,8 @@ package dockershim
 
 import (
 	"fmt"
+	"os"
+	"strings"
 
 	dockertypes "github.com/docker/engine-api/types"
 	dockercontainer "github.com/docker/engine-api/types/container"
@@ -25,10 +27,10 @@ import (
 	"github.com/golang/glog"
 
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
-	runtimeapi "k8s.io/kubernetes/pkg/kubelet/api/v1alpha1/runtime"
+	runtimeapi "k8s.io/kubernetes/pkg/kubelet/apis/cri/v1alpha1/runtime"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	"k8s.io/kubernetes/pkg/kubelet/dockershim/errors"
-	"k8s.io/kubernetes/pkg/kubelet/dockertools"
+	"k8s.io/kubernetes/pkg/kubelet/dockershim/libdocker"
 	"k8s.io/kubernetes/pkg/kubelet/qos"
 	"k8s.io/kubernetes/pkg/kubelet/types"
 )
@@ -46,12 +48,32 @@ const (
 	runtimeName = "docker"
 )
 
+// Returns whether the sandbox network is ready, and whether the sandbox is known
+func (ds *dockerService) getNetworkReady(podSandboxID string) (bool, bool) {
+	ds.networkReadyLock.Lock()
+	defer ds.networkReadyLock.Unlock()
+	ready, ok := ds.networkReady[podSandboxID]
+	return ready, ok
+}
+
+func (ds *dockerService) setNetworkReady(podSandboxID string, ready bool) {
+	ds.networkReadyLock.Lock()
+	defer ds.networkReadyLock.Unlock()
+	ds.networkReady[podSandboxID] = ready
+}
+
+func (ds *dockerService) clearNetworkReady(podSandboxID string) {
+	ds.networkReadyLock.Lock()
+	defer ds.networkReadyLock.Unlock()
+	delete(ds.networkReady, podSandboxID)
+}
+
 // RunPodSandbox creates and starts a pod-level sandbox. Runtimes should ensure
 // the sandbox is in ready state.
 // For docker, PodSandbox is implemented by a container holding the network
 // namespace for the pod.
 // Note: docker doesn't use LogDirectory (yet).
-func (ds *dockerService) RunPodSandbox(config *runtimeapi.PodSandboxConfig) (string, error) {
+func (ds *dockerService) RunPodSandbox(config *runtimeapi.PodSandboxConfig) (id string, err error) {
 	// Step 1: Pull the image for the sandbox.
 	image := defaultSandboxImage
 	podSandboxImage := ds.podSandboxImage
@@ -80,6 +102,15 @@ func (ds *dockerService) RunPodSandbox(config *runtimeapi.PodSandboxConfig) (str
 		return "", fmt.Errorf("failed to create a sandbox for pod %q: %v", config.Metadata.Name, err)
 	}
 
+	ds.setNetworkReady(createResp.ID, false)
+	defer func(e *error) {
+		// Set networking ready depending on the error return of
+		// the parent function
+		if *e == nil {
+			ds.setNetworkReady(createResp.ID, true)
+		}
+	}(&err)
+
 	// Step 3: Create Sandbox Checkpoint.
 	if err = ds.checkpointHandler.CreateCheckpoint(createResp.ID, constructPodSandboxCheckpoint(config)); err != nil {
 		return createResp.ID, err
@@ -105,8 +136,8 @@ func (ds *dockerService) RunPodSandbox(config *runtimeapi.PodSandboxConfig) (str
 			return createResp.ID, fmt.Errorf("failed to inspect sandbox container for pod %q: %v", config.Metadata.Name, err)
 		}
 
-		if err := dockertools.RewriteResolvFile(containerInfo.ResolvConfPath, dnsConfig.Servers, dnsConfig.Searches, len(dnsConfig.Options) > 0); err != nil {
-			return createResp.ID, fmt.Errorf("rewrite resolf.conf faield for pod %q: %v", config.Metadata.Name, err)
+		if err := rewriteResolvFile(containerInfo.ResolvConfPath, dnsConfig.Servers, dnsConfig.Searches, dnsConfig.Options); err != nil {
+			return createResp.ID, fmt.Errorf("rewrite resolv.conf failed for pod %q: %v", config.Metadata.Name, err)
 		}
 	}
 
@@ -140,14 +171,14 @@ func (ds *dockerService) RunPodSandbox(config *runtimeapi.PodSandboxConfig) (str
 // after us?
 func (ds *dockerService) StopPodSandbox(podSandboxID string) error {
 	var namespace, name string
+	var hostNetwork bool
 	var checkpointErr, statusErr error
-	needNetworkTearDown := false
 
 	// Try to retrieve sandbox information from docker daemon or sandbox checkpoint
 	status, statusErr := ds.PodSandboxStatus(podSandboxID)
 	if statusErr == nil {
 		nsOpts := status.GetLinux().GetNamespaces().GetOptions()
-		needNetworkTearDown = nsOpts != nil && !nsOpts.HostNetwork
+		hostNetwork = nsOpts != nil && nsOpts.HostNetwork
 		m := status.GetMetadata()
 		namespace = m.Namespace
 		name = m.Name
@@ -159,7 +190,7 @@ func (ds *dockerService) StopPodSandbox(podSandboxID string) error {
 		// actions will only have sandbox ID and not have pod namespace and name information.
 		// Return error if encounter any unexpected error.
 		if checkpointErr != nil {
-			if dockertools.IsContainerNotFoundError(statusErr) && checkpointErr == errors.CheckpointNotFoundError {
+			if libdocker.IsContainerNotFoundError(statusErr) && checkpointErr == errors.CheckpointNotFoundError {
 				glog.Warningf("Both sandbox container and checkpoint for id %q could not be found. "+
 					"Proceed without further sandbox information.", podSandboxID)
 			} else {
@@ -180,10 +211,8 @@ func (ds *dockerService) StopPodSandbox(podSandboxID string) error {
 		} else {
 			namespace = checkpoint.Namespace
 			name = checkpoint.Name
+			hostNetwork = checkpoint.Data != nil && checkpoint.Data.HostNetwork
 		}
-
-		// Always trigger network plugin to tear down
-		needNetworkTearDown = true
 	}
 
 	// WARNING: The following operations made the following assumption:
@@ -195,17 +224,25 @@ func (ds *dockerService) StopPodSandbox(podSandboxID string) error {
 	// since it is stopped. With empty network namespcae, CNI bridge plugin will conduct best
 	// effort clean up and will not return error.
 	errList := []error{}
-	if needNetworkTearDown {
+	ready, ok := ds.getNetworkReady(podSandboxID)
+	if !hostNetwork && (ready || !ok) {
+		// Only tear down the pod network if we haven't done so already
 		cID := kubecontainer.BuildContainerID(runtimeName, podSandboxID)
-		if err := ds.network.TearDownPod(namespace, name, cID); err != nil {
+		err := ds.network.TearDownPod(namespace, name, cID)
+		if err == nil {
+			ds.setNetworkReady(podSandboxID, false)
+		} else {
 			errList = append(errList, err)
 		}
 	}
 	if err := ds.client.StopContainer(podSandboxID, defaultSandboxGracePeriod); err != nil {
 		glog.Errorf("Failed to stop sandbox %q: %v", podSandboxID, err)
 		// Do not return error if the container does not exist
-		if !dockertools.IsContainerNotFoundError(err) {
+		if !libdocker.IsContainerNotFoundError(err) {
 			errList = append(errList, err)
+		} else {
+			// remove the checkpoint for any sandbox that is not found in the runtime
+			ds.checkpointHandler.RemoveCheckpoint(podSandboxID)
 		}
 	}
 	return utilerrors.NewAggregate(errList)
@@ -216,14 +253,39 @@ func (ds *dockerService) StopPodSandbox(podSandboxID string) error {
 // sandbox, they should be forcibly removed.
 func (ds *dockerService) RemovePodSandbox(podSandboxID string) error {
 	var errs []error
-	if err := ds.client.RemoveContainer(podSandboxID, dockertypes.ContainerRemoveOptions{RemoveVolumes: true}); err != nil && !dockertools.IsContainerNotFoundError(err) {
+	opts := dockertypes.ContainerListOptions{All: true}
+
+	opts.Filter = dockerfilters.NewArgs()
+	f := newDockerFilter(&opts.Filter)
+	f.AddLabel(sandboxIDLabelKey, podSandboxID)
+
+	containers, err := ds.client.ListContainers(opts)
+	if err != nil {
 		errs = append(errs, err)
 	}
+
+	// Remove all containers in the sandbox.
+	for i := range containers {
+		if err := ds.RemoveContainer(containers[i].ID); err != nil && !libdocker.IsContainerNotFoundError(err) {
+			errs = append(errs, err)
+		}
+	}
+
+	// Remove the sandbox container.
+	err = ds.client.RemoveContainer(podSandboxID, dockertypes.ContainerRemoveOptions{RemoveVolumes: true, Force: true})
+	if err == nil || libdocker.IsContainerNotFoundError(err) {
+		// Only clear network ready when the sandbox has actually been
+		// removed from docker or doesn't exist
+		ds.clearNetworkReady(podSandboxID)
+	} else {
+		errs = append(errs, err)
+	}
+
+	// Remove the checkpoint of the sandbox.
 	if err := ds.checkpointHandler.RemoveCheckpoint(podSandboxID); err != nil {
 		errs = append(errs, err)
 	}
 	return utilerrors.NewAggregate(errs)
-	// TODO: remove all containers in the sandbox.
 }
 
 // getIPFromPlugin interrogates the network plugin for an IP.
@@ -236,9 +298,6 @@ func (ds *dockerService) getIPFromPlugin(sandbox *dockertypes.ContainerJSON) (st
 	cID := kubecontainer.BuildContainerID(runtimeName, sandbox.ID)
 	networkStatus, err := ds.network.GetPodNetworkStatus(metadata.Namespace, metadata.Name, cID)
 	if err != nil {
-		// This might be a sandbox that somehow ended up without a default
-		// interface (eth0). We can't distinguish this from a more serious
-		// error, so callers should probably treat it as non-fatal.
 		return "", err
 	}
 	if networkStatus == nil {
@@ -250,29 +309,44 @@ func (ds *dockerService) getIPFromPlugin(sandbox *dockertypes.ContainerJSON) (st
 // getIP returns the ip given the output of `docker inspect` on a pod sandbox,
 // first interrogating any registered plugins, then simply trusting the ip
 // in the sandbox itself. We look for an ipv4 address before ipv6.
-func (ds *dockerService) getIP(sandbox *dockertypes.ContainerJSON) (string, error) {
+func (ds *dockerService) getIP(podSandboxID string, sandbox *dockertypes.ContainerJSON) string {
 	if sandbox.NetworkSettings == nil {
-		return "", nil
+		return ""
 	}
 	if sharesHostNetwork(sandbox) {
 		// For sandboxes using host network, the shim is not responsible for
 		// reporting the IP.
-		return "", nil
+		return ""
 	}
-	if IP, err := ds.getIPFromPlugin(sandbox); err != nil {
-		glog.Warningf("%v", err)
-	} else if IP != "" {
-		return IP, nil
+
+	// Don't bother getting IP if the pod is known and networking isn't ready
+	ready, ok := ds.getNetworkReady(podSandboxID)
+	if ok && !ready {
+		return ""
 	}
+
+	ip, err := ds.getIPFromPlugin(sandbox)
+	if err == nil {
+		return ip
+	}
+
 	// TODO: trusting the docker ip is not a great idea. However docker uses
 	// eth0 by default and so does CNI, so if we find a docker IP here, we
 	// conclude that the plugin must have failed setup, or forgotten its ip.
 	// This is not a sensible assumption for plugins across the board, but if
 	// a plugin doesn't want this behavior, it can throw an error.
 	if sandbox.NetworkSettings.IPAddress != "" {
-		return sandbox.NetworkSettings.IPAddress, nil
+		return sandbox.NetworkSettings.IPAddress
 	}
-	return sandbox.NetworkSettings.GlobalIPv6Address, nil
+	if sandbox.NetworkSettings.GlobalIPv6Address != "" {
+		return sandbox.NetworkSettings.GlobalIPv6Address
+	}
+
+	// If all else fails, warn but don't return an error, as pod status
+	// should generally not return anything except fatal errors
+	// FIXME: handle network errors by restarting the pod somehow?
+	glog.Warningf("failed to read pod IP from plugin/docker: %v", err)
+	return ""
 }
 
 // PodSandboxStatus returns the status of the PodSandbox.
@@ -283,7 +357,7 @@ func (ds *dockerService) PodSandboxStatus(podSandboxID string) (*runtimeapi.PodS
 		return nil, err
 	}
 
-	// Parse the timstamps.
+	// Parse the timestamps.
 	createdAt, _, _, err := getContainerTimestamps(r)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse timestamp for container %q: %v", podSandboxID, err)
@@ -295,12 +369,13 @@ func (ds *dockerService) PodSandboxStatus(podSandboxID string) (*runtimeapi.PodS
 	if r.State.Running {
 		state = runtimeapi.PodSandboxState_SANDBOX_READY
 	}
-	IP, err := ds.getIP(r)
-	if err != nil {
-		return nil, err
+
+	var IP string
+	// TODO: Remove this when sandbox is available on windows
+	// This is a workaround for windows, where sandbox is not in use, and pod IP is determined through containers belonging to the Pod.
+	if IP = ds.determinePodIPBySandboxID(podSandboxID); IP == "" {
+		IP = ds.getIP(podSandboxID, r)
 	}
-	network := &runtimeapi.PodSandboxNetworkStatus{Ip: IP}
-	netNS := getNetworkNamespace(r)
 	hostNetwork := sharesHostNetwork(r)
 
 	// If the sandbox has no containerTypeLabelKey label, treat it as a legacy sandbox.
@@ -326,10 +401,11 @@ func (ds *dockerService) PodSandboxStatus(podSandboxID string) (*runtimeapi.PodS
 		Metadata:    metadata,
 		Labels:      labels,
 		Annotations: annotations,
-		Network:     network,
+		Network: &runtimeapi.PodSandboxNetworkStatus{
+			Ip: IP,
+		},
 		Linux: &runtimeapi.LinuxPodSandboxStatus{
 			Namespaces: &runtimeapi.Namespace{
-				Network: netNS,
 				Options: &runtimeapi.NamespaceOption{
 					HostNetwork: hostNetwork,
 					HostPid:     sharesHostPid(r),
@@ -453,7 +529,12 @@ func (ds *dockerService) applySandboxLinuxOptions(hc *dockercontainer.HostConfig
 	}
 	hc.CgroupParent = cgroupParent
 	// Apply security context.
-	applySandboxSecurityContext(lc, createConfig.Config, hc, ds.network, separator)
+	if err = applySandboxSecurityContext(lc, createConfig.Config, hc, ds.network, separator); err != nil {
+		return err
+	}
+
+	// Set sysctls.
+	hc.Sysctls = lc.Sysctls
 
 	return nil
 }
@@ -486,13 +567,6 @@ func (ds *dockerService) makeSandboxDockerConfig(c *runtimeapi.PodSandboxConfig,
 		HostConfig: hc,
 	}
 
-	// Set sysctls if requested
-	sysctls, err := getSysctlsFromAnnotations(c.Annotations)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get sysctls from annotations %v for sandbox %q: %v", c.Annotations, c.Metadata.Name, err)
-	}
-	hc.Sysctls = sysctls
-
 	// Apply linux-specific options.
 	if lc := c.GetLinux(); lc != nil {
 		if err := ds.applySandboxLinuxOptions(hc, lc, createConfig, image, securityOptSep); err != nil {
@@ -519,7 +593,7 @@ func (ds *dockerService) makeSandboxDockerConfig(c *runtimeapi.PodSandboxConfig,
 	}
 
 	// Set security options.
-	securityOpts, err := getSandboxSecurityOpts(c, ds.seccompProfileRoot, securityOptSep)
+	securityOpts, err := ds.getSecurityOpts(sandboxContainerName, c, securityOptSep)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate sandbox security options for sandbox %q: %v", c.Metadata.Name, err)
 	}
@@ -556,7 +630,7 @@ func sharesHostIpc(container *dockertypes.ContainerJSON) bool {
 
 func setSandboxResources(hc *dockercontainer.HostConfig) {
 	hc.Resources = dockercontainer.Resources{
-		MemorySwap: dockertools.DefaultMemorySwap(),
+		MemorySwap: DefaultMemorySwap(),
 		CPUShares:  defaultSandboxCPUshares,
 		// Use docker's default cpu quota/period.
 	}
@@ -574,6 +648,9 @@ func constructPodSandboxCheckpoint(config *runtimeapi.PodSandboxConfig) *PodSand
 			Protocol:      &proto,
 		})
 	}
+	if nsOptions := config.GetLinux().GetSecurityContext().GetNamespaceOptions(); nsOptions != nil {
+		checkpoint.Data.HostNetwork = nsOptions.HostNetwork
+	}
 	return checkpoint
 }
 
@@ -586,4 +663,53 @@ func toCheckpointProtocol(protocol runtimeapi.Protocol) Protocol {
 	}
 	glog.Warningf("Unknown protocol %q: defaulting to TCP", protocol)
 	return protocolTCP
+}
+
+// rewriteResolvFile rewrites resolv.conf file generated by docker.
+func rewriteResolvFile(resolvFilePath string, dns []string, dnsSearch []string, dnsOptions []string) error {
+	if len(resolvFilePath) == 0 {
+		glog.Errorf("ResolvConfPath is empty.")
+		return nil
+	}
+
+	if _, err := os.Stat(resolvFilePath); os.IsNotExist(err) {
+		return fmt.Errorf("ResolvConfPath %q does not exist", resolvFilePath)
+	}
+
+	var resolvFileContent []string
+	for _, srv := range dns {
+		resolvFileContent = append(resolvFileContent, "nameserver "+srv)
+	}
+
+	if len(dnsSearch) > 0 {
+		resolvFileContent = append(resolvFileContent, "search "+strings.Join(dnsSearch, " "))
+	}
+
+	if len(dnsOptions) > 0 {
+		resolvFileContent = append(resolvFileContent, "options "+strings.Join(dnsOptions, " "))
+	}
+
+	if len(resolvFileContent) > 0 {
+		resolvFileContentStr := strings.Join(resolvFileContent, "\n")
+		resolvFileContentStr += "\n"
+
+		glog.V(4).Infof("Will attempt to re-write config file %s with: \n%s", resolvFilePath, resolvFileContent)
+		if err := rewriteFile(resolvFilePath, resolvFileContentStr); err != nil {
+			glog.Errorf("resolv.conf could not be updated: %v", err)
+			return err
+		}
+	}
+
+	return nil
+}
+
+func rewriteFile(filePath, stringToWrite string) error {
+	f, err := os.OpenFile(filePath, os.O_TRUNC|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	_, err = f.WriteString(stringToWrite)
+	return err
 }

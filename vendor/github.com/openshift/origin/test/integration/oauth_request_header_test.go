@@ -15,9 +15,9 @@ import (
 	restclient "k8s.io/client-go/rest"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
-	"github.com/openshift/origin/pkg/client"
-	"github.com/openshift/origin/pkg/cmd/cli/cmd/login"
 	configapi "github.com/openshift/origin/pkg/cmd/server/api"
+	"github.com/openshift/origin/pkg/oc/cli/cmd/login"
+	userclient "github.com/openshift/origin/pkg/user/generated/internalclientset/typed/user/internalversion"
 	testutil "github.com/openshift/origin/test/util"
 	testserver "github.com/openshift/origin/test/util/server"
 )
@@ -44,12 +44,11 @@ func TestOAuthRequestHeader(t *testing.T) {
 	}
 
 	// Get master config
-	testutil.RequireEtcd(t)
-	defer testutil.DumpEtcdOnFailure(t)
 	masterOptions, err := testserver.DefaultMasterOptions()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	defer testserver.CleanupMasterEtcd(t, masterOptions)
 	masterURL, _ := url.Parse(masterOptions.OAuthConfig.MasterPublicURL)
 
 	// Set up an auth proxy
@@ -276,11 +275,7 @@ func TestOAuthRequestHeader(t *testing.T) {
 		// Make sure we can use the token, and it represents who we expect
 		userConfig := anonConfig
 		userConfig.BearerToken = accessToken
-		userClient, err := client.New(&userConfig)
-		if err != nil {
-			t.Errorf("%s: Unexpected error: %v", k, err)
-			continue
-		}
+		userClient := userclient.NewForConfigOrDie(&userConfig)
 		user, err := userClient.Users().Get("~", metav1.GetOptions{})
 		if err != nil {
 			t.Errorf("%s: Unexpected error: %v", k, err)
@@ -315,6 +310,7 @@ func TestOAuthRequestHeader(t *testing.T) {
 		StartingKubeConfig: &clientcmdapi.Config{},
 		Reader:             bytes.NewBufferString("myusername\nmypassword\n"),
 		Out:                loginOutput,
+		ErrOut:             ioutil.Discard,
 	}
 	if err := loginOptions.GatherInfo(); err != nil {
 		t.Fatalf("Error trying to determine server info: %v\n%v", err, loginOutput.String())
@@ -328,7 +324,7 @@ func TestOAuthRequestHeader(t *testing.T) {
 }
 
 var (
-	// oadm ca create-signer-cert --name=test-ca --overwrite=true
+	// oc adm ca create-signer-cert --name=test-ca --overwrite=true
 	rootCACert = []byte(`
 Certificate:
     Data:
@@ -403,7 +399,7 @@ HOJWbU3FuRkuvZ2/Qyvpju/ntt3qIlKu5pRIGsQe5gS1wYbeSQOrOg==
 -----END CERTIFICATE-----
 `)
 
-	// oadm create-api-client-config --basename=proxy --client-dir=. --user=proxy
+	// oc adm create-api-client-config --basename=proxy --client-dir=. --user=proxy
 	proxyClientCert = []byte(`
 Certificate:
     Data:
@@ -510,7 +506,7 @@ dSmVatvGsqYsQbPKOAp3ZcMQiqTIPUFeYSuzs3TuTs/tZ1cwfseN4M2bs258ynsT
 -----END RSA PRIVATE KEY-----
 `)
 
-	// oadm create-api-client-config --basename=other --client-dir=. --user=other
+	// oc adm create-api-client-config --basename=other --client-dir=. --user=other
 	otherClientCert = []byte(`
 Certificate:
     Data:
@@ -618,8 +614,8 @@ PVEo4cjWU2JK68lSTyW3UWdoPwcKIdDlnure/al7NpIG2g6weBubpQ==
 `)
 
 	// invalidClientCert is a client cert with the desired name which is NOT signed by the root CA crt, but by another signer with the same name
-	// oadm ca create-signer-cert --name=test-ca --overwrite=true
-	// oadm create-api-client-config --basename=invalid --client-dir=. --user=invalid
+	// oc adm ca create-signer-cert --name=test-ca --overwrite=true
+	// oc adm create-api-client-config --basename=invalid --client-dir=. --user=invalid
 	invalidClientCert = []byte(`
 Certificate:
     Data:

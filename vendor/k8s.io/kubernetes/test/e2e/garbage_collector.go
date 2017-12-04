@@ -35,6 +35,27 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+// estimateMaximumPods estimates how many pods the cluster can handle
+// with some wiggle room, to prevent pods being unable to schedule due
+// to max pod constraints.
+func estimateMaximumPods(c clientset.Interface) int32 {
+	availablePods := int32(0)
+	for _, node := range framework.GetReadySchedulableNodesOrDie(c).Items {
+		if q, ok := node.Status.Allocatable["pods"]; ok {
+			if num, ok := q.AsInt64(); ok {
+				availablePods += int32(num) * 8 / 10
+				continue
+			}
+		}
+		// best guess
+		availablePods += 8
+	}
+	if availablePods > 100 {
+		availablePods = 100
+	}
+	return availablePods
+}
+
 func getForegroundOptions() *metav1.DeleteOptions {
 	policy := metav1.DeletePropagationForeground
 	return &metav1.DeleteOptions{PropagationPolicy: &policy}
@@ -51,21 +72,6 @@ func getNonOrphanOptions() *metav1.DeleteOptions {
 }
 
 var zero = int64(0)
-var deploymentLabels = map[string]string{"app": "gc-test"}
-var podTemplateSpec = v1.PodTemplateSpec{
-	ObjectMeta: metav1.ObjectMeta{
-		Labels: deploymentLabels,
-	},
-	Spec: v1.PodSpec{
-		TerminationGracePeriodSeconds: &zero,
-		Containers: []v1.Container{
-			{
-				Name:  "nginx",
-				Image: "gcr.io/google_containers/nginx-slim:0.7",
-			},
-		},
-	},
-}
 
 func newOwnerDeployment(f *framework.Framework, deploymentName string) *v1beta1.Deployment {
 	replicas := int32(2)
@@ -75,11 +81,23 @@ func newOwnerDeployment(f *framework.Framework, deploymentName string) *v1beta1.
 		},
 		Spec: v1beta1.DeploymentSpec{
 			Replicas: &replicas,
-			Selector: &metav1.LabelSelector{MatchLabels: deploymentLabels},
 			Strategy: v1beta1.DeploymentStrategy{
 				Type: v1beta1.RollingUpdateDeploymentStrategyType,
 			},
-			Template: podTemplateSpec,
+			Template: v1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: getSelector(),
+				},
+				Spec: v1.PodSpec{
+					TerminationGracePeriodSeconds: &zero,
+					Containers: []v1.Container{
+						{
+							Name:  "nginx",
+							Image: "gcr.io/google_containers/nginx-slim:0.7",
+						},
+					},
+				},
+			},
 		},
 	}
 }
@@ -100,20 +118,33 @@ func newOwnerRC(f *framework.Framework, name string, replicas int32) *v1.Replica
 		},
 		Spec: v1.ReplicationControllerSpec{
 			Replicas: &replicas,
-			Selector: map[string]string{"app": "gc-test"},
-			Template: &podTemplateSpec,
+			Template: &v1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: getSelector(),
+				},
+				Spec: v1.PodSpec{
+					TerminationGracePeriodSeconds: &zero,
+					Containers: []v1.Container{
+						{
+							Name:  "nginx",
+							Image: "gcr.io/google_containers/nginx-slim:0.7",
+						},
+					},
+				},
+			},
 		},
 	}
 }
 
-// verifyRemainingDeploymentsAndReplicaSets verifies if the number
-// of the remaining deployment and rs are deploymentNum and rsNum.
-// It returns error if the communication with the API server fails.
-func verifyRemainingDeploymentsAndReplicaSets(
+// verifyRemainingDeploymentsReplicaSetsPods verifies if the number
+// of the remaining deployments, replica set and pods are deploymentNum,
+// rsNum and podNum. It returns error if the communication with the API
+// server fails.
+func verifyRemainingDeploymentsReplicaSetsPods(
 	f *framework.Framework,
 	clientSet clientset.Interface,
 	deployment *v1beta1.Deployment,
-	deploymentNum, rsNum int,
+	deploymentNum, rsNum, podNum int,
 ) (bool, error) {
 	var ret = true
 	rs, err := clientSet.Extensions().ReplicaSets(f.Namespace.Name).List(metav1.ListOptions{})
@@ -132,6 +163,15 @@ func verifyRemainingDeploymentsAndReplicaSets(
 		ret = false
 		By(fmt.Sprintf("expected %d Deploymentss, got %d Deployments", deploymentNum, len(deployments.Items)))
 	}
+	pods, err := clientSet.CoreV1().Pods(f.Namespace.Name).List(metav1.ListOptions{})
+	if err != nil {
+		return false, fmt.Errorf("Failed to list pods: %v", err)
+	}
+	if len(pods.Items) != podNum {
+		ret = false
+		By(fmt.Sprintf("expected %v Pods, got %d Pods", podNum, len(pods.Items)))
+	}
+
 	return ret, nil
 }
 
@@ -256,7 +296,7 @@ var _ = framework.KubeDescribe("Garbage collector", func() {
 		rcClient := clientSet.Core().ReplicationControllers(f.Namespace.Name)
 		podClient := clientSet.Core().Pods(f.Namespace.Name)
 		rcName := "simpletest.rc"
-		rc := newOwnerRC(f, rcName, 100)
+		rc := newOwnerRC(f, rcName, estimateMaximumPods(clientSet))
 		By("create the rc")
 		rc, err := rcClient.Create(rc)
 		if err != nil {
@@ -397,7 +437,7 @@ var _ = framework.KubeDescribe("Garbage collector", func() {
 		}
 		By("wait for all rs to be garbage collected")
 		err = wait.PollImmediate(500*time.Millisecond, 1*time.Minute, func() (bool, error) {
-			return verifyRemainingDeploymentsAndReplicaSets(f, clientSet, deployment, 0, 0)
+			return verifyRemainingDeploymentsReplicaSetsPods(f, clientSet, deployment, 0, 0, 0)
 		})
 		if err == wait.ErrWaitTimeout {
 			err = fmt.Errorf("Failed to wait for all rs to be garbage collected: %v", err)
@@ -446,7 +486,7 @@ var _ = framework.KubeDescribe("Garbage collector", func() {
 		}
 		By("wait for 2 Minute to see if the garbage collector mistakenly deletes the rs")
 		err = wait.PollImmediate(5*time.Second, 2*time.Minute, func() (bool, error) {
-			return verifyRemainingDeploymentsAndReplicaSets(f, clientSet, deployment, 0, 1)
+			return verifyRemainingDeploymentsReplicaSetsPods(f, clientSet, deployment, 0, 1, 2)
 		})
 		if err != nil {
 			err = fmt.Errorf("Failed to wait to see if the garbage collecter mistakenly deletes the rs: %v", err)
@@ -481,7 +521,7 @@ var _ = framework.KubeDescribe("Garbage collector", func() {
 		rcClient := clientSet.Core().ReplicationControllers(f.Namespace.Name)
 		podClient := clientSet.Core().Pods(f.Namespace.Name)
 		rcName := "simpletest.rc"
-		rc := newOwnerRC(f, rcName, 100)
+		rc := newOwnerRC(f, rcName, estimateMaximumPods(clientSet))
 		By("create the rc")
 		rc, err := rcClient.Create(rc)
 		if err != nil {
@@ -559,7 +599,7 @@ var _ = framework.KubeDescribe("Garbage collector", func() {
 		rcClient := clientSet.Core().ReplicationControllers(f.Namespace.Name)
 		podClient := clientSet.Core().Pods(f.Namespace.Name)
 		rc1Name := "simpletest-rc-to-be-deleted"
-		replicas := int32(100)
+		replicas := int32(estimateMaximumPods(clientSet))
 		halfReplicas := int(replicas / 2)
 		rc1 := newOwnerRC(f, rc1Name, replicas)
 		By("create the rc1")

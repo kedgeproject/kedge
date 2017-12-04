@@ -841,7 +841,7 @@ func TestValidateSource(t *testing.T) {
 			path: "git.uri",
 			source: &buildapi.BuildSource{
 				Git: &buildapi.GitBuildSource{
-					URI: "::",
+					URI: "http://%",
 				},
 			},
 		},
@@ -2869,7 +2869,7 @@ func TestValidateBuildImageRefs(t *testing.T) {
 			expectedError: "",
 		},
 		{
-			name: "valid s2i build w/ runtimeImage",
+			name: "invalid docker image ref",
 			build: buildapi.Build{
 				ObjectMeta: metav1.ObjectMeta{Name: "build", Namespace: "default"},
 				Spec: buildapi.BuildSpec{
@@ -2878,21 +2878,17 @@ func TestValidateBuildImageRefs(t *testing.T) {
 							Binary: &buildapi.BinaryBuildSource{},
 						},
 						Strategy: buildapi.BuildStrategy{
-							SourceStrategy: &buildapi.SourceBuildStrategy{
-								From: kapi.ObjectReference{
+							DockerStrategy: &buildapi.DockerBuildStrategy{
+								From: &kapi.ObjectReference{
 									Kind: "DockerImage",
-									Name: "myimage:tag",
-								},
-								RuntimeImage: &kapi.ObjectReference{
-									Kind: "DockerImage",
-									Name: "runtimestream:tag",
+									Name: "!!!myimage:tag",
 								},
 							},
 						},
 					},
 				},
 			},
-			expectedError: "",
+			expectedError: "not a valid Docker pull specification: invalid reference format",
 		},
 		{
 			name: "docker build with ImageStreamTag in from",
@@ -2907,14 +2903,14 @@ func TestValidateBuildImageRefs(t *testing.T) {
 							DockerStrategy: &buildapi.DockerBuildStrategy{
 								From: &kapi.ObjectReference{
 									Kind: "ImageStreamTag",
-									Name: "myimagestream:tag",
+									Name: "myimagestream",
 								},
 							},
 						},
 					},
 				},
 			},
-			expectedError: "only DockerImage references",
+			expectedError: "must be <name>:<tag>",
 		},
 		{
 			name: "s2i build with valid source image references",
@@ -2976,7 +2972,7 @@ func TestValidateBuildImageRefs(t *testing.T) {
 								{
 									From: kapi.ObjectReference{
 										Kind: "ImageStreamTag",
-										Name: "myimagestream:tag",
+										Name: "",
 									},
 									Paths: []buildapi.ImageSourcePath{
 										{
@@ -2998,33 +2994,7 @@ func TestValidateBuildImageRefs(t *testing.T) {
 					},
 				},
 			},
-			expectedError: "only DockerImage references",
-		},
-		{
-			name: "s2i build with ImageStreamTag runtimeImage",
-			build: buildapi.Build{
-				ObjectMeta: metav1.ObjectMeta{Name: "build", Namespace: "default"},
-				Spec: buildapi.BuildSpec{
-					CommonSpec: buildapi.CommonSpec{
-						Source: buildapi.BuildSource{
-							Binary: &buildapi.BinaryBuildSource{},
-						},
-						Strategy: buildapi.BuildStrategy{
-							SourceStrategy: &buildapi.SourceBuildStrategy{
-								From: kapi.ObjectReference{
-									Kind: "DockerImage",
-									Name: "myimage:tag",
-								},
-								RuntimeImage: &kapi.ObjectReference{
-									Kind: "ImageStreamTag",
-									Name: "runtimestream:tag",
-								},
-							},
-						},
-					},
-				},
-			},
-			expectedError: "only DockerImage references",
+			expectedError: "Required value",
 		},
 		{
 			name: "custom build with ImageStreamTag in from",
@@ -3039,19 +3009,128 @@ func TestValidateBuildImageRefs(t *testing.T) {
 							CustomStrategy: &buildapi.CustomBuildStrategy{
 								From: kapi.ObjectReference{
 									Kind: "ImageStreamTag",
-									Name: "myimagestream:tag",
+									Name: ":tag",
 								},
 							},
 						},
 					},
 				},
 			},
-			expectedError: "only DockerImage references",
+			expectedError: "invalid",
 		},
 	}
 
 	for _, tc := range tests {
 		errs := ValidateBuild(&tc.build)
+		if tc.expectedError == "" && len(errs) > 0 {
+			t.Errorf("%s: Unexpected validation result: %v", tc.name, errs)
+		}
+
+		if tc.expectedError != "" {
+			found := false
+			for _, err := range errs {
+				if strings.Contains(err.Error(), tc.expectedError) {
+					found = true
+				}
+			}
+			if !found {
+				t.Errorf("%s: Expected to fail with %q, result: %v", tc.name, tc.expectedError, errs)
+			}
+		}
+	}
+}
+
+func TestValidateBuildUpdateImageReferences(t *testing.T) {
+	tests := []struct {
+		name          string
+		old           buildapi.Build
+		build         buildapi.Build
+		expectedError string
+	}{
+		{
+			name: "invalid docker image reference is ignored if it doesn't change",
+			build: buildapi.Build{
+				ObjectMeta: metav1.ObjectMeta{Name: "build", Namespace: "default", ResourceVersion: "10"},
+				Spec: buildapi.BuildSpec{
+					CommonSpec: buildapi.CommonSpec{
+						Source: buildapi.BuildSource{
+							Binary: &buildapi.BinaryBuildSource{},
+						},
+						Strategy: buildapi.BuildStrategy{
+							DockerStrategy: &buildapi.DockerBuildStrategy{
+								From: &kapi.ObjectReference{
+									Kind: "DockerImage",
+									Name: "!!!myimage:tag",
+								},
+							},
+						},
+					},
+				},
+			},
+			old: buildapi.Build{
+				ObjectMeta: metav1.ObjectMeta{Name: "build", Namespace: "default"},
+				Spec: buildapi.BuildSpec{
+					CommonSpec: buildapi.CommonSpec{
+						Source: buildapi.BuildSource{
+							Binary: &buildapi.BinaryBuildSource{},
+						},
+						Strategy: buildapi.BuildStrategy{
+							DockerStrategy: &buildapi.DockerBuildStrategy{
+								From: &kapi.ObjectReference{
+									Kind: "DockerImage",
+									Name: "!!!myimage:tag",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedError: "",
+		},
+		{
+			name: "docker image reference is immutable",
+			build: buildapi.Build{
+				ObjectMeta: metav1.ObjectMeta{Name: "build", Namespace: "default", ResourceVersion: "10"},
+				Spec: buildapi.BuildSpec{
+					CommonSpec: buildapi.CommonSpec{
+						Source: buildapi.BuildSource{
+							Binary: &buildapi.BinaryBuildSource{},
+						},
+						Strategy: buildapi.BuildStrategy{
+							DockerStrategy: &buildapi.DockerBuildStrategy{
+								From: &kapi.ObjectReference{
+									Kind: "DockerImage",
+									Name: "myimage:tag2",
+								},
+							},
+						},
+					},
+				},
+			},
+			old: buildapi.Build{
+				ObjectMeta: metav1.ObjectMeta{Name: "build", Namespace: "default"},
+				Spec: buildapi.BuildSpec{
+					CommonSpec: buildapi.CommonSpec{
+						Source: buildapi.BuildSource{
+							Binary: &buildapi.BinaryBuildSource{},
+						},
+						Strategy: buildapi.BuildStrategy{
+							DockerStrategy: &buildapi.DockerBuildStrategy{
+								From: &kapi.ObjectReference{
+									Kind: "DockerImage",
+									Name: "myimage:tag",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedError: "spec is immutable",
+		},
+	}
+
+	for _, tc := range tests {
+		errs := ValidateBuildUpdate(&tc.build, &tc.old)
 		if tc.expectedError == "" && len(errs) > 0 {
 			t.Errorf("%s: Unexpected validation result: %v", tc.name, errs)
 		}

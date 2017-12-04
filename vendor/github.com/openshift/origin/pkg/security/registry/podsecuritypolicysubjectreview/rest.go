@@ -6,29 +6,32 @@ import (
 
 	"github.com/golang/glog"
 
-	kscc "github.com/openshift/origin/pkg/security/securitycontextconstraints"
 	kapierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/apiserver/pkg/authentication/user"
 	apirequest "k8s.io/apiserver/pkg/endpoints/request"
+	"k8s.io/apiserver/pkg/registry/rest"
 	kapi "k8s.io/kubernetes/pkg/api"
+	kapiref "k8s.io/kubernetes/pkg/api/ref"
 	clientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 	"k8s.io/kubernetes/pkg/serviceaccount"
 
 	securityapi "github.com/openshift/origin/pkg/security/apis/security"
 	securityvalidation "github.com/openshift/origin/pkg/security/apis/security/validation"
-	oscc "github.com/openshift/origin/pkg/security/scc"
+	scc "github.com/openshift/origin/pkg/security/securitycontextconstraints"
 )
 
 // REST implements the RESTStorage interface in terms of an Registry.
 type REST struct {
-	sccMatcher oscc.SCCMatcher
+	sccMatcher scc.SCCMatcher
 	client     clientset.Interface
 }
 
+var _ rest.Creater = &REST{}
+
 // NewREST creates a new REST for policies..
-func NewREST(m oscc.SCCMatcher, c clientset.Interface) *REST {
+func NewREST(m scc.SCCMatcher, c clientset.Interface) *REST {
 	return &REST{sccMatcher: m, client: c}
 }
 
@@ -38,7 +41,7 @@ func (r *REST) New() runtime.Object {
 }
 
 // Create registers a given new PodSecurityPolicySubjectReview instance to r.registry.
-func (r *REST) Create(ctx apirequest.Context, obj runtime.Object) (runtime.Object, error) {
+func (r *REST) Create(ctx apirequest.Context, obj runtime.Object, _ bool) (runtime.Object, error) {
 	pspsr, ok := obj.(*securityapi.PodSecurityPolicySubjectReview)
 	if !ok {
 		return nil, kapierrors.NewBadRequest(fmt.Sprintf("not a PodSecurityPolicySubjectReview: %#v", obj))
@@ -68,15 +71,15 @@ func (r *REST) Create(ctx apirequest.Context, obj runtime.Object) (runtime.Objec
 		}
 		matchedConstraints = append(matchedConstraints, saConstraints...)
 	}
-	oscc.DeduplicateSecurityContextConstraints(matchedConstraints)
-	sort.Sort(oscc.ByPriority(matchedConstraints))
+	scc.DeduplicateSecurityContextConstraints(matchedConstraints)
+	sort.Sort(scc.ByPriority(matchedConstraints))
 	var namespace *kapi.Namespace
 	for _, constraint := range matchedConstraints {
 		var (
-			provider kscc.SecurityContextConstraintsProvider
+			provider scc.SecurityContextConstraintsProvider
 			err      error
 		)
-		if provider, namespace, err = oscc.CreateProviderFromConstraint(ns, namespace, constraint, r.client); err != nil {
+		if provider, namespace, err = scc.CreateProviderFromConstraint(ns, namespace, constraint, r.client); err != nil {
 			glog.Errorf("Unable to create provider for constraint: %v", err)
 			continue
 		}
@@ -93,16 +96,16 @@ func (r *REST) Create(ctx apirequest.Context, obj runtime.Object) (runtime.Objec
 }
 
 // FillPodSecurityPolicySubjectReviewStatus fills PodSecurityPolicySubjectReviewStatus assigning SecurityContectConstraint to the PodSpec
-func FillPodSecurityPolicySubjectReviewStatus(s *securityapi.PodSecurityPolicySubjectReviewStatus, provider kscc.SecurityContextConstraintsProvider, spec kapi.PodSpec, constraint *securityapi.SecurityContextConstraints) (bool, error) {
+func FillPodSecurityPolicySubjectReviewStatus(s *securityapi.PodSecurityPolicySubjectReviewStatus, provider scc.SecurityContextConstraintsProvider, spec kapi.PodSpec, constraint *securityapi.SecurityContextConstraints) (bool, error) {
 	pod := &kapi.Pod{
 		Spec: spec,
 	}
-	if errs := oscc.AssignSecurityContext(provider, pod, field.NewPath(fmt.Sprintf("provider %s: ", provider.GetSCCName()))); len(errs) > 0 {
+	if errs := scc.AssignSecurityContext(provider, pod, field.NewPath(fmt.Sprintf("provider %s: ", provider.GetSCCName()))); len(errs) > 0 {
 		glog.Errorf("unable to assign SecurityContextConstraints provider: %v", errs)
 		s.Reason = "CantAssignSecurityContextConstraintProvider"
 		return false, fmt.Errorf("unable to assign SecurityContextConstraints provider: %v", errs.ToAggregate())
 	}
-	ref, err := kapi.GetReference(kapi.Scheme, constraint)
+	ref, err := kapiref.GetReference(kapi.Scheme, constraint)
 	if err != nil {
 		s.Reason = "CantObtainReference"
 		return false, fmt.Errorf("unable to get SecurityContextConstraints reference: %v", err)

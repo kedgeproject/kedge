@@ -9,7 +9,6 @@ import (
 	"net/url"
 	"os"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -19,11 +18,17 @@ import (
 	"github.com/docker/distribution/manifest/schema1"
 	_ "github.com/docker/distribution/registry/storage/driver/inmemory"
 
+	registryclient "github.com/openshift/origin/pkg/dockerregistry/server/client"
 	registrytest "github.com/openshift/origin/pkg/dockerregistry/testutil"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
+	imageapiv1 "github.com/openshift/origin/pkg/image/apis/image/v1"
+	"github.com/openshift/origin/pkg/image/importer"
 )
 
 func TestPullthroughServeBlob(t *testing.T) {
+	backgroundCtx := context.Background()
+	backgroundCtx = registrytest.WithTestLogger(backgroundCtx, t)
+
 	namespace, name := "user", "app"
 	repoName := fmt.Sprintf("%s/%s", namespace, name)
 	installFakeAccessController(t)
@@ -34,7 +39,7 @@ func TestPullthroughServeBlob(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	remoteRegistryServer := createTestRegistryServer(t, context.Background())
+	remoteRegistryServer := createTestRegistryServer(t, backgroundCtx)
 	defer remoteRegistryServer.Close()
 
 	serverURL, err := url.Parse(remoteRegistryServer.URL)
@@ -44,17 +49,17 @@ func TestPullthroughServeBlob(t *testing.T) {
 	os.Setenv("OPENSHIFT_DEFAULT_REGISTRY", serverURL.Host)
 	testImage.DockerImageReference = fmt.Sprintf("%s/%s@%s", serverURL.Host, repoName, testImage.Name)
 
-	fos, client := registrytest.NewFakeOpenShiftWithClient()
+	fos, imageClient := registrytest.NewFakeOpenShiftWithClient(backgroundCtx)
 	registrytest.AddImageStream(t, fos, namespace, name, map[string]string{
 		imageapi.InsecureRepositoryAnnotation: "true",
 	})
 	registrytest.AddImage(t, fos, testImage, namespace, name, "latest")
 
-	blob1Desc, blob1Content, err := registrytest.UploadRandomTestBlob(serverURL, nil, repoName)
+	blob1Desc, blob1Content, err := registrytest.UploadRandomTestBlob(backgroundCtx, serverURL, nil, repoName)
 	if err != nil {
 		t.Fatal(err)
 	}
-	blob2Desc, blob2Content, err := registrytest.UploadRandomTestBlob(serverURL, nil, repoName)
+	blob2Desc, blob2Content, err := registrytest.UploadRandomTestBlob(backgroundCtx, serverURL, nil, repoName)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,11 +136,11 @@ func TestPullthroughServeBlob(t *testing.T) {
 			expectedLocalCalls: map[string]int{"Stat": 1},
 		},
 	} {
-		localBlobStore := newTestBlobStore(tc.localBlobs)
+		localBlobStore := newTestBlobStore(nil, tc.localBlobs)
 
-		ctx := WithTestPassthroughToUpstream(context.Background(), false)
-		repo := newTestRepository(t, namespace, name, testRepositoryOptions{
-			client:            client,
+		ctx := WithTestPassthroughToUpstream(backgroundCtx, false)
+		repo := newTestRepository(ctx, t, namespace, name, testRepositoryOptions{
+			client:            registryclient.NewFakeRegistryAPIClient(nil, imageClient),
 			enablePullThrough: true,
 		})
 		ptbs := &pullthroughBlobStore{
@@ -200,152 +205,99 @@ func TestPullthroughServeBlob(t *testing.T) {
 }
 
 func TestPullthroughServeNotSeekableBlob(t *testing.T) {
-	namespace, name := "user", "app"
-	repoName := fmt.Sprintf("%s/%s", namespace, name)
-	installFakeAccessController(t)
-	setPassthroughBlobDescriptorServiceFactory()
-
-	blob1Content, err := registrytest.CreateRandomTarFile()
+	repoName := "foorepo"
+	blob, err := registrytest.CreateRandomTarFile()
 	if err != nil {
 		t.Fatalf("unexpected error generating test layer file: %v", err)
 	}
+	dgst := digest.FromBytes(blob)
 
-	dgst := digest.FromBytes(blob1Content)
-	blob1Storage := map[digest.Digest][]byte{
-		dgst: blob1Content,
-	}
-
-	// start regular HTTP server
-	remoteRegistryServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Logf("External registry got %s %s", r.Method, r.URL.Path)
+	externalRegistry := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Logf("external registry got %s %s", r.Method, r.URL.Path)
 
 		w.Header().Set("Docker-Distribution-API-Version", "registry/2.0")
 
 		switch r.URL.Path {
 		case "/v2/":
 			w.Write([]byte(`{}`))
-		case "/v2/" + repoName + "/tags/list":
-			w.Write([]byte("{\"name\": \"" + repoName + "\", \"tags\": [\"latest\"]}"))
-		case "/v2/" + repoName + "/manifests/latest", "/v2/" + repoName + "/manifests/" + etcdDigest:
+		case "/v2/" + repoName + "/blobs/" + dgst.String():
+			w.Header().Set("Content-Length", fmt.Sprintf("%d", len(blob)))
+			w.Header().Set("Docker-Content-Digest", dgst.String())
+
 			if r.Method == "HEAD" {
-				w.Header().Set("Content-Length", fmt.Sprintf("%d", len(etcdManifest)))
-				w.Header().Set("Docker-Content-Digest", etcdDigest)
 				w.WriteHeader(http.StatusOK)
 			} else {
-				w.Write([]byte(etcdManifest))
+				// We need to return any return code between 200 and 399,
+				// except 200 and 206 [1].
+				//
+				// In this case the docker client library will make a not
+				// truly seekable response [2].
+				//
+				// [1]: https://github.com/docker/distribution/blob/7484e51bf6af0d3b1a849644cdaced3cfcf13617/registry/client/transport/http_reader.go#L239
+				// [2]: https://github.com/docker/distribution/blob/7484e51bf6af0d3b1a849644cdaced3cfcf13617/registry/client/transport/http_reader.go#L119-L121
+				w.WriteHeader(http.StatusNonAuthoritativeInfo)
+				w.Write(blob)
 			}
 		default:
-			if strings.HasPrefix(r.URL.Path, "/v2/"+repoName+"/blobs/") {
-				for dgst, payload := range blob1Storage {
-					if r.URL.Path != "/v2/"+repoName+"/blobs/"+dgst.String() {
-						continue
-					}
-					w.Header().Set("Content-Length", fmt.Sprintf("%d", len(payload)))
-					if r.Method == "HEAD" {
-						w.Header().Set("Docker-Content-Digest", dgst.String())
-						w.WriteHeader(http.StatusOK)
-						return
-					} else {
-						// Important!
-						//
-						// We need to return any return code between 200 and 399, expept 200 and 206.
-						// https://github.com/docker/distribution/blob/master/registry/client/transport/http_reader.go#L192
-						//
-						// In this case the docker client library will make a not truly
-						// seekable response.
-						// https://github.com/docker/distribution/blob/master/registry/client/transport/http_reader.go#L239
-						w.WriteHeader(http.StatusAccepted)
-					}
-					w.Write(payload)
-					return
-				}
-			}
-			t.Fatalf("unexpected request %s: %#v", r.URL.Path, r)
+			panic(fmt.Errorf("unexpected request: %#+v", r))
 		}
 	}))
+	defer externalRegistry.Close()
 
-	serverURL, err := url.Parse(remoteRegistryServer.URL)
+	externalRegistryURL, err := url.Parse(externalRegistry.URL)
 	if err != nil {
-		t.Fatalf("error parsing server url: %v", err)
+		t.Fatal("error parsing test server url:", err)
 	}
-	os.Setenv("OPENSHIFT_DEFAULT_REGISTRY", serverURL.Host)
 
-	testImage, err := registrytest.NewImageForManifest(repoName, registrytest.SampleImageManifestSchema1, "", false)
+	ctx := context.Background()
+	ctx = registrytest.WithTestLogger(ctx, t)
+
+	retriever := importer.NewContext(http.DefaultTransport, http.DefaultTransport).WithCredentials(importer.NoCredentials)
+	repo, err := retriever.Repository(ctx, externalRegistryURL, repoName, true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	testImage.DockerImageReference = fmt.Sprintf("%s/%s@%s", serverURL.Host, repoName, testImage.Name)
 
-	fos, client := registrytest.NewFakeOpenShiftWithClient()
-	registrytest.AddImageStream(t, fos, namespace, name, map[string]string{
-		imageapi.InsecureRepositoryAnnotation: "true",
-	})
-	registrytest.AddImage(t, fos, testImage, namespace, name, "latest")
+	repoBlobs := repo.Blobs(ctx)
 
-	localBlobStore := newTestBlobStore(nil)
-
-	ctx := WithTestPassthroughToUpstream(context.Background(), false)
-	repo := newTestRepository(t, namespace, name, testRepositoryOptions{
-		client:            client,
-		enablePullThrough: true,
-	})
-	ptbs := &pullthroughBlobStore{
-		BlobStore: localBlobStore,
-		repo:      repo,
-	}
-
-	req, err := http.NewRequest("GET", fmt.Sprintf("http://example.org/v2/user/app/blobs/%s", dgst), nil)
+	// Test that the reader is not seekable.
+	remoteBlob, err := repoBlobs.Open(ctx, dgst)
 	if err != nil {
-		t.Fatalf("failed to create http request: %v", err)
+		t.Fatalf("failed to Open blob %s: %v", dgst, err)
 	}
+	defer remoteBlob.Close()
+
+	if _, err := remoteBlob.Seek(0, os.SEEK_END); err == nil {
+		t.Fatal("expected non-seekable blob reader, but Seek(0, os.SEEK_END) succeed")
+	}
+
+	// Test that the blob can be fetched.
+	ptbs := &pullthroughBlobStore{
+		BlobStore: newTestBlobStore(nil, nil),
+		repo: &repository{
+			remoteBlobGetter: repoBlobs,
+		},
+		mirror: false,
+	}
+
+	req := httptest.NewRequest("GET", "/unused", nil)
 	w := httptest.NewRecorder()
 
-	if _, err = ptbs.Stat(ctx, dgst); err != nil {
-		t.Fatalf("Stat returned unexpected error: %#+v", err)
-	}
-
 	if err = ptbs.ServeBlob(ctx, w, req, dgst); err != nil {
-		t.Fatalf("ServeBlob returned unexpected error: %#+v", err)
+		t.Fatalf("ServeBlob failed: %v", err)
 	}
 
 	if w.Code != http.StatusOK {
-		t.Fatalf(`unexpected StatusCode: %d (expected %d)`, w.Code, http.StatusOK)
+		t.Errorf("unexpected status code: got %d, want %d", w.Code, http.StatusOK)
 	}
 
 	clstr := w.Header().Get("Content-Length")
-	if cl, err := strconv.ParseInt(clstr, 10, 64); err != nil {
-		t.Fatalf(`unexpected Content-Length: %q (expected "%d")`, clstr, int64(len(blob1Content)))
-	} else {
-		if cl != int64(len(blob1Content)) {
-			t.Fatalf("Content-Length does not match expected size: %d != %d", cl, int64(len(blob1Content)))
-		}
+	if cl, err := strconv.ParseInt(clstr, 10, 64); err != nil || cl != int64(len(blob)) {
+		t.Errorf("Content-Length does not match the expected size: got %s, want %d", clstr, len(blob))
 	}
 
-	body := w.Body.Bytes()
-	if int64(len(body)) != int64(len(blob1Content)) {
-		t.Errorf("unexpected size of body: %d != %d", len(body), int64(len(blob1Content)))
-	}
-
-	if localBlobStore.bytesServed != 0 {
-		t.Fatalf("remote blob served locally")
-	}
-
-	expectedLocalCalls := map[string]int{
-		"Stat":      1,
-		"ServeBlob": 1,
-	}
-
-	for name, expCount := range expectedLocalCalls {
-		count := localBlobStore.calls[name]
-		if count != expCount {
-			t.Errorf("expected %d calls to method %s of local blob store, not %d", expCount, name, count)
-		}
-	}
-
-	for name, count := range localBlobStore.calls {
-		if _, exists := expectedLocalCalls[name]; !exists {
-			t.Errorf("expected no calls to method %s of local blob store, got %d", name, count)
-		}
+	if w.Body.Len() != len(blob) {
+		t.Errorf("unexpected size of body: got %d, want %d", w.Body.Len(), len(blob))
 	}
 }
 
@@ -359,7 +311,10 @@ func TestPullthroughServeBlobInsecure(t *testing.T) {
 	installFakeAccessController(t)
 	setPassthroughBlobDescriptorServiceFactory()
 
-	remoteRegistryServer := createTestRegistryServer(t, context.Background())
+	backgroundCtx := context.Background()
+	backgroundCtx = registrytest.WithTestLogger(backgroundCtx, t)
+
+	remoteRegistryServer := createTestRegistryServer(t, backgroundCtx)
 	defer remoteRegistryServer.Close()
 
 	serverURL, err := url.Parse(remoteRegistryServer.URL)
@@ -368,7 +323,7 @@ func TestPullthroughServeBlobInsecure(t *testing.T) {
 	}
 
 	m1dgst, m1canonical, m1cfg, m1manifest, err := registrytest.CreateAndUploadTestManifest(
-		registrytest.ManifestSchema2, 2, serverURL, nil, repo1Name, "foo")
+		backgroundCtx, registrytest.ManifestSchema2, 2, serverURL, nil, repo1Name, "foo")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -378,7 +333,7 @@ func TestPullthroughServeBlobInsecure(t *testing.T) {
 	}
 	t.Logf("m1dgst=%s, m1manifest: %s", m1dgst, m1canonical)
 	m2dgst, m2canonical, m2cfg, m2manifest, err := registrytest.CreateAndUploadTestManifest(
-		registrytest.ManifestSchema2, 2, serverURL, nil, repo2Name, "bar")
+		backgroundCtx, registrytest.ManifestSchema2, 2, serverURL, nil, repo2Name, "bar")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -478,13 +433,13 @@ func TestPullthroughServeBlobInsecure(t *testing.T) {
 				registrytest.AddImageStream(t, fos, namespace, repo1, map[string]string{
 					imageapi.InsecureRepositoryAnnotation: "false",
 				})
-				registrytest.AddImageStreamTag(t, fos, m1img, namespace, repo1, &imageapi.TagReference{
+				registrytest.AddImageStreamTag(t, fos, m1img, namespace, repo1, &imageapiv1.TagReference{
 					Name:         "tag1",
-					ImportPolicy: imageapi.TagImportPolicy{Insecure: false},
+					ImportPolicy: imageapiv1.TagImportPolicy{Insecure: false},
 				})
-				registrytest.AddImageStreamTag(t, fos, m2img, namespace, repo1, &imageapi.TagReference{
+				registrytest.AddImageStreamTag(t, fos, m2img, namespace, repo1, &imageapiv1.TagReference{
 					Name:         "tag2",
-					ImportPolicy: imageapi.TagImportPolicy{Insecure: true},
+					ImportPolicy: imageapiv1.TagImportPolicy{Insecure: true},
 				})
 			},
 			expectedContentLength: int64(m2img.DockerImageLayers[0].LayerSize),
@@ -501,13 +456,13 @@ func TestPullthroughServeBlobInsecure(t *testing.T) {
 				registrytest.AddImageStream(t, fos, namespace, repo1, map[string]string{
 					imageapi.InsecureRepositoryAnnotation: "false",
 				})
-				registrytest.AddImageStreamTag(t, fos, m1img, namespace, repo1, &imageapi.TagReference{
+				registrytest.AddImageStreamTag(t, fos, m1img, namespace, repo1, &imageapiv1.TagReference{
 					Name:         "tag1",
-					ImportPolicy: imageapi.TagImportPolicy{Insecure: false},
+					ImportPolicy: imageapiv1.TagImportPolicy{Insecure: false},
 				})
-				registrytest.AddImageStreamTag(t, fos, m2img, namespace, repo1, &imageapi.TagReference{
+				registrytest.AddImageStreamTag(t, fos, m2img, namespace, repo1, &imageapiv1.TagReference{
 					Name:         "tag2",
-					ImportPolicy: imageapi.TagImportPolicy{Insecure: true},
+					ImportPolicy: imageapiv1.TagImportPolicy{Insecure: true},
 				})
 			},
 			expectedLocalCalls:    map[string]int{"Stat": 1, "ServeBlob": 1},
@@ -525,14 +480,14 @@ func TestPullthroughServeBlobInsecure(t *testing.T) {
 				registrytest.AddImageStream(t, fos, namespace, repo1, map[string]string{
 					imageapi.InsecureRepositoryAnnotation: "false",
 				})
-				registrytest.AddImageStreamTag(t, fos, m1img, namespace, repo1, &imageapi.TagReference{
+				registrytest.AddImageStreamTag(t, fos, m1img, namespace, repo1, &imageapiv1.TagReference{
 					Name: "tag1",
 					// This value will propagate to the other tag as well.
-					ImportPolicy: imageapi.TagImportPolicy{Insecure: true},
+					ImportPolicy: imageapiv1.TagImportPolicy{Insecure: true},
 				})
-				registrytest.AddImageStreamTag(t, fos, m2img, namespace, repo1, &imageapi.TagReference{
+				registrytest.AddImageStreamTag(t, fos, m2img, namespace, repo1, &imageapiv1.TagReference{
 					Name:         "tag2",
-					ImportPolicy: imageapi.TagImportPolicy{Insecure: false},
+					ImportPolicy: imageapiv1.TagImportPolicy{},
 				})
 			},
 			expectedLocalCalls:    map[string]int{"Stat": 1, "ServeBlob": 1},
@@ -561,13 +516,13 @@ func TestPullthroughServeBlobInsecure(t *testing.T) {
 				registrytest.AddImageStream(t, fos, namespace, repo1, map[string]string{
 					imageapi.InsecureRepositoryAnnotation: "false",
 				})
-				registrytest.AddImageStreamTag(t, fos, m1img, namespace, repo1, &imageapi.TagReference{
+				registrytest.AddImageStreamTag(t, fos, m1img, namespace, repo1, &imageapiv1.TagReference{
 					Name:         "tag1",
-					ImportPolicy: imageapi.TagImportPolicy{Insecure: false},
+					ImportPolicy: imageapiv1.TagImportPolicy{Insecure: false},
 				})
-				registrytest.AddImageStreamTag(t, fos, &m2docker, namespace, repo1, &imageapi.TagReference{
+				registrytest.AddImageStreamTag(t, fos, &m2docker, namespace, repo1, &imageapiv1.TagReference{
 					Name:         "tag2",
-					ImportPolicy: imageapi.TagImportPolicy{Insecure: true},
+					ImportPolicy: imageapiv1.TagImportPolicy{Insecure: true},
 				})
 			},
 			expectedStatError: distribution.ErrBlobUnknown,
@@ -582,13 +537,13 @@ func TestPullthroughServeBlobInsecure(t *testing.T) {
 				registrytest.AddImageStream(t, fos, namespace, repo1, map[string]string{
 					imageapi.InsecureRepositoryAnnotation: "false",
 				})
-				registrytest.AddImageStreamTag(t, fos, m1img, namespace, repo1, &imageapi.TagReference{
+				registrytest.AddImageStreamTag(t, fos, m1img, namespace, repo1, &imageapiv1.TagReference{
 					Name:         "tag1",
-					ImportPolicy: imageapi.TagImportPolicy{Insecure: false},
+					ImportPolicy: imageapiv1.TagImportPolicy{Insecure: false},
 				})
-				registrytest.AddImageStreamTag(t, fos, m1img, namespace, repo1, &imageapi.TagReference{
+				registrytest.AddImageStreamTag(t, fos, m1img, namespace, repo1, &imageapiv1.TagReference{
 					Name:         "tag2",
-					ImportPolicy: imageapi.TagImportPolicy{Insecure: true},
+					ImportPolicy: imageapiv1.TagImportPolicy{Insecure: true},
 				})
 			},
 			expectedLocalCalls:    map[string]int{"Stat": 1, "ServeBlob": 1},
@@ -596,77 +551,82 @@ func TestPullthroughServeBlobInsecure(t *testing.T) {
 			expectedBytesServed:   int64(m1img.DockerImageLayers[0].LayerSize),
 		},
 	} {
-		fos, client := registrytest.NewFakeOpenShiftWithClient()
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := registrytest.WithTestLogger(backgroundCtx, t)
 
-		tc.fakeOpenShiftInit(fos)
+			fos, imageClient := registrytest.NewFakeOpenShiftWithClient(ctx)
 
-		localBlobStore := newTestBlobStore(tc.localBlobs)
+			tc.fakeOpenShiftInit(fos)
 
-		ctx := WithTestPassthroughToUpstream(context.Background(), false)
+			localBlobStore := newTestBlobStore(nil, tc.localBlobs)
 
-		repo := newTestRepository(t, namespace, repo1, testRepositoryOptions{
-			client:            client,
-			enablePullThrough: true,
+			ctx = WithTestPassthroughToUpstream(ctx, false)
+
+			repo := newTestRepository(ctx, t, namespace, repo1, testRepositoryOptions{
+				client:            registryclient.NewFakeRegistryAPIClient(nil, imageClient),
+				enablePullThrough: true,
+			})
+
+			ptbs := &pullthroughBlobStore{
+				BlobStore: localBlobStore,
+				repo:      repo,
+			}
+
+			req, err := http.NewRequest(tc.method, fmt.Sprintf("http://example.org/v2/user/app/blobs/%s", tc.blobDigest), nil)
+			if err != nil {
+				t.Fatalf("[%s] failed to create http request: %v", tc.name, err)
+			}
+			w := httptest.NewRecorder()
+
+			dgst := digest.Digest(tc.blobDigest)
+
+			_, err = ptbs.Stat(ctx, dgst)
+			if err != tc.expectedStatError {
+				t.Fatalf("[%s] Stat returned unexpected error: %#+v != %#+v", tc.name, err, tc.expectedStatError)
+			}
+			if err != nil || tc.expectedStatError != nil {
+				return
+			}
+			err = ptbs.ServeBlob(ctx, w, req, dgst)
+			if err != nil {
+				t.Errorf("[%s] unexpected ServeBlob error: %v", tc.name, err)
+				return
+			}
+
+			clstr := w.Header().Get("Content-Length")
+			if cl, err := strconv.ParseInt(clstr, 10, 64); err != nil {
+				t.Errorf(`[%s] unexpected Content-Length: %q != "%d"`, tc.name, clstr, tc.expectedContentLength)
+			} else {
+				if cl != tc.expectedContentLength {
+					t.Errorf("[%s] Content-Length does not match expected size: %d != %d", tc.name, cl, tc.expectedContentLength)
+				}
+			}
+			if w.Header().Get("Content-Type") != "application/octet-stream" {
+				t.Errorf("[%s] Content-Type does not match expected: %q != %q", tc.name, w.Header().Get("Content-Type"), "application/octet-stream")
+			}
+
+			body := w.Body.Bytes()
+			if int64(len(body)) != tc.expectedBytesServed {
+				t.Errorf("[%s] unexpected size of body: %d != %d", tc.name, len(body), tc.expectedBytesServed)
+			}
+
+			for name, expCount := range tc.expectedLocalCalls {
+				count := localBlobStore.calls[name]
+				if count != expCount {
+					t.Errorf("[%s] expected %d calls to method %s of local blob store, not %d", tc.name, expCount, name, count)
+				}
+			}
+			for name, count := range localBlobStore.calls {
+				if _, exists := tc.expectedLocalCalls[name]; !exists {
+					t.Errorf("[%s] expected no calls to method %s of local blob store, got %d", tc.name, name, count)
+				}
+			}
+
+			if localBlobStore.bytesServed != tc.expectedBytesServedLocally {
+				t.Errorf("[%s] unexpected number of bytes served locally: %d != %d", tc.name, localBlobStore.bytesServed, tc.expectedBytesServed)
+			}
 		})
-
-		ptbs := &pullthroughBlobStore{
-			BlobStore: localBlobStore,
-			repo:      repo,
-		}
-
-		req, err := http.NewRequest(tc.method, fmt.Sprintf("http://example.org/v2/user/app/blobs/%s", tc.blobDigest), nil)
-		if err != nil {
-			t.Fatalf("[%s] failed to create http request: %v", tc.name, err)
-		}
-		w := httptest.NewRecorder()
-
-		dgst := digest.Digest(tc.blobDigest)
-
-		_, err = ptbs.Stat(ctx, dgst)
-		if err != tc.expectedStatError {
-			t.Fatalf("[%s] Stat returned unexpected error: %#+v != %#+v", tc.name, err, tc.expectedStatError)
-		}
-		if err != nil || tc.expectedStatError != nil {
-			continue
-		}
-		err = ptbs.ServeBlob(ctx, w, req, dgst)
-		if err != nil {
-			t.Errorf("[%s] unexpected ServeBlob error: %v", tc.name, err)
-			continue
-		}
-
-		clstr := w.Header().Get("Content-Length")
-		if cl, err := strconv.ParseInt(clstr, 10, 64); err != nil {
-			t.Errorf(`[%s] unexpected Content-Length: %q != "%d"`, tc.name, clstr, tc.expectedContentLength)
-		} else {
-			if cl != tc.expectedContentLength {
-				t.Errorf("[%s] Content-Length does not match expected size: %d != %d", tc.name, cl, tc.expectedContentLength)
-			}
-		}
-		if w.Header().Get("Content-Type") != "application/octet-stream" {
-			t.Errorf("[%s] Content-Type does not match expected: %q != %q", tc.name, w.Header().Get("Content-Type"), "application/octet-stream")
-		}
-
-		body := w.Body.Bytes()
-		if int64(len(body)) != tc.expectedBytesServed {
-			t.Errorf("[%s] unexpected size of body: %d != %d", tc.name, len(body), tc.expectedBytesServed)
-		}
-
-		for name, expCount := range tc.expectedLocalCalls {
-			count := localBlobStore.calls[name]
-			if count != expCount {
-				t.Errorf("[%s] expected %d calls to method %s of local blob store, not %d", tc.name, expCount, name, count)
-			}
-		}
-		for name, count := range localBlobStore.calls {
-			if _, exists := tc.expectedLocalCalls[name]; !exists {
-				t.Errorf("[%s] expected no calls to method %s of local blob store, got %d", tc.name, name, count)
-			}
-		}
-
-		if localBlobStore.bytesServed != tc.expectedBytesServedLocally {
-			t.Errorf("[%s] unexpected number of bytes served locally: %d != %d", tc.name, localBlobStore.bytesServed, tc.expectedBytesServed)
-		}
 	}
 }
 
@@ -678,9 +638,13 @@ func makeDigestFromBytes(data []byte) digest.Digest {
 	return digest.Digest(fmt.Sprintf("sha256:%x", sha256.Sum256(data)))
 }
 
+type blobContents map[digest.Digest][]byte
+type blobDescriptors map[digest.Digest]distribution.Descriptor
+
 type testBlobStore struct {
+	blobDescriptors blobDescriptors
 	// blob digest mapped to content
-	blobs map[digest.Digest][]byte
+	blobs blobContents
 	// method name mapped to number of invocations
 	calls       map[string]int
 	bytesServed int64
@@ -688,19 +652,29 @@ type testBlobStore struct {
 
 var _ distribution.BlobStore = &testBlobStore{}
 
-func newTestBlobStore(blobs map[digest.Digest][]byte) *testBlobStore {
-	b := make(map[digest.Digest][]byte)
+func newTestBlobStore(blobDescriptors blobDescriptors, blobs blobContents) *testBlobStore {
+	bs := make(map[digest.Digest][]byte)
 	for d, content := range blobs {
-		b[d] = content
+		bs[d] = content
+	}
+	bds := make(map[digest.Digest]distribution.Descriptor)
+	for d, desc := range blobDescriptors {
+		bds[d] = desc
 	}
 	return &testBlobStore{
-		blobs: b,
-		calls: make(map[string]int),
+		blobDescriptors: bds,
+		blobs:           bs,
+		calls:           make(map[string]int),
 	}
 }
 
 func (t *testBlobStore) Stat(ctx context.Context, dgst digest.Digest) (distribution.Descriptor, error) {
 	t.calls["Stat"]++
+	desc, exists := t.blobDescriptors[dgst]
+	if exists {
+		return desc, nil
+	}
+
 	content, exists := t.blobs[dgst]
 	if !exists {
 		return distribution.Descriptor{}, distribution.ErrBlobUnknown

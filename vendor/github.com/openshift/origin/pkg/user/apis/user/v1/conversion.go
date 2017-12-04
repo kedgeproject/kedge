@@ -2,43 +2,49 @@ package v1
 
 import (
 	"k8s.io/apimachinery/pkg/runtime"
-
-	oapi "github.com/openshift/origin/pkg/api"
-	userapi "github.com/openshift/origin/pkg/user/apis/user"
 )
 
 func addConversionFuncs(scheme *runtime.Scheme) error {
-	if err := scheme.AddFieldLabelConversionFunc("v1", "Group",
-		oapi.GetFieldLabelConversionFunc(userapi.GroupToSelectableFields(&userapi.Group{}), nil),
-	); err != nil {
-		return err
-	}
-	if err := scheme.AddFieldLabelConversionFunc(SchemeGroupVersion.String(), "Group",
-		oapi.GetFieldLabelConversionFunc(userapi.GroupToSelectableFields(&userapi.Group{}), nil),
-	); err != nil {
-		return err
-	}
+	return nil
+}
 
-	if err := scheme.AddFieldLabelConversionFunc("v1", "Identity",
-		oapi.GetFieldLabelConversionFunc(userapi.IdentityToSelectableFields(&userapi.Identity{}), nil),
-	); err != nil {
-		return err
-	}
-	if err := scheme.AddFieldLabelConversionFunc(SchemeGroupVersion.String(), "Identity",
-		oapi.GetFieldLabelConversionFunc(userapi.IdentityToSelectableFields(&userapi.Identity{}), nil),
-	); err != nil {
-		return err
-	}
-
-	if err := scheme.AddFieldLabelConversionFunc("v1", "User",
-		oapi.GetFieldLabelConversionFunc(userapi.UserToSelectableFields(&userapi.User{}), nil),
-	); err != nil {
-		return err
-	}
-	if err := scheme.AddFieldLabelConversionFunc(SchemeGroupVersion.String(), "User",
-		oapi.GetFieldLabelConversionFunc(userapi.UserToSelectableFields(&userapi.User{}), nil),
-	); err != nil {
+func addLegacyFieldSelectorKeyConversions(scheme *runtime.Scheme) error {
+	if err := scheme.AddFieldLabelConversionFunc(LegacySchemeGroupVersion.String(), "Identity", legacyIdentityFieldSelectorKeyConversionFunc); err != nil {
 		return err
 	}
 	return nil
+}
+
+func addFieldSelectorKeyConversions(scheme *runtime.Scheme) error {
+	if err := scheme.AddFieldLabelConversionFunc(SchemeGroupVersion.String(), "Identity", identityFieldSelectorKeyConversionFunc); err != nil {
+		return err
+	}
+	return nil
+}
+
+// because field selectors can vary in support by version they are exposed under, we have one function for each
+// groupVersion we're registering for
+
+func legacyIdentityFieldSelectorKeyConversionFunc(label, value string) (internalLabel, internalValue string, err error) {
+	switch label {
+	case "providerName",
+		"providerUserName",
+		"user.name",
+		"user.uid":
+		return label, value, nil
+	default:
+		return runtime.DefaultMetaV1FieldSelectorConversion(label, value)
+	}
+}
+
+func identityFieldSelectorKeyConversionFunc(label, value string) (internalLabel, internalValue string, err error) {
+	switch label {
+	case "providerName",
+		"providerUserName",
+		"user.name",
+		"user.uid":
+		return label, value, nil
+	default:
+		return runtime.DefaultMetaV1FieldSelectorConversion(label, value)
+	}
 }

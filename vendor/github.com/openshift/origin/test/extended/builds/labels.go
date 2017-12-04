@@ -10,76 +10,86 @@ import (
 	exutil "github.com/openshift/origin/test/extended/util"
 )
 
-var _ = g.Describe("[builds][Slow] result image should have proper labels set", func() {
+var _ = g.Describe("[Feature:Builds][Slow] result image should have proper labels set", func() {
 	defer g.GinkgoRecover()
 	var (
 		imageStreamFixture = exutil.FixturePath("..", "integration", "testdata", "test-image-stream.json")
-		stiBuildFixture    = exutil.FixturePath("testdata", "test-s2i-build.json")
-		dockerBuildFixture = exutil.FixturePath("testdata", "test-docker-build.json")
+		stiBuildFixture    = exutil.FixturePath("testdata", "builds", "test-s2i-build.json")
+		dockerBuildFixture = exutil.FixturePath("testdata", "builds", "test-docker-build.json")
 		oc                 = exutil.NewCLI("build-sti-labels", exutil.KubeConfigPath())
 	)
 
-	g.JustBeforeEach(func() {
-		g.By("waiting for builder service account")
-		err := exutil.WaitForBuilderAccount(oc.AdminKubeClient().Core().ServiceAccounts(oc.Namespace()))
-		o.Expect(err).NotTo(o.HaveOccurred())
-	})
+	g.Context("", func() {
 
-	g.Describe("S2I build from a template", func() {
-		g.It(fmt.Sprintf("should create a image from %q template with proper Docker labels", stiBuildFixture), func() {
-			oc.SetOutputDir(exutil.TestContext.OutputDir)
-
-			g.By(fmt.Sprintf("calling oc create -f %q", imageStreamFixture))
-			err := oc.Run("create").Args("-f", imageStreamFixture).Execute()
-			o.Expect(err).NotTo(o.HaveOccurred())
-
-			g.By(fmt.Sprintf("calling oc create -f %q", stiBuildFixture))
-			err = oc.Run("create").Args("-f", stiBuildFixture).Execute()
-			o.Expect(err).NotTo(o.HaveOccurred())
-
-			g.By("starting a test build")
-			br, err := exutil.StartBuildAndWait(oc, "test")
-			br.AssertSuccess()
-
-			g.By("getting the Docker image reference from ImageStream")
-			imageRef, err := exutil.GetDockerImageReference(oc.Client().ImageStreams(oc.Namespace()), "test", "latest")
-			o.Expect(err).NotTo(o.HaveOccurred())
-
-			imageLabels, err := eximages.GetImageLabels(oc.Client().ImageStreamImages(oc.Namespace()), "test", imageRef)
-			o.Expect(err).NotTo(o.HaveOccurred())
-
-			g.By("inspecting the new image for proper Docker labels")
-			err = ExpectOpenShiftLabels(imageLabels)
+		g.JustBeforeEach(func() {
+			g.By("waiting for builder service account")
+			err := exutil.WaitForBuilderAccount(oc.AdminKubeClient().Core().ServiceAccounts(oc.Namespace()))
 			o.Expect(err).NotTo(o.HaveOccurred())
 		})
-	})
 
-	g.Describe("Docker build from a template", func() {
-		g.It(fmt.Sprintf("should create a image from %q template with proper Docker labels", dockerBuildFixture), func() {
-			oc.SetOutputDir(exutil.TestContext.OutputDir)
+		g.AfterEach(func() {
+			if g.CurrentGinkgoTestDescription().Failed {
+				exutil.DumpPodStates(oc)
+				exutil.DumpPodLogsStartingWith("", oc)
+			}
+		})
 
-			g.By(fmt.Sprintf("calling oc create -f %q", imageStreamFixture))
-			err := oc.Run("create").Args("-f", imageStreamFixture).Execute()
-			o.Expect(err).NotTo(o.HaveOccurred())
+		g.Describe("S2I build from a template", func() {
+			g.It(fmt.Sprintf("should create a image from %q template with proper Docker labels", stiBuildFixture), func() {
+				oc.SetOutputDir(exutil.TestContext.OutputDir)
 
-			g.By(fmt.Sprintf("calling oc create -f %q", dockerBuildFixture))
-			err = oc.Run("create").Args("-f", dockerBuildFixture).Execute()
-			o.Expect(err).NotTo(o.HaveOccurred())
+				g.By(fmt.Sprintf("calling oc create -f %q", imageStreamFixture))
+				err := oc.Run("create").Args("-f", imageStreamFixture).Execute()
+				o.Expect(err).NotTo(o.HaveOccurred())
 
-			g.By("starting a test build")
-			br, err := exutil.StartBuildAndWait(oc, "test")
-			br.AssertSuccess()
+				g.By(fmt.Sprintf("calling oc create -f %q", stiBuildFixture))
+				err = oc.Run("create").Args("-f", stiBuildFixture).Execute()
+				o.Expect(err).NotTo(o.HaveOccurred())
 
-			g.By("getting the Docker image reference from ImageStream")
-			imageRef, err := exutil.GetDockerImageReference(oc.Client().ImageStreams(oc.Namespace()), "test", "latest")
-			o.Expect(err).NotTo(o.HaveOccurred())
+				g.By("starting a test build")
+				br, err := exutil.StartBuildAndWait(oc, "test")
+				br.AssertSuccess()
 
-			imageLabels, err := eximages.GetImageLabels(oc.Client().ImageStreamImages(oc.Namespace()), "test", imageRef)
-			o.Expect(err).NotTo(o.HaveOccurred())
+				g.By("getting the Docker image reference from ImageStream")
+				imageRef, err := exutil.GetDockerImageReference(oc.ImageClient().Image().ImageStreams(oc.Namespace()), "test", "latest")
+				o.Expect(err).NotTo(o.HaveOccurred())
 
-			g.By("inspecting the new image for proper Docker labels")
-			err = ExpectOpenShiftLabels(imageLabels)
-			o.Expect(err).NotTo(o.HaveOccurred())
+				imageLabels, err := eximages.GetImageLabels(oc.ImageClient().Image().ImageStreamImages(oc.Namespace()), "test", imageRef)
+				o.Expect(err).NotTo(o.HaveOccurred())
+
+				g.By("inspecting the new image for proper Docker labels")
+				err = ExpectOpenShiftLabels(imageLabels)
+				o.Expect(err).NotTo(o.HaveOccurred())
+			})
+		})
+
+		g.Describe("Docker build from a template", func() {
+			g.It(fmt.Sprintf("should create a image from %q template with proper Docker labels", dockerBuildFixture), func() {
+				oc.SetOutputDir(exutil.TestContext.OutputDir)
+
+				g.By(fmt.Sprintf("calling oc create -f %q", imageStreamFixture))
+				err := oc.Run("create").Args("-f", imageStreamFixture).Execute()
+				o.Expect(err).NotTo(o.HaveOccurred())
+
+				g.By(fmt.Sprintf("calling oc create -f %q", dockerBuildFixture))
+				err = oc.Run("create").Args("-f", dockerBuildFixture).Execute()
+				o.Expect(err).NotTo(o.HaveOccurred())
+
+				g.By("starting a test build")
+				br, err := exutil.StartBuildAndWait(oc, "test")
+				br.AssertSuccess()
+
+				g.By("getting the Docker image reference from ImageStream")
+				imageRef, err := exutil.GetDockerImageReference(oc.ImageClient().Image().ImageStreams(oc.Namespace()), "test", "latest")
+				o.Expect(err).NotTo(o.HaveOccurred())
+
+				imageLabels, err := eximages.GetImageLabels(oc.ImageClient().Image().ImageStreamImages(oc.Namespace()), "test", imageRef)
+				o.Expect(err).NotTo(o.HaveOccurred())
+
+				g.By("inspecting the new image for proper Docker labels")
+				err = ExpectOpenShiftLabels(imageLabels)
+				o.Expect(err).NotTo(o.HaveOccurred())
+			})
 		})
 	})
 })
@@ -103,6 +113,11 @@ func ExpectOpenShiftLabels(labels map[string]string) error {
 			return fmt.Errorf("Built image doesn't contain proper Docker image labels. Missing %q label", label)
 		}
 	}
-
+	if labels["io.k8s.display-name"] != "overridden" {
+		return fmt.Errorf("Existing label was not overridden with user specified value: %s=%s", labels["io.k8s.display-name"], labels["overridden"])
+	}
+	if labels["io.openshift.builder-version"] != "overridden2" {
+		return fmt.Errorf("System generated label was not overridden with user specified value: %s=%s", labels["io.openshift.builder-version"], labels["overridden2"])
+	}
 	return nil
 }

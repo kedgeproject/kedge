@@ -35,6 +35,7 @@ import (
 	kstrings "k8s.io/kubernetes/pkg/util/strings"
 	"k8s.io/kubernetes/pkg/volume"
 	"k8s.io/kubernetes/pkg/volume/util"
+	"k8s.io/kubernetes/pkg/volume/util/volumehelper"
 )
 
 // This is the primary entrypoint for volume plugins.
@@ -243,7 +244,7 @@ func (plugin *awsElasticBlockStorePlugin) ConstructVolumeSpec(volName, mountPath
 
 // Abstract interface to PD operations.
 type ebsManager interface {
-	CreateVolume(provisioner *awsElasticBlockStoreProvisioner) (volumeID aws.KubernetesVolumeID, volumeSizeGB int, labels map[string]string, err error)
+	CreateVolume(provisioner *awsElasticBlockStoreProvisioner) (volumeID aws.KubernetesVolumeID, volumeSizeGB int, labels map[string]string, fstype string, err error)
 	// Deletes a volume
 	DeleteVolume(deleter *awsElasticBlockStoreDeleter) error
 }
@@ -433,10 +434,14 @@ func (c *awsElasticBlockStoreProvisioner) Provision() (*v1.PersistentVolume, err
 		return nil, fmt.Errorf("invalid AccessModes %v: only AccessModes %v are supported", c.options.PVC.Spec.AccessModes, c.plugin.GetAccessModes())
 	}
 
-	volumeID, sizeGB, labels, err := c.manager.CreateVolume(c)
+	volumeID, sizeGB, labels, fstype, err := c.manager.CreateVolume(c)
 	if err != nil {
 		glog.Errorf("Provision failed: %v", err)
 		return nil, err
+	}
+
+	if fstype == "" {
+		fstype = "ext4"
 	}
 
 	pv := &v1.PersistentVolume{
@@ -444,7 +449,7 @@ func (c *awsElasticBlockStoreProvisioner) Provision() (*v1.PersistentVolume, err
 			Name:   c.options.PVName,
 			Labels: map[string]string{},
 			Annotations: map[string]string{
-				"kubernetes.io/createdby": "aws-ebs-dynamic-provisioner",
+				volumehelper.VolumeDynamicallyCreatedByKey: "aws-ebs-dynamic-provisioner",
 			},
 		},
 		Spec: v1.PersistentVolumeSpec{
@@ -456,7 +461,7 @@ func (c *awsElasticBlockStoreProvisioner) Provision() (*v1.PersistentVolume, err
 			PersistentVolumeSource: v1.PersistentVolumeSource{
 				AWSElasticBlockStore: &v1.AWSElasticBlockStoreVolumeSource{
 					VolumeID:  string(volumeID),
-					FSType:    "ext4",
+					FSType:    fstype,
 					Partition: 0,
 					ReadOnly:  false,
 				},

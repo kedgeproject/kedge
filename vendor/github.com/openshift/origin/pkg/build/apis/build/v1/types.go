@@ -8,7 +8,10 @@ import (
 	kapi "k8s.io/kubernetes/pkg/api/v1"
 )
 
-// +genclient=true
+// +genclient
+// +genclient:method=UpdateDetails,verb=update,subresource=details
+// +genclient:method=Clone,verb=create,subresource=clone,input=BuildRequest
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // Build encapsulates the inputs needed to produce a new deployable image, as well as
 // the status of the execution and a reference to the Pod which executed the build.
@@ -552,7 +555,6 @@ type BuildStrategy struct {
 	CustomStrategy *CustomBuildStrategy `json:"customStrategy,omitempty" protobuf:"bytes,4,opt,name=customStrategy"`
 
 	// JenkinsPipelineStrategy holds the parameters to the Jenkins Pipeline build strategy.
-	// This strategy is in tech preview.
 	JenkinsPipelineStrategy *JenkinsPipelineBuildStrategy `json:"jenkinsPipelineStrategy,omitempty" protobuf:"bytes,5,opt,name=jenkinsPipelineStrategy"`
 }
 
@@ -689,25 +691,15 @@ type SourceBuildStrategy struct {
 	// forcePull describes if the builder should pull the images from registry prior to building.
 	ForcePull bool `json:"forcePull,omitempty" protobuf:"varint,6,opt,name=forcePull"`
 
-	// runtimeImage is an optional image that is used to run an application
-	// without unneeded dependencies installed. The building of the application
-	// is still done in the builder image but, post build, you can copy the
-	// needed artifacts in the runtime image for use.
-	// Deprecated: This feature will be removed in a future release. Use ImageSource
-	// to copy binary artifacts created from one build into a separate runtime image.
-	RuntimeImage *kapi.ObjectReference `json:"runtimeImage,omitempty" protobuf:"bytes,7,opt,name=runtimeImage"`
+	// deprecated json field, do not reuse: runtimeImage
+	// +k8s:protobuf-deprecated=runtimeImage,7
 
-	// runtimeArtifacts specifies a list of source/destination pairs that will be
-	// copied from the builder to the runtime image. sourcePath can be a file or
-	// directory. destinationDir must be a directory. destinationDir can also be
-	// empty or equal to ".", in this case it just refers to the root of WORKDIR.
-	// Deprecated: This feature will be removed in a future release. Use ImageSource
-	// to copy binary artifacts created from one build into a separate runtime image.
-	RuntimeArtifacts []ImageSourcePath `json:"runtimeArtifacts,omitempty" protobuf:"bytes,8,rep,name=runtimeArtifacts"`
+	// deprecated json field, do not reuse: runtimeArtifacts
+	// +k8s:protobuf-deprecated=runtimeArtifacts,8
+
 }
 
 // JenkinsPipelineBuildStrategy holds parameters specific to a Jenkins Pipeline build.
-// This strategy is in tech preview.
 type JenkinsPipelineBuildStrategy struct {
 	// JenkinsfilePath is the optional path of the Jenkinsfile that will be used to configure the pipeline
 	// relative to the root of the context (contextDir). If both JenkinsfilePath & Jenkinsfile are
@@ -838,7 +830,9 @@ type ImageLabel struct {
 	Value string `json:"value,omitempty" protobuf:"bytes,2,opt,name=value"`
 }
 
-// +genclient=true
+// +genclient
+// +genclient:method=Instantiate,verb=create,subresource=instantiate,input=BuildRequest,result=Build
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // Build configurations define a build process for new Docker images. There are three types of builds possible - a Docker build using a Dockerfile, a Source-to-Image build that uses a specially prepared base image that accepts source code that it can make runnable, and a custom build that can run // arbitrary Docker images as a base and accept the build parameters. Builds run on the cluster and on completion are pushed to the Docker registry specified in the "output" section. A build can be triggered via a webhook, when the base image changes, or when a user manually requests a new build be // created.
 //
@@ -982,6 +976,8 @@ const (
 	ConfigChangeBuildTriggerType BuildTriggerType = "ConfigChange"
 )
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 // BuildList is a collection of Builds.
 type BuildList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -991,6 +987,8 @@ type BuildList struct {
 	// items is a list of builds
 	Items []Build `json:"items" protobuf:"bytes,2,rep,name=items"`
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // BuildConfigList is a collection of BuildConfigs.
 type BuildConfigList struct {
@@ -1025,6 +1023,8 @@ type GitInfo struct {
 	GitSourceRevision `json:",inline" protobuf:"bytes,2,opt,name=gitSourceRevision"`
 }
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 // BuildLog is the (unused) resource associated with the build log redirector
 type BuildLog struct {
 	metav1.TypeMeta `json:",inline"`
@@ -1035,7 +1035,18 @@ type DockerStrategyOptions struct {
 	// Args contains any build arguments that are to be passed to Docker.  See
 	// https://docs.docker.com/engine/reference/builder/#/arg for more details
 	BuildArgs []kapi.EnvVar `json:"buildArgs,omitempty" protobuf:"bytes,1,rep,name=buildArgs"`
+
+	// noCache overrides the docker-strategy noCache option in the build config
+	NoCache *bool `json:"noCache,omitempty" protobuf:"varint,2,opt,name=noCache"`
 }
+
+// SourceStrategyOptions contains extra strategy options for Source builds
+type SourceStrategyOptions struct {
+	// incremental overrides the source-strategy incremental option in the build config
+	Incremental *bool `json:"incremental,omitempty" protobuf:"varint,1,opt,name=incremental"`
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // BuildRequest is the resource used to pass parameters to build generator
 type BuildRequest struct {
@@ -1069,7 +1080,12 @@ type BuildRequest struct {
 
 	// DockerStrategyOptions contains additional docker-strategy specific options for the build
 	DockerStrategyOptions *DockerStrategyOptions `json:"dockerStrategyOptions,omitempty" protobuf:"bytes,9,opt,name=dockerStrategyOptions"`
+
+	// SourceStrategyOptions contains additional source-strategy specific options for the build
+	SourceStrategyOptions *SourceStrategyOptions `json:"sourceStrategyOptions,omitempty" protobuf:"bytes,10,opt,name=sourceStrategyOptions"`
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // BinaryBuildRequestOptions are the options required to fully speficy a binary build request
 type BinaryBuildRequestOptions struct {
@@ -1100,6 +1116,8 @@ type BinaryBuildRequestOptions struct {
 	// revision.committerEmail of the source control user
 	CommitterEmail string `json:"revision.committerEmail,omitempty" protobuf:"bytes,8,opt,name=revisionCommitterEmail"`
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // BuildLogOptions is the REST options for a build log
 type BuildLogOptions struct {

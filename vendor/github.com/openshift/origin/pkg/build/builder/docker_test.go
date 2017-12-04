@@ -14,11 +14,11 @@ import (
 	kapi "k8s.io/kubernetes/pkg/api"
 
 	"github.com/openshift/source-to-image/pkg/tar"
-	s2iutil "github.com/openshift/source-to-image/pkg/util"
+	s2ifs "github.com/openshift/source-to-image/pkg/util/fs"
 
 	buildapi "github.com/openshift/origin/pkg/build/apis/build"
+	buildfake "github.com/openshift/origin/pkg/build/generated/internalclientset/fake"
 	"github.com/openshift/origin/pkg/build/util/dockerfile"
-	"github.com/openshift/origin/pkg/client/testclient"
 	"github.com/openshift/origin/pkg/generate/git"
 )
 
@@ -260,13 +260,12 @@ func TestDockerfilePath(t *testing.T) {
 		dockerBuilder := &DockerBuilder{
 			dockerClient: dockerClient,
 			build:        build,
-			gitClient:    git.NewRepository(),
-			tar:          tar.New(s2iutil.NewFileSystem()),
+			tar:          tar.New(s2ifs.NewFileSystem()),
 		}
 
 		// this will validate that the Dockerfile is readable
 		// and append some labels to the Dockerfile
-		if err = dockerBuilder.addBuildParameters(buildDir, sourceInfo); err != nil {
+		if err = addBuildParameters(buildDir, build, sourceInfo); err != nil {
 			t.Errorf("failed to add build parameters: %v", err)
 			continue
 		}
@@ -315,10 +314,10 @@ func TestEmptySource(t *testing.T) {
 		},
 	}
 
-	client := testclient.Fake{}
+	client := buildfake.Clientset{}
 
 	dockerBuilder := &DockerBuilder{
-		client: client.Builds(""),
+		client: client.Build().Builds(""),
 		build:  build,
 	}
 
@@ -378,16 +377,23 @@ USER 1001`
 		},
 	}
 
-	client := testclient.Fake{}
+	client := buildfake.Clientset{}
 
-	dockerBuilder := &DockerBuilder{
-		client:       client.Builds(""),
-		build:        build,
-		dockerClient: dockerClient,
-		gitClient:    git.NewRepository(),
-		tar:          tar.New(s2iutil.NewFileSystem()),
+	buildDir, err := ioutil.TempDir("", "dockerfile-path")
+	if err != nil {
+		t.Errorf("failed to create tmpdir: %v", err)
 	}
 
+	dockerBuilder := &DockerBuilder{
+		client:       client.Build().Builds(""),
+		build:        build,
+		dockerClient: dockerClient,
+		tar:          tar.New(s2ifs.NewFileSystem()),
+		inputDir:     buildDir,
+	}
+	if err := ManageDockerfile(buildDir, build); err != nil {
+		t.Errorf("failed to manage the dockerfile: %v", err)
+	}
 	if err := dockerBuilder.Build(); err != nil {
 		if strings.Contains(err.Error(), "cannot pull scratch") {
 			t.Errorf("Docker build should not have attempted to pull from scratch")

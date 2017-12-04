@@ -12,9 +12,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kapi "k8s.io/kubernetes/pkg/api"
 
-	"github.com/openshift/origin/pkg/client"
-	"github.com/openshift/origin/pkg/dockerregistry"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
+	imageclient "github.com/openshift/origin/pkg/image/generated/internalclientset/typed/image/internalversion"
+	dockerregistry "github.com/openshift/origin/pkg/image/importer/dockerv1client"
 )
 
 // DockerClient is the local interface for the docker client
@@ -178,7 +178,7 @@ func (r MissingImageSearcher) Search(precise bool, terms ...string) (ComponentMa
 }
 
 type ImageImportSearcher struct {
-	Client        client.ImageStreamInterface
+	Client        imageclient.ImageStreamImportInterface
 	AllowInsecure bool
 	Fallback      Searcher
 }
@@ -199,9 +199,9 @@ func (s ImageImportSearcher) Search(precise bool, terms ...string) (ComponentMat
 		})
 	}
 	isi.Name = "newapp"
-	result, err := s.Client.Import(isi)
+	result, err := s.Client.Create(isi)
 	if err != nil {
-		if err == client.ErrImageStreamImportUnsupported && s.Fallback != nil {
+		if err == imageapi.ErrImageStreamImportUnsupported && s.Fallback != nil {
 			return s.Fallback.Search(precise, terms...)
 		}
 		return nil, []error{fmt.Errorf("can't lookup images: %v", err)}

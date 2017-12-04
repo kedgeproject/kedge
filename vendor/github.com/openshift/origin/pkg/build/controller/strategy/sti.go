@@ -4,16 +4,16 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/golang/glog"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apiserver/pkg/admission"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	kapi "k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/api/v1"
-	"k8s.io/kubernetes/pkg/serviceaccount"
 
 	buildapi "github.com/openshift/origin/pkg/build/apis/build"
-	"github.com/openshift/origin/pkg/build/util"
+	buildutil "github.com/openshift/origin/pkg/build/util"
+	"github.com/openshift/origin/pkg/security/apis/security"
+	securityinternalversion "github.com/openshift/origin/pkg/security/generated/internalclientset/typed/security/internalversion"
 )
 
 // SourceBuildStrategy creates STI(source to image) builds
@@ -22,8 +22,8 @@ type SourceBuildStrategy struct {
 	// Codec is the codec to use for encoding the output pod.
 	// IMPORTANT: This may break backwards compatibility when
 	// it changes.
-	Codec            runtime.Codec
-	AdmissionControl admission.Interface
+	Codec          runtime.Codec
+	SecurityClient securityinternalversion.SecurityInterface
 }
 
 // DefaultDropCaps is the list of capabilities to drop if the current user cannot run as root
@@ -32,7 +32,6 @@ var DefaultDropCaps = []string{
 	"MKNOD",
 	"SETGID",
 	"SETUID",
-	"SYS_CHROOT",
 }
 
 // CreateBuildPod creates a pod that will execute the STI build
@@ -52,7 +51,7 @@ func (bs *SourceBuildStrategy) CreateBuildPod(build *buildapi.Build) (*v1.Pod, e
 
 	strategy := build.Spec.Strategy.SourceStrategy
 	if len(strategy.Env) > 0 {
-		util.MergeTrustedEnvWithoutDuplicates(util.CopyApiEnvVarToV1EnvVar(strategy.Env), &containerEnv, true)
+		buildutil.MergeTrustedEnvWithoutDuplicates(buildutil.CopyApiEnvVarToV1EnvVar(strategy.Env), &containerEnv, true)
 	}
 
 	// check if can run container as root
@@ -76,67 +75,144 @@ func (bs *SourceBuildStrategy) CreateBuildPod(build *buildapi.Build) (*v1.Pod, e
 			ServiceAccountName: build.Spec.ServiceAccount,
 			Containers: []v1.Container{
 				{
-					Name:  "sti-build",
-					Image: bs.Image,
-					Env:   containerEnv,
+					Name:    "sti-build",
+					Image:   bs.Image,
+					Command: []string{"openshift-sti-build"},
+					Env:     copyEnvVarSlice(containerEnv),
 					// TODO: run unprivileged https://github.com/openshift/origin/issues/662
 					SecurityContext: &v1.SecurityContext{
 						Privileged: &privileged,
 					},
-					Args: []string{},
 					TerminationMessagePolicy: v1.TerminationMessageFallbackToLogsOnError,
+					VolumeMounts: []v1.VolumeMount{
+						{
+							Name:      "buildworkdir",
+							MountPath: buildutil.BuildWorkDirMount,
+						},
+					},
+					ImagePullPolicy: v1.PullIfNotPresent,
+					Resources:       buildutil.CopyApiResourcesToV1Resources(&build.Spec.Resources),
+				},
+			},
+			Volumes: []v1.Volume{
+				{
+					Name: "buildworkdir",
+					VolumeSource: v1.VolumeSource{
+						EmptyDir: &v1.EmptyDirVolumeSource{},
+					},
 				},
 			},
 			RestartPolicy: v1.RestartPolicyNever,
 			NodeSelector:  build.Spec.NodeSelector,
 		},
 	}
-	pod.Spec.Containers[0].ImagePullPolicy = v1.PullIfNotPresent
-	pod.Spec.Containers[0].Resources = util.CopyApiResourcesToV1Resources(&build.Spec.Resources)
+
+	if build.Spec.Source.Git != nil || build.Spec.Source.Binary != nil {
+		gitCloneContainer := v1.Container{
+			Name:    GitCloneContainer,
+			Image:   bs.Image,
+			Command: []string{"openshift-git-clone"},
+			Env:     copyEnvVarSlice(containerEnv),
+			TerminationMessagePolicy: v1.TerminationMessageFallbackToLogsOnError,
+			VolumeMounts: []v1.VolumeMount{
+				{
+					Name:      "buildworkdir",
+					MountPath: buildutil.BuildWorkDirMount,
+				},
+			},
+			ImagePullPolicy: v1.PullIfNotPresent,
+			Resources:       buildutil.CopyApiResourcesToV1Resources(&build.Spec.Resources),
+		}
+		if build.Spec.Source.Binary != nil {
+			gitCloneContainer.Stdin = true
+			gitCloneContainer.StdinOnce = true
+		}
+		setupSourceSecrets(pod, &gitCloneContainer, build.Spec.Source.SourceSecret)
+		pod.Spec.InitContainers = append(pod.Spec.InitContainers, gitCloneContainer)
+	}
+	if len(build.Spec.Source.Images) > 0 {
+		extractImageContentContainer := v1.Container{
+			Name:    ExtractImageContentContainer,
+			Image:   bs.Image,
+			Command: []string{"openshift-extract-image-content"},
+			Env:     copyEnvVarSlice(containerEnv),
+			// TODO: run unprivileged https://github.com/openshift/origin/issues/662
+			SecurityContext: &v1.SecurityContext{
+				Privileged: &privileged,
+			},
+			TerminationMessagePolicy: v1.TerminationMessageFallbackToLogsOnError,
+			VolumeMounts: []v1.VolumeMount{
+				{
+					Name:      "buildworkdir",
+					MountPath: buildutil.BuildWorkDirMount,
+				},
+			},
+			ImagePullPolicy: v1.PullIfNotPresent,
+			Resources:       buildutil.CopyApiResourcesToV1Resources(&build.Spec.Resources),
+		}
+		setupDockerSecrets(pod, &extractImageContentContainer, build.Spec.Output.PushSecret, strategy.PullSecret, build.Spec.Source.Images)
+		pod.Spec.InitContainers = append(pod.Spec.InitContainers, extractImageContentContainer)
+	}
+	pod.Spec.InitContainers = append(pod.Spec.InitContainers,
+		v1.Container{
+			Name:    "manage-dockerfile",
+			Image:   bs.Image,
+			Command: []string{"openshift-manage-dockerfile"},
+			Env:     copyEnvVarSlice(containerEnv),
+			TerminationMessagePolicy: v1.TerminationMessageFallbackToLogsOnError,
+			VolumeMounts: []v1.VolumeMount{
+				{
+					Name:      "buildworkdir",
+					MountPath: buildutil.BuildWorkDirMount,
+				},
+			},
+			ImagePullPolicy: v1.PullIfNotPresent,
+			Resources:       buildutil.CopyApiResourcesToV1Resources(&build.Spec.Resources),
+		},
+	)
 
 	if build.Spec.CompletionDeadlineSeconds != nil {
 		pod.Spec.ActiveDeadlineSeconds = build.Spec.CompletionDeadlineSeconds
 	}
-	if build.Spec.Source.Binary != nil {
-		pod.Spec.Containers[0].Stdin = true
-		pod.Spec.Containers[0].StdinOnce = true
-	}
 
 	setOwnerReference(pod, build)
 	setupDockerSocket(pod)
-	setupDockerSecrets(pod, build.Spec.Output.PushSecret, strategy.PullSecret, build.Spec.Source.Images)
-	setupSourceSecrets(pod, build.Spec.Source.SourceSecret)
-	setupSecrets(pod, build.Spec.Source.Secrets)
+	setupCrioSocket(pod)
+	setupDockerSecrets(pod, &pod.Spec.Containers[0], build.Spec.Output.PushSecret, strategy.PullSecret, build.Spec.Source.Images)
+	// For any secrets the user wants to reference from their Assemble script or Dockerfile, mount those
+	// secrets into the main container.  The main container includes logic to copy them from the mounted
+	// location into the working directory.
+	// TODO: consider moving this into the git-clone container and doing the secret copying there instead.
+	setupInputSecrets(pod, &pod.Spec.Containers[0], build.Spec.Source.Secrets)
 	return pod, nil
 }
 
 func (bs *SourceBuildStrategy) canRunAsRoot(build *buildapi.Build) bool {
-	var rootUser int64
-	rootUser = 0
-	pod := &kapi.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      buildapi.GetBuildPodName(build) + "-admissioncheck",
-			Namespace: build.Namespace,
-		},
-		Spec: kapi.PodSpec{
-			ServiceAccountName: build.Spec.ServiceAccount,
-			Containers: []kapi.Container{
-				{
-					Name:  "sti-build",
-					Image: bs.Image,
-					SecurityContext: &kapi.SecurityContext{
-						RunAsUser: &rootUser,
+	rootUser := int64(0)
+
+	review, err := bs.SecurityClient.PodSecurityPolicySubjectReviews(build.Namespace).Create(
+		&security.PodSecurityPolicySubjectReview{
+			Spec: security.PodSecurityPolicySubjectReviewSpec{
+				Template: kapi.PodTemplateSpec{
+					Spec: kapi.PodSpec{
+						ServiceAccountName: build.Spec.ServiceAccount,
+						Containers: []kapi.Container{
+							{
+								Name:  "fake",
+								Image: "fake",
+								SecurityContext: &kapi.SecurityContext{
+									RunAsUser: &rootUser,
+								},
+							},
+						},
 					},
 				},
 			},
-			RestartPolicy: kapi.RestartPolicyNever,
 		},
-	}
-	userInfo := serviceaccount.UserInfo(build.Namespace, build.Spec.ServiceAccount, "")
-	attrs := admission.NewAttributesRecord(pod, nil, kapi.Kind("Pod").WithVersion(""), pod.Namespace, pod.Name, kapi.Resource("pods").WithVersion(""), "", admission.Create, userInfo)
-	err := bs.AdmissionControl.Admit(attrs)
+	)
 	if err != nil {
-		glog.V(2).Infof("Admit for root user returned error: %v", err)
+		utilruntime.HandleError(err)
+		return false
 	}
-	return err == nil
+	return review.Status.AllowedBy != nil
 }

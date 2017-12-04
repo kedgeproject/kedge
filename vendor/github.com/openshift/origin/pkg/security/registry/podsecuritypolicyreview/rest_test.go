@@ -14,7 +14,7 @@ import (
 	admissionttesting "github.com/openshift/origin/pkg/security/admission/testing"
 	securityapi "github.com/openshift/origin/pkg/security/apis/security"
 	securitylisters "github.com/openshift/origin/pkg/security/generated/listers/security/internalversion"
-	oscc "github.com/openshift/origin/pkg/security/scc"
+	scc "github.com/openshift/origin/pkg/security/securitycontextconstraints"
 
 	_ "github.com/openshift/origin/pkg/api/install"
 )
@@ -148,9 +148,9 @@ func TestNoErrors(t *testing.T) {
 		serviceAccount.Namespace = namespace.Name
 		saIndexer.Add(serviceAccount)
 		csf := clientsetfake.NewSimpleClientset(namespace)
-		storage := REST{oscc.NewDefaultSCCMatcher(sccCache), saCache, csf}
+		storage := REST{scc.NewDefaultSCCMatcher(sccCache), saCache, csf}
 		ctx := apirequest.WithNamespace(apirequest.NewContext(), namespace.Name)
-		obj, err := storage.Create(ctx, testcase.request)
+		obj, err := storage.Create(ctx, testcase.request, false)
 		if err != nil {
 			t.Errorf("%s - Unexpected error: %v", testName, err)
 			continue
@@ -245,9 +245,9 @@ func TestErrors(t *testing.T) {
 		}
 		csf := clientsetfake.NewSimpleClientset(namespace)
 
-		storage := REST{oscc.NewDefaultSCCMatcher(sccCache), saCache, csf}
+		storage := REST{scc.NewDefaultSCCMatcher(sccCache), saCache, csf}
 		ctx := apirequest.WithNamespace(apirequest.NewContext(), namespace.Name)
-		_, err := storage.Create(ctx, testcase.request)
+		_, err := storage.Create(ctx, testcase.request, false)
 		if err == nil {
 			t.Errorf("%s - Expected error", testName)
 			continue
@@ -402,9 +402,9 @@ func TestSpecificSAs(t *testing.T) {
 			saIndexer.Add(testcase.serviceAccounts[i])
 		}
 		csf := clientsetfake.NewSimpleClientset(namespace)
-		storage := REST{oscc.NewDefaultSCCMatcher(sccCache), saCache, csf}
+		storage := REST{scc.NewDefaultSCCMatcher(sccCache), saCache, csf}
 		ctx := apirequest.WithNamespace(apirequest.NewContext(), namespace.Name)
-		_, err := storage.Create(ctx, testcase.request)
+		_, err := storage.Create(ctx, testcase.request, false)
 		switch {
 		case err == nil && len(testcase.errorMessage) == 0:
 			continue

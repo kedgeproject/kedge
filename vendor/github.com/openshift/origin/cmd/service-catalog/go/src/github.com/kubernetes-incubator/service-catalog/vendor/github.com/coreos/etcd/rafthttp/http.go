@@ -104,6 +104,7 @@ func (h *pipelineHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		plog.Errorf("failed to read raft message (%v)", err)
 		http.Error(w, "error reading raft message", http.StatusBadRequest)
+		recvFailures.WithLabelValues(r.RemoteAddr).Inc()
 		return
 	}
 
@@ -111,6 +112,7 @@ func (h *pipelineHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err := m.Unmarshal(b); err != nil {
 		plog.Errorf("failed to unmarshal raft message (%v)", err)
 		http.Error(w, "error unmarshaling raft message", http.StatusBadRequest)
+		recvFailures.WithLabelValues(r.RemoteAddr).Inc()
 		return
 	}
 
@@ -123,6 +125,9 @@ func (h *pipelineHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		default:
 			plog.Warningf("failed to process raft message (%v)", err)
 			http.Error(w, "error processing raft message", http.StatusInternalServerError)
+			w.(http.Flusher).Flush()
+			// disconnect the http stream
+			panic(err)
 		}
 		return
 	}
@@ -178,11 +183,13 @@ func (h *snapshotHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	dec := &messageDecoder{r: r.Body}
-	m, err := dec.decode()
+	// let snapshots be very large since they can exceed 512MB for large installations
+	m, err := dec.decodeLimit(uint64(1 << 63))
 	if err != nil {
 		msg := fmt.Sprintf("failed to decode raft message (%v)", err)
 		plog.Errorf(msg)
 		http.Error(w, msg, http.StatusBadRequest)
+		recvFailures.WithLabelValues(r.RemoteAddr).Inc()
 		return
 	}
 

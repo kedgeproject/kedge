@@ -26,6 +26,10 @@ func (c *ServiceAccountControllerOptions) RunController(ctx ControllerContext) (
 	options.ServiceAccounts = []kapiv1.ServiceAccount{}
 
 	for _, saName := range c.ManagedNames {
+		// the upstream controller does this one, so we don't have to
+		if saName == "default" {
+			continue
+		}
 		sa := kapiv1.ServiceAccount{}
 		sa.Name = saName
 
@@ -64,7 +68,7 @@ func (c *ServiceAccountTokenControllerOptions) RunController(ctx ControllerConte
 			RootCA:           c.RootCA,
 			ServiceServingCA: c.ServiceServingCA,
 		},
-	).Run(int(ctx.KubeControllerContext.Options.ConcurrentSATokenSyncs), ctx.Stop)
+	).Run(int(ctx.OpenshiftControllerOptions.ServiceAccountTokenOptions.ConcurrentSyncs), ctx.Stop)
 	return true, nil
 }
 

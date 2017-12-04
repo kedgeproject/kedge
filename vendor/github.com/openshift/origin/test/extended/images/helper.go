@@ -27,8 +27,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/kubernetes/pkg/client/retry"
 
-	"github.com/openshift/origin/pkg/client"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
+	imagetypedclientset "github.com/openshift/origin/pkg/image/generated/internalclientset/typed/image/internalversion"
 	registryutil "github.com/openshift/origin/test/extended/registry/util"
 	exutil "github.com/openshift/origin/test/extended/util"
 	testutil "github.com/openshift/origin/test/util"
@@ -142,9 +142,9 @@ var (
 
 // GetImageLabels retrieves Docker labels from image from image repository name and
 // image reference
-func GetImageLabels(c client.ImageStreamImageInterface, imageRepoName, imageRef string) (map[string]string, error) {
+func GetImageLabels(c imagetypedclientset.ImageStreamImageInterface, imageRepoName, imageRef string) (map[string]string, error) {
 	_, imageID, err := imageapi.ParseImageStreamImageName(imageRef)
-	image, err := c.Get(imageRepoName, imageID)
+	image, err := c.Get(imageapi.JoinImageStreamImage(imageRepoName, imageID), metav1.GetOptions{})
 
 	if err != nil {
 		return map[string]string{}, err
@@ -169,13 +169,13 @@ func BuildAndPushImageOfSizeWithBuilder(
 		istName += ":" + tag
 	}
 
-	bc, err := oc.Client().BuildConfigs(namespace).Get(name, metav1.GetOptions{})
+	bc, err := oc.BuildClient().Build().BuildConfigs(namespace).Get(name, metav1.GetOptions{})
 	if err == nil {
 		if bc.Spec.CommonSpec.Output.To.Kind != "ImageStreamTag" {
 			return fmt.Errorf("Unexpected kind of buildspec's output (%s != %s)", bc.Spec.CommonSpec.Output.To.Kind, "ImageStreamTag")
 		}
 		bc.Spec.CommonSpec.Output.To.Name = istName
-		if _, err = oc.Client().BuildConfigs(namespace).Update(bc); err != nil {
+		if _, err = oc.BuildClient().Build().BuildConfigs(namespace).Update(bc); err != nil {
 			return err
 		}
 	} else {
@@ -495,7 +495,7 @@ func calculateRoughDataSize(logger io.Writer, wantedImageSize uint64, numberOfLa
 		// TODO(miminar): shall we use some better logging mechanism?
 		logger.Write([]byte(fmt.Sprintf("Failed to get docker version: %v\n", err)))
 	}
-	if (major >= 1 && minor >= 9) || version == "" {
+	if major > 1 || major == 1 && minor >= 9 || version == "" {
 		// running Docker version 1.9+
 		return uint64(float64(wantedImageSize) / (float64(numberOfLayers) * layerSizeMultiplierForLatestDocker))
 	}
@@ -780,27 +780,31 @@ func (c *CleanUpContainer) AddImageStream(isName string) {
 // Run deletes all the marked objects.
 func (c *CleanUpContainer) Run() {
 	for image := range c.imageNames {
-		err := c.OC.AsAdmin().Client().Images().Delete(image)
+		err := c.OC.AsAdmin().ImageClient().Image().Images().Delete(image, nil)
 		if err != nil {
 			fmt.Fprintf(g.GinkgoWriter, "clean up of image %q failed: %v\n", image, err)
 		}
 	}
 	for isName := range c.isNames {
-		err := c.OC.AsAdmin().Client().ImageStreams(c.OC.Namespace()).Delete(isName)
+		err := c.OC.AsAdmin().ImageClient().Image().ImageStreams(c.OC.Namespace()).Delete(isName, nil)
 		if err != nil {
 			fmt.Fprintf(g.GinkgoWriter, "clean up of image stream %q failed: %v\n", isName, err)
 		}
 	}
 	for isTag := range c.isTags {
-		parts := strings.SplitN(isTag, ":", 2)
-		if len(parts) != 2 {
-			fmt.Fprintf(g.GinkgoWriter, "cannot remove invalid istag %q", isTag)
-			continue
-		}
-		err := c.OC.Client().ImageStreamTags(c.OC.Namespace()).Delete(parts[0], parts[1])
+		err := c.OC.ImageClient().Image().ImageStreamTags(c.OC.Namespace()).Delete(isTag, nil)
 		if err != nil {
 			fmt.Fprintf(g.GinkgoWriter, "clean up of image stream tag %q failed: %v\n", isTag, err)
 		}
+	}
+
+	// Remove registry database between tests to avoid the influence of one test on another.
+	// TODO: replace this with removals of individual blobs used in the test case.
+	out, err := c.OC.SetNamespace(metav1.NamespaceDefault).AsAdmin().
+		Run("rsh").Args("dc/docker-registry", "find", "/registry", "-mindepth", "1", "-delete").Output()
+	if err != nil {
+		fmt.Fprintf(g.GinkgoWriter, "clean up registry failed: %v\n", err)
+		fmt.Fprintf(g.GinkgoWriter, "%s\n", out)
 	}
 
 	if len(c.imageIDs) == 0 {

@@ -26,6 +26,9 @@ type BuildResourceInterface interface {
 	List(opts v1.ListOptions) (*build.BuildList, error)
 	Watch(opts v1.ListOptions) (watch.Interface, error)
 	Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *build.Build, err error)
+	UpdateDetails(buildResourceName string, buildResource *build.Build) (*build.Build, error)
+	Clone(buildResourceName string, buildRequest *build.BuildRequest) (*build.Build, error)
+
 	BuildResourceExpansion
 }
 
@@ -41,69 +44,6 @@ func newBuilds(c *BuildClient, namespace string) *builds {
 		client: c.RESTClient(),
 		ns:     namespace,
 	}
-}
-
-// Create takes the representation of a buildResource and creates it.  Returns the server's representation of the buildResource, and an error, if there is any.
-func (c *builds) Create(buildResource *build.Build) (result *build.Build, err error) {
-	result = &build.Build{}
-	err = c.client.Post().
-		Namespace(c.ns).
-		Resource("builds").
-		Body(buildResource).
-		Do().
-		Into(result)
-	return
-}
-
-// Update takes the representation of a buildResource and updates it. Returns the server's representation of the buildResource, and an error, if there is any.
-func (c *builds) Update(buildResource *build.Build) (result *build.Build, err error) {
-	result = &build.Build{}
-	err = c.client.Put().
-		Namespace(c.ns).
-		Resource("builds").
-		Name(buildResource.Name).
-		Body(buildResource).
-		Do().
-		Into(result)
-	return
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclientstatus=false comment above the type to avoid generating UpdateStatus().
-
-func (c *builds) UpdateStatus(buildResource *build.Build) (result *build.Build, err error) {
-	result = &build.Build{}
-	err = c.client.Put().
-		Namespace(c.ns).
-		Resource("builds").
-		Name(buildResource.Name).
-		SubResource("status").
-		Body(buildResource).
-		Do().
-		Into(result)
-	return
-}
-
-// Delete takes name of the buildResource and deletes it. Returns an error if one occurs.
-func (c *builds) Delete(name string, options *v1.DeleteOptions) error {
-	return c.client.Delete().
-		Namespace(c.ns).
-		Resource("builds").
-		Name(name).
-		Body(options).
-		Do().
-		Error()
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *builds) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
-	return c.client.Delete().
-		Namespace(c.ns).
-		Resource("builds").
-		VersionedParams(&listOptions, scheme.ParameterCodec).
-		Body(options).
-		Do().
-		Error()
 }
 
 // Get takes name of the buildResource, and returns the corresponding buildResource object, and an error if there is any.
@@ -141,6 +81,69 @@ func (c *builds) Watch(opts v1.ListOptions) (watch.Interface, error) {
 		Watch()
 }
 
+// Create takes the representation of a buildResource and creates it.  Returns the server's representation of the buildResource, and an error, if there is any.
+func (c *builds) Create(buildResource *build.Build) (result *build.Build, err error) {
+	result = &build.Build{}
+	err = c.client.Post().
+		Namespace(c.ns).
+		Resource("builds").
+		Body(buildResource).
+		Do().
+		Into(result)
+	return
+}
+
+// Update takes the representation of a buildResource and updates it. Returns the server's representation of the buildResource, and an error, if there is any.
+func (c *builds) Update(buildResource *build.Build) (result *build.Build, err error) {
+	result = &build.Build{}
+	err = c.client.Put().
+		Namespace(c.ns).
+		Resource("builds").
+		Name(buildResource.Name).
+		Body(buildResource).
+		Do().
+		Into(result)
+	return
+}
+
+// UpdateStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
+
+func (c *builds) UpdateStatus(buildResource *build.Build) (result *build.Build, err error) {
+	result = &build.Build{}
+	err = c.client.Put().
+		Namespace(c.ns).
+		Resource("builds").
+		Name(buildResource.Name).
+		SubResource("status").
+		Body(buildResource).
+		Do().
+		Into(result)
+	return
+}
+
+// Delete takes name of the buildResource and deletes it. Returns an error if one occurs.
+func (c *builds) Delete(name string, options *v1.DeleteOptions) error {
+	return c.client.Delete().
+		Namespace(c.ns).
+		Resource("builds").
+		Name(name).
+		Body(options).
+		Do().
+		Error()
+}
+
+// DeleteCollection deletes a collection of objects.
+func (c *builds) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
+	return c.client.Delete().
+		Namespace(c.ns).
+		Resource("builds").
+		VersionedParams(&listOptions, scheme.ParameterCodec).
+		Body(options).
+		Do().
+		Error()
+}
+
 // Patch applies the patch and returns the patched buildResource.
 func (c *builds) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *build.Build, err error) {
 	result = &build.Build{}
@@ -150,6 +153,34 @@ func (c *builds) Patch(name string, pt types.PatchType, data []byte, subresource
 		SubResource(subresources...).
 		Name(name).
 		Body(data).
+		Do().
+		Into(result)
+	return
+}
+
+// UpdateDetails takes the top resource name and the representation of a buildResource and updates it. Returns the server's representation of the buildResource, and an error, if there is any.
+func (c *builds) UpdateDetails(buildResourceName string, buildResource *build.Build) (result *build.Build, err error) {
+	result = &build.Build{}
+	err = c.client.Put().
+		Namespace(c.ns).
+		Resource("builds").
+		Name(buildResourceName).
+		SubResource("details").
+		Body(buildResource).
+		Do().
+		Into(result)
+	return
+}
+
+// Clone takes the representation of a buildRequest and creates it.  Returns the server's representation of the buildResource, and an error, if there is any.
+func (c *builds) Clone(buildResourceName string, buildRequest *build.BuildRequest) (result *build.Build, err error) {
+	result = &build.Build{}
+	err = c.client.Post().
+		Namespace(c.ns).
+		Resource("builds").
+		Name(buildResourceName).
+		SubResource("clone").
+		Body(buildRequest).
 		Do().
 		Into(result)
 	return

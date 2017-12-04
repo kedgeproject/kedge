@@ -25,12 +25,13 @@ import (
 type MasterConfiguration struct {
 	metav1.TypeMeta `json:",inline"`
 
-	API               API        `json:"api"`
-	Etcd              Etcd       `json:"etcd"`
-	Networking        Networking `json:"networking"`
-	KubernetesVersion string     `json:"kubernetesVersion"`
-	CloudProvider     string     `json:"cloudProvider"`
-	AuthorizationMode string     `json:"authorizationMode"`
+	API                API        `json:"api"`
+	Etcd               Etcd       `json:"etcd"`
+	Networking         Networking `json:"networking"`
+	KubernetesVersion  string     `json:"kubernetesVersion"`
+	CloudProvider      string     `json:"cloudProvider"`
+	NodeName           string     `json:"nodeName"`
+	AuthorizationModes []string   `json:"authorizationModes"`
 
 	Token    string        `json:"token"`
 	TokenTTL time.Duration `json:"tokenTTL"`
@@ -70,10 +71,12 @@ type Networking struct {
 }
 
 type Etcd struct {
-	Endpoints []string `json:"endpoints"`
-	CAFile    string   `json:"caFile"`
-	CertFile  string   `json:"certFile"`
-	KeyFile   string   `json:"keyFile"`
+	Endpoints []string          `json:"endpoints"`
+	CAFile    string            `json:"caFile"`
+	CertFile  string            `json:"certFile"`
+	KeyFile   string            `json:"keyFile"`
+	DataDir   string            `json:"dataDir"`
+	ExtraArgs map[string]string `json:"extraArgs"`
 }
 
 type NodeConfiguration struct {
@@ -83,6 +86,7 @@ type NodeConfiguration struct {
 	DiscoveryFile            string   `json:"discoveryFile"`
 	DiscoveryToken           string   `json:"discoveryToken"`
 	DiscoveryTokenAPIServers []string `json:"discoveryTokenAPIServers"`
+	NodeName                 string   `json:"nodeName"`
 	TLSBootstrapToken        string   `json:"tlsBootstrapToken"`
 	Token                    string   `json:"token"`
 }

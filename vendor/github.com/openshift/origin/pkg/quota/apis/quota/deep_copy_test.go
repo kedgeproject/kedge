@@ -4,11 +4,12 @@ import (
 	"reflect"
 	"testing"
 
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/conversion"
 	kapi "k8s.io/kubernetes/pkg/api"
 
 	quotaapi "github.com/openshift/origin/pkg/quota/apis/quota"
-	_ "github.com/openshift/origin/pkg/quota/apis/quota/install"
 )
 
 func TestDeepCopy(t *testing.T) {
@@ -27,19 +28,19 @@ func TestDeepCopy(t *testing.T) {
 	if !reflect.DeepEqual(check, original) {
 		t.Error("before mutation of copy, check and original should be identical but are not, likely failure in deepequal")
 	}
-	if !kapi.Semantic.DeepEqual(check, original) {
+	if !equality.Semantic.DeepEqual(check, original) {
 		t.Error("before mutation of copy, check and original should be identical but are not, likely failure in deepequal")
 	}
 
-	copiedObj, err := kapi.Scheme.Copy(original)
+	copied := &quotaapi.ClusterResourceQuota{}
+	err := quotaapi.DeepCopy_quota_ClusterResourceQuota(original, copied, conversion.NewCloner())
 	if err != nil {
 		t.Fatal(err)
 	}
-	copied := copiedObj.(*quotaapi.ClusterResourceQuota)
 	if !reflect.DeepEqual(copied, original) {
 		t.Error("before mutation of copy, copied and original should be identical but are not, likely failure in deepequal")
 	}
-	if !kapi.Semantic.DeepEqual(copied, original) {
+	if !equality.Semantic.DeepEqual(copied, original) {
 		t.Error("before mutation of copy, copied and original should be identical but are not, likely failure in deepequal")
 	}
 
@@ -61,14 +62,14 @@ func TestDeepCopy(t *testing.T) {
 	if !reflect.DeepEqual(check, original) {
 		t.Error("after mutation of copy, check and original should be identical but are not, likely failure in deep copy (ensure custom DeepCopy is being used)")
 	}
-	if !kapi.Semantic.DeepEqual(check, original) {
+	if !equality.Semantic.DeepEqual(check, original) {
 		t.Error("after mutation of copy, check and original should be identical but are not, likely failure in deep copy (ensure custom DeepCopy is being used)")
 	}
 
 	if reflect.DeepEqual(original, copied) {
 		t.Error("after mutation of copy, original and copied should be different but are not, likely failure in deep copy (ensure custom DeepCopy is being used)")
 	}
-	if kapi.Semantic.DeepEqual(original, copied) {
+	if equality.Semantic.DeepEqual(original, copied) {
 		t.Error("after mutation of copy, original and copied should be different but are not, likely failure in deep copy (ensure custom DeepCopy is being used)")
 	}
 }

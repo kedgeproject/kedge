@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	buildclient "github.com/openshift/origin/pkg/build/client"
 	"github.com/openshift/origin/pkg/cmd/server/bootstrappolicy"
 	imagecontroller "github.com/openshift/origin/pkg/image/controller"
+	imagesignaturecontroller "github.com/openshift/origin/pkg/image/controller/signature"
 	imagetriggercontroller "github.com/openshift/origin/pkg/image/controller/trigger"
 	triggerannotations "github.com/openshift/origin/pkg/image/trigger/annotations"
 	triggerbuildconfigs "github.com/openshift/origin/pkg/image/trigger/buildconfigs"
@@ -36,14 +38,19 @@ func (c *ImageTriggerControllerConfig) RunController(ctx ControllerContext) (boo
 	//streamInformer := ctx.ImageInformers.Image().InternalVersion().ImageStreams().Informer()
 	informer := ctx.ImageInformers.Image().InternalVersion().ImageStreams()
 
-	oclient, err := ctx.ClientBuilder.DeprecatedOpenshiftClient(bootstrappolicy.InfraImageTriggerControllerServiceAccountName)
+	buildClient, err := ctx.ClientBuilder.OpenshiftInternalBuildClient(bootstrappolicy.InfraImageTriggerControllerServiceAccountName)
+	if err != nil {
+		return true, err
+	}
+
+	appsClient, err := ctx.ClientBuilder.OpenshiftInternalAppsClient(bootstrappolicy.InfraImageTriggerControllerServiceAccountName)
 	if err != nil {
 		return true, err
 	}
 	kclient := ctx.ClientBuilder.ClientOrDie(bootstrappolicy.InfraImageTriggerControllerServiceAccountName)
 
 	updater := podSpecUpdater{kclient}
-	bcInstantiator := buildclient.NewOSClientBuildConfigInstantiatorClient(oclient)
+	bcInstantiator := buildclient.NewClientBuildConfigInstantiatorClient(buildClient)
 	broadcaster := imagetriggercontroller.NewTriggerEventBroadcaster(kv1core.New(kclient.CoreV1().RESTClient()))
 
 	sources := []imagetriggercontroller.TriggerSource{
@@ -52,7 +59,7 @@ func (c *ImageTriggerControllerConfig) RunController(ctx ControllerContext) (boo
 			Informer:  ctx.AppInformers.Apps().InternalVersion().DeploymentConfigs().Informer(),
 			Store:     ctx.AppInformers.Apps().InternalVersion().DeploymentConfigs().Informer().GetIndexer(),
 			TriggerFn: triggerdeploymentconfigs.NewDeploymentConfigTriggerIndexer,
-			Reactor:   &triggerdeploymentconfigs.DeploymentConfigReactor{Client: oclient},
+			Reactor:   &triggerdeploymentconfigs.DeploymentConfigReactor{Client: appsClient.Apps()},
 		},
 	}
 	if !c.HasBuilderEnabled {
@@ -61,7 +68,7 @@ func (c *ImageTriggerControllerConfig) RunController(ctx ControllerContext) (boo
 			Informer:  ctx.BuildInformers.Build().InternalVersion().BuildConfigs().Informer(),
 			Store:     ctx.BuildInformers.Build().InternalVersion().BuildConfigs().Informer().GetIndexer(),
 			TriggerFn: triggerbuildconfigs.NewBuildConfigTriggerIndexer,
-			Reactor:   &triggerbuildconfigs.BuildConfigReactor{Instantiator: bcInstantiator},
+			Reactor:   triggerbuildconfigs.NewBuildConfigReactor(bcInstantiator, kclient.Core().RESTClient()),
 		})
 	}
 	if !c.HasDeploymentsEnabled {
@@ -142,6 +149,25 @@ func (u podSpecUpdater) Update(obj runtime.Object) error {
 	}
 }
 
+type ImageSignatureImportControllerConfig struct {
+	ResyncPeriod          time.Duration
+	SignatureFetchTimeout time.Duration
+	SignatureImportLimit  int
+}
+
+func (c *ImageSignatureImportControllerConfig) RunController(ctx ControllerContext) (bool, error) {
+	controller := imagesignaturecontroller.NewSignatureImportController(
+		context.Background(),
+		ctx.ClientBuilder.OpenshiftInternalImageClientOrDie(bootstrappolicy.InfraImageImportControllerServiceAccountName),
+		ctx.ImageInformers.Image().InternalVersion().Images(),
+		c.ResyncPeriod,
+		c.SignatureFetchTimeout,
+		c.SignatureImportLimit,
+	)
+	go controller.Run(5, ctx.Stop)
+	return true, nil
+}
+
 type ImageImportControllerConfig struct {
 	MaxScheduledImageImportsPerMinute          int
 	ScheduledImageImportMinimumIntervalSeconds int
@@ -151,9 +177,8 @@ type ImageImportControllerConfig struct {
 
 func (c *ImageImportControllerConfig) RunController(ctx ControllerContext) (bool, error) {
 	informer := ctx.ImageInformers.Image().InternalVersion().ImageStreams()
-
 	controller := imagecontroller.NewImageStreamController(
-		ctx.ClientBuilder.DeprecatedOpenshiftClientOrDie(bootstrappolicy.InfraImageImportControllerServiceAccountName),
+		ctx.ClientBuilder.OpenshiftInternalImageClientOrDie(bootstrappolicy.InfraImageImportControllerServiceAccountName),
 		informer,
 	)
 	go controller.Run(5, ctx.Stop)
@@ -163,7 +188,7 @@ func (c *ImageImportControllerConfig) RunController(ctx ControllerContext) (bool
 	}
 
 	scheduledController := imagecontroller.NewScheduledImageStreamController(
-		ctx.ClientBuilder.DeprecatedOpenshiftClientOrDie(bootstrappolicy.InfraImageImportControllerServiceAccountName),
+		ctx.ClientBuilder.OpenshiftInternalImageClientOrDie(bootstrappolicy.InfraImageImportControllerServiceAccountName),
 		informer,
 		imagecontroller.ScheduledImageStreamControllerOptions{
 			Resync: time.Duration(c.ScheduledImageImportMinimumIntervalSeconds) * time.Second,

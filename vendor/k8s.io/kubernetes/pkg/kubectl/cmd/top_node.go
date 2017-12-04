@@ -50,28 +50,43 @@ type HeapsterTopOptions struct {
 }
 
 func (o *HeapsterTopOptions) Bind(flags *pflag.FlagSet) {
-	flags.StringVar(&o.Namespace, "heapster-namespace", metricsutil.DefaultHeapsterNamespace, "Namespace Heapster service is located in")
-	flags.StringVar(&o.Service, "heapster-service", metricsutil.DefaultHeapsterService, "Name of Heapster service")
-	flags.StringVar(&o.Scheme, "heapster-scheme", metricsutil.DefaultHeapsterScheme, "Scheme (http or https) to connect to Heapster as")
-	flags.StringVar(&o.Port, "heapster-port", metricsutil.DefaultHeapsterPort, "Port name in service to use")
+	if len(o.Namespace) == 0 {
+		o.Namespace = metricsutil.DefaultHeapsterNamespace
+	}
+	if len(o.Service) == 0 {
+		o.Service = metricsutil.DefaultHeapsterService
+	}
+	if len(o.Scheme) == 0 {
+		o.Scheme = metricsutil.DefaultHeapsterScheme
+	}
+	if len(o.Port) == 0 {
+		o.Port = metricsutil.DefaultHeapsterPort
+	}
+
+	flags.StringVar(&o.Namespace, "heapster-namespace", o.Namespace, "Namespace Heapster service is located in")
+	flags.StringVar(&o.Service, "heapster-service", o.Service, "Name of Heapster service")
+	flags.StringVar(&o.Scheme, "heapster-scheme", o.Scheme, "Scheme (http or https) to connect to Heapster as")
+	flags.StringVar(&o.Port, "heapster-port", o.Port, "Port name in service to use")
 }
 
 var (
-	topNodeLong = templates.LongDesc(`
+	topNodeLong = templates.LongDesc(i18n.T(`
 		Display Resource (CPU/Memory/Storage) usage of nodes.
 
-		The top-node command allows you to see the resource consumption of nodes.`)
+		The top-node command allows you to see the resource consumption of nodes.`))
 
-	topNodeExample = templates.Examples(`
+	topNodeExample = templates.Examples(i18n.T(`
 		  # Show metrics for all nodes
 		  kubectl top node
 
 		  # Show metrics for a given node
-		  kubectl top node NODE_NAME`)
+		  kubectl top node NODE_NAME`))
 )
 
-func NewCmdTopNode(f cmdutil.Factory, out io.Writer) *cobra.Command {
-	options := &TopNodeOptions{}
+func NewCmdTopNode(f cmdutil.Factory, options *TopNodeOptions, out io.Writer) *cobra.Command {
+	if options == nil {
+		options = &TopNodeOptions{}
+	}
 
 	cmd := &cobra.Command{
 		Use:     "node [NAME | -l label]",

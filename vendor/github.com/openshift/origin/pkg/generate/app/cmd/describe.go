@@ -11,10 +11,10 @@ import (
 	kapi "k8s.io/kubernetes/pkg/api"
 
 	oapi "github.com/openshift/origin/pkg/api"
-	"github.com/openshift/origin/pkg/cmd/cli/describe"
 	"github.com/openshift/origin/pkg/generate"
 	"github.com/openshift/origin/pkg/generate/app"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
+	"github.com/openshift/origin/pkg/oc/cli/describe"
 )
 
 func displayName(meta metav1.ObjectMeta) string {
@@ -157,7 +157,7 @@ func describeBuildPipelineWithImage(out io.Writer, ref app.ComponentReference, p
 			source = "binary input"
 		case len(s.DockerfileContents) > 0:
 			source = "a predefined Dockerfile"
-		case s.URL != nil && len(s.URL.Host) > 0:
+		case s.URL != nil && len(s.URL.URL.Host) > 0:
 			source = fmt.Sprintf("source code from %s", s.URL)
 		case s.URL != nil:
 			noSource = true

@@ -22,10 +22,13 @@ import (
 	"k8s.io/apiserver/pkg/server/healthz"
 	"k8s.io/client-go/tools/clientcmd"
 	kapi "k8s.io/kubernetes/pkg/api"
+	authorizationtypedclient "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/typed/authorization/internalversion"
 
-	authapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
-	"github.com/openshift/origin/pkg/client"
 	"github.com/openshift/origin/pkg/generate/git"
+
+	s2igit "github.com/openshift/source-to-image/pkg/scm/git"
+	"k8s.io/client-go/rest"
+	"k8s.io/kubernetes/pkg/apis/authorization"
 )
 
 const (
@@ -120,7 +123,7 @@ type Config struct {
 
 // Clone is a repository to clone
 type Clone struct {
-	URL   url.URL
+	URL   s2igit.URL
 	Hooks map[string]string
 }
 
@@ -140,6 +143,23 @@ func NewDefaultConfig() *Config {
 		Listen:       ":8080",
 		MaxHookBytes: 50 * 1024,
 	}
+}
+
+func checkURLIsAllowed(url *s2igit.URL) bool {
+	switch url.Type {
+	case s2igit.URLTypeLocal:
+		return false
+	case s2igit.URLTypeURL:
+		if url.URL.Opaque != "" {
+			return false
+		}
+		switch url.URL.Scheme {
+		case "git", "http", "https", "ssh":
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // NewEnvironmentConfig sets up the initial config from environment variables
@@ -226,10 +246,6 @@ func NewEnvironmentConfig() (*Config, error) {
 		if err != nil {
 			return nil, fmt.Errorf("could not create a client for REQUIRE_SERVER_AUTH: %v", err)
 		}
-		osc, err := client.New(cfg)
-		if err != nil {
-			return nil, fmt.Errorf("could not create a client for REQUIRE_SERVER_AUTH: %v", err)
-		}
 
 		config.AuthMessage = fmt.Sprintf("Authenticating against %s allow-push=%t anon-pull=%t", cfg.Host, config.AllowPush, allowAnonymousGet)
 		authHandlerFn := auth.Authenticator(func(info auth.AuthInfo) (bool, error) {
@@ -237,29 +253,40 @@ func NewEnvironmentConfig() (*Config, error) {
 				glog.V(5).Infof("Allowing pull because anonymous get is enabled")
 				return true, nil
 			}
-			req := &authapi.LocalSubjectAccessReview{
-				Action: authapi.Action{
-					Verb:     "get",
-					Group:    kapi.GroupName,
-					Resource: "pods",
+			req := &authorization.SelfSubjectAccessReview{
+				Spec: authorization.SelfSubjectAccessReviewSpec{
+					ResourceAttributes: &authorization.ResourceAttributes{
+						Verb:      "get",
+						Namespace: namespace,
+						Group:     kapi.GroupName,
+						Resource:  "pods",
+					},
 				},
 			}
 			if info.Push {
 				if !config.AllowPush {
 					return false, nil
 				}
-				req.Action.Verb = "create"
+				req.Spec.ResourceAttributes.Verb = "create"
 			}
-			glog.V(5).Infof("Checking for %s permission on pods", req.Action.Verb)
-			res, err := osc.ImpersonateLocalSubjectAccessReviews(namespace, info.Password).Create(req)
+
+			configForUser := rest.AnonymousClientConfig(cfg)
+			configForUser.BearerToken = info.Password
+			authorizationClient, err := authorizationtypedclient.NewForConfig(configForUser)
+			if err != nil {
+				return false, err
+			}
+
+			glog.V(5).Infof("Checking for %s permission on pods", req.Spec.ResourceAttributes.Verb)
+			res, err := authorizationClient.SelfSubjectAccessReviews().Create(req)
 			if err != nil {
 				if se, ok := err.(*errors.StatusError); ok {
 					return false, &statusError{se}
 				}
 				return false, err
 			}
-			glog.V(5).Infof("server response allowed=%t message=%s", res.Allowed, res.Reason)
-			return res.Allowed, nil
+			glog.V(5).Infof("server response allowed=%t message=%s", res.Status.Allowed, res.Status.Reason)
+			return res.Status.Allowed, nil
 		})
 		if allowAnonymousGet {
 			authHandlerFn = anonymousHandler(authHandlerFn)
@@ -333,18 +360,16 @@ func NewEnvironmentConfig() (*Config, error) {
 			return nil, fmt.Errorf("%s may only have two segments (<url> or <url>;<name>)", key)
 		}
 
-		url, err := git.ParseRepository(uri)
+		url, err := s2igit.Parse(uri)
 		if err != nil {
 			return nil, fmt.Errorf("%s is not a valid repository URI: %v", key, err)
 		}
-		switch url.Scheme {
-		case "http", "https", "git", "ssh":
-		default:
+		if !checkURLIsAllowed(url) {
 			return nil, fmt.Errorf("%s %q must be a http, https, git, or ssh URL", key, uri)
 		}
 
 		if len(name) == 0 {
-			if n, ok := git.NameFromRepositoryURL(url); ok {
+			if n, ok := git.NameFromRepositoryURL(&url.URL); ok {
 				name = n + ".git"
 			}
 		}

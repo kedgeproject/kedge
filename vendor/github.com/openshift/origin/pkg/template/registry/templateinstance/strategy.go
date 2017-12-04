@@ -2,22 +2,22 @@ package templateinstance
 
 import (
 	"errors"
-	"fmt"
 
-	"k8s.io/apimachinery/pkg/fields"
-	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	kutilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/apiserver/pkg/authentication/user"
 	apirequest "k8s.io/apiserver/pkg/endpoints/request"
-	"k8s.io/apiserver/pkg/storage"
 	"k8s.io/apiserver/pkg/storage/names"
 	kapi "k8s.io/kubernetes/pkg/api"
+	kapihelper "k8s.io/kubernetes/pkg/api/helper"
 	"k8s.io/kubernetes/pkg/apis/authorization"
-	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
+	authorizationinternalversion "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/typed/authorization/internalversion"
+	rbacregistry "k8s.io/kubernetes/pkg/registry/rbac"
 
 	"github.com/openshift/origin/pkg/authorization/util"
-	oadmission "github.com/openshift/origin/pkg/cmd/server/admission"
+	template "github.com/openshift/origin/pkg/template"
 	templateapi "github.com/openshift/origin/pkg/template/apis/template"
 	"github.com/openshift/origin/pkg/template/apis/template/validation"
 )
@@ -26,11 +26,11 @@ import (
 type templateInstanceStrategy struct {
 	runtime.ObjectTyper
 	names.NameGenerator
-	kc kclientset.Interface
+	authorizationClient authorizationinternalversion.AuthorizationInterface
 }
 
-func NewStrategy(kc kclientset.Interface) *templateInstanceStrategy {
-	return &templateInstanceStrategy{kapi.Scheme, names.SimpleNameGenerator, kc}
+func NewStrategy(authorizationClient authorizationinternalversion.AuthorizationInterface) *templateInstanceStrategy {
+	return &templateInstanceStrategy{kapi.Scheme, names.SimpleNameGenerator, authorizationClient}
 }
 
 // NamespaceScoped is true for templateinstances.
@@ -54,10 +54,14 @@ func (templateInstanceStrategy) Canonicalize(obj runtime.Object) {
 func (templateInstanceStrategy) PrepareForCreate(ctx apirequest.Context, obj runtime.Object) {
 	templateInstance := obj.(*templateapi.TemplateInstance)
 
+	// if request not set, pull from context; note: the requester can be set via the service catalog
+	// propagating the user information via the openservicebroker origination api header on
+	// calls to the TSB endpoints (i.e. the Provision call)
 	if templateInstance.Spec.Requester == nil {
-		user, _ := apirequest.UserFrom(ctx)
-		templateInstance.Spec.Requester = &templateapi.TemplateInstanceRequester{
-			Username: user.GetName(),
+
+		if user, ok := apirequest.UserFrom(ctx); ok {
+			templateReq := template.ConvertUserToTemplateInstanceRequester(user)
+			templateInstance.Spec.Requester = &templateReq
 		}
 	}
 
@@ -94,39 +98,42 @@ func (s *templateInstanceStrategy) ValidateUpdate(ctx apirequest.Context, obj, o
 		return field.ErrorList{field.InternalError(field.NewPath(""), errors.New("user not found in context"))}
 	}
 
-	templateInstance := obj.(*templateapi.TemplateInstance)
-	oldTemplateInstance := old.(*templateapi.TemplateInstance)
+	// Decode Spec.Template.Objects on both obj and old to Unstructureds.  This
+	// allows detectection of at least some cases where the Objects are
+	// semantically identical, but the serialisations have been jumbled up.  One
+	// place where this happens is in the garbage collector, which uses
+	// Unstructureds via the dynamic client.
+
+	objcopy, err := kapi.Scheme.DeepCopy(obj)
+	if err != nil {
+		return field.ErrorList{field.InternalError(field.NewPath(""), err)}
+	}
+	templateInstance := objcopy.(*templateapi.TemplateInstance)
+
+	errs := runtime.DecodeList(templateInstance.Spec.Template.Objects, unstructured.UnstructuredJSONScheme)
+	if len(errs) != 0 {
+		return field.ErrorList{field.InternalError(field.NewPath(""), kutilerrors.NewAggregate(errs))}
+	}
+
+	oldcopy, err := kapi.Scheme.DeepCopy(old)
+	if err != nil {
+		return field.ErrorList{field.InternalError(field.NewPath(""), err)}
+	}
+	oldTemplateInstance := oldcopy.(*templateapi.TemplateInstance)
+
+	errs = runtime.DecodeList(oldTemplateInstance.Spec.Template.Objects, unstructured.UnstructuredJSONScheme)
+	if len(errs) != 0 {
+		return field.ErrorList{field.InternalError(field.NewPath(""), kutilerrors.NewAggregate(errs))}
+	}
+
 	allErrs := validation.ValidateTemplateInstanceUpdate(templateInstance, oldTemplateInstance)
 	allErrs = append(allErrs, s.validateImpersonationUpdate(templateInstance, oldTemplateInstance, user)...)
 
 	return allErrs
 }
 
-// Matcher returns a generic matcher for a given label and field selector.
-func Matcher(label labels.Selector, field fields.Selector) storage.SelectionPredicate {
-	return storage.SelectionPredicate{
-		Label:    label,
-		Field:    field,
-		GetAttrs: GetAttrs,
-	}
-}
-
-// GetAttrs returns labels and fields of a given object for filtering purposes
-func GetAttrs(o runtime.Object) (labels.Set, fields.Set, error) {
-	obj, ok := o.(*templateapi.TemplateInstance)
-	if !ok {
-		return nil, nil, fmt.Errorf("not a TemplateInstance")
-	}
-	return labels.Set(obj.Labels), SelectableFields(obj), nil
-}
-
-// SelectableFields returns a field set that can be used for filter selection
-func SelectableFields(obj *templateapi.TemplateInstance) fields.Set {
-	return templateapi.TemplateInstanceToSelectableFields(obj)
-}
-
 func (s *templateInstanceStrategy) validateImpersonationUpdate(templateInstance, oldTemplateInstance *templateapi.TemplateInstance, userinfo user.Info) field.ErrorList {
-	if oadmission.IsOnlyMutatingGCFields(templateInstance, oldTemplateInstance) {
+	if rbacregistry.IsOnlyMutatingGCFields(templateInstance, oldTemplateInstance, kapihelper.Semantic) {
 		return nil
 	}
 
@@ -139,11 +146,12 @@ func (s *templateInstanceStrategy) validateImpersonation(templateInstance *templ
 	}
 
 	if templateInstance.Spec.Requester.Username != userinfo.GetName() {
-		if err := util.Authorize(s.kc.Authorization().SubjectAccessReviews(), userinfo, &authorization.ResourceAttributes{
+		if err := util.Authorize(s.authorizationClient.SubjectAccessReviews(), userinfo, &authorization.ResourceAttributes{
 			Namespace: templateInstance.Namespace,
 			Verb:      "assign",
 			Group:     templateapi.GroupName,
 			Resource:  "templateinstances",
+			Name:      templateInstance.Name,
 		}); err != nil {
 			return field.ErrorList{field.Forbidden(field.NewPath("spec.requester.username"), "you do not have permission to set username")}
 		}

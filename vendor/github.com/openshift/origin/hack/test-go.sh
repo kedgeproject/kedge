@@ -103,6 +103,7 @@ function list_test_packages_under() {
               -o -path '*test/*'              \
               -o -path '*cmd/cluster-capacity' \
               -o -path '*cmd/service-catalog' \
+              -o -path '*pkg/proxy' \
         \) -prune                             \
     \) -name '*_test.go' | xargs -n1 dirname | sort -u | xargs -n1 printf "${OS_GO_PACKAGE}/%s\n"
 }
@@ -174,8 +175,6 @@ fi
 if [[ -n "${junit_report}" ]]; then
     # we need to generate jUnit xml
 
-    test_output_file="${LOG_DIR}/test-go.log"
-    export JUNIT_REPORT_OUTPUT="${test_output_file}"
     test_error_file="${LOG_DIR}/test-go-err.log"
 
     os::log::info "Running \`go test\`..."
@@ -183,19 +182,19 @@ if [[ -n "${junit_report}" ]]; then
     set +o pipefail
 
     go test -i ${gotest_flags} ${test_packages}
-    go test ${gotest_flags} ${test_packages} 2>"${test_error_file}" | tee "${test_output_file}"
+    go test ${gotest_flags} ${test_packages} 2>"${test_error_file}" | tee "${JUNIT_REPORT_OUTPUT}"
 
     test_return_code="${PIPESTATUS[0]}"
 
     set -o pipefail
 
     if [[ -s "${test_error_file}" ]]; then
-        os::log::warning "\`go test\` had the following output to stderr:"
-        cat "${test_error_file}"
+        os::log::warning "\`go test\` had the following output to stderr:
+$( cat "${test_error_file}") "
     fi
 
-    if grep -q 'WARNING: DATA RACE' "${test_output_file}"; then
-        locations=( $( sed -n '/WARNING: DATA RACE/=' "${test_output_file}") )
+    if grep -q 'WARNING: DATA RACE' "${JUNIT_REPORT_OUTPUT}"; then
+        locations=( $( sed -n '/WARNING: DATA RACE/=' "${JUNIT_REPORT_OUTPUT}") )
         if [[ "${#locations[@]}" -gt 1 ]]; then
             os::log::warning "\`go test\` detected data races."
             os::log::warning "Details can be found in the full output file at lines ${locations[*]}."

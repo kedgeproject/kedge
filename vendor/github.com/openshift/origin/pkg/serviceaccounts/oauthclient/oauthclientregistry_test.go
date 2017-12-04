@@ -10,15 +10,17 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
-	apirequest "k8s.io/apiserver/pkg/endpoints/request"
 	clientgotesting "k8s.io/client-go/testing"
+	"k8s.io/client-go/tools/record"
 	kapi "k8s.io/kubernetes/pkg/api"
+	kapihelper "k8s.io/kubernetes/pkg/api/helper"
 	"k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/fake"
 
-	ostestclient "github.com/openshift/origin/pkg/client/testclient"
 	oauthapi "github.com/openshift/origin/pkg/oauth/apis/oauth"
+	_ "github.com/openshift/origin/pkg/oauth/apis/oauth/install"
 	oauthapiv1 "github.com/openshift/origin/pkg/oauth/apis/oauth/v1"
 	routeapi "github.com/openshift/origin/pkg/route/apis/route"
+	routefake "github.com/openshift/origin/pkg/route/generated/internalclientset/fake"
 )
 
 var (
@@ -26,18 +28,21 @@ var (
 	decoder                 = kapi.Codecs.UniversalDecoder()
 	serviceAccountsResource = schema.GroupVersionResource{Group: "", Version: "", Resource: "serviceaccounts"}
 	secretsResource         = schema.GroupVersionResource{Group: "", Version: "", Resource: "secrets"}
-	routesResource          = schema.GroupVersionResource{Group: "", Version: "", Resource: "routes"}
+	secretKind              = schema.GroupVersionKind{Group: "", Version: "", Kind: "Secret"}
+	routesResource          = schema.GroupVersionResource{Group: "route.openshift.io", Version: "", Resource: "routes"}
+	routeClientKind         = schema.GroupVersionKind{Group: "route.openshift.io", Version: "", Kind: "Route"}
 )
 
 func TestGetClient(t *testing.T) {
 	testCases := []struct {
-		name       string
-		clientName string
-		kubeClient *fake.Clientset
-		osClient   *ostestclient.Fake
+		name        string
+		clientName  string
+		kubeClient  *fake.Clientset
+		routeClient *routefake.Clientset
 
 		expectedDelegation  bool
 		expectedErr         string
+		expectedEventMsg    string
 		expectedClient      *oauthapi.OAuthClient
 		expectedKubeActions []clientgotesting.Action
 		expectedOSActions   []clientgotesting.Action
@@ -46,7 +51,7 @@ func TestGetClient(t *testing.T) {
 			name:                "delegate",
 			clientName:          "not:serviceaccount",
 			kubeClient:          fake.NewSimpleClientset(),
-			osClient:            ostestclient.NewSimpleFake(),
+			routeClient:         routefake.NewSimpleClientset(),
 			expectedDelegation:  true,
 			expectedKubeActions: []clientgotesting.Action{},
 			expectedOSActions:   []clientgotesting.Action{},
@@ -55,8 +60,8 @@ func TestGetClient(t *testing.T) {
 			name:                "missing sa",
 			clientName:          "system:serviceaccount:ns-01:missing-sa",
 			kubeClient:          fake.NewSimpleClientset(),
-			osClient:            ostestclient.NewSimpleFake(),
-			expectedErr:         `ServiceAccount "missing-sa" not found`,
+			routeClient:         routefake.NewSimpleClientset(),
+			expectedErr:         `serviceaccounts "missing-sa" not found`,
 			expectedKubeActions: []clientgotesting.Action{clientgotesting.NewGetAction(serviceAccountsResource, "ns-01", "missing-sa")},
 			expectedOSActions:   []clientgotesting.Action{},
 		},
@@ -71,8 +76,28 @@ func TestGetClient(t *testing.T) {
 						Annotations: map[string]string{},
 					},
 				}),
-			osClient:            ostestclient.NewSimpleFake(),
+			routeClient:      routefake.NewSimpleClientset(),
+			expectedErr:      `system:serviceaccount:ns-01:default has no redirectURIs; set serviceaccounts.openshift.io/oauth-redirecturi.<some-value>`,
+			expectedEventMsg: `Warning NoSAOAuthRedirectURIs system:serviceaccount:ns-01:default has no redirectURIs; set serviceaccounts.openshift.io/oauth-redirecturi.<some-value>=<redirect> or create a dynamic URI using serviceaccounts.openshift.io/oauth-redirectreference.<some-value>=<reference>`,
+
+			//expectedEventMsg:    `Warning NoSAOAuthRedirectURIs [parse ::: missing protocol scheme, system:serviceaccount:ns-01:default has no redirectURIs; set serviceaccounts.openshift.io/oauth-redirecturi.<some-value>=<redirect> or create a dynamic URI using serviceaccounts.openshift.io/oauth-redirectreference.<some-value>=<reference>]`,
+			expectedKubeActions: []clientgotesting.Action{clientgotesting.NewGetAction(serviceAccountsResource, "ns-01", "default")},
+			expectedOSActions:   []clientgotesting.Action{},
+		},
+		{
+			name:       "sa invalid redirect scheme",
+			clientName: "system:serviceaccount:ns-01:default",
+			kubeClient: fake.NewSimpleClientset(
+				&kapi.ServiceAccount{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace:   "ns-01",
+						Name:        "default",
+						Annotations: map[string]string{OAuthRedirectModelAnnotationURIPrefix + "incomplete": "::"},
+					},
+				}),
+			routeClient:         routefake.NewSimpleClientset(),
 			expectedErr:         `system:serviceaccount:ns-01:default has no redirectURIs; set serviceaccounts.openshift.io/oauth-redirecturi.<some-value>`,
+			expectedEventMsg:    `Warning NoSAOAuthRedirectURIs [parse ::: missing protocol scheme, system:serviceaccount:ns-01:default has no redirectURIs; set serviceaccounts.openshift.io/oauth-redirecturi.<some-value>=<redirect> or create a dynamic URI using serviceaccounts.openshift.io/oauth-redirectreference.<some-value>=<reference>]`,
 			expectedKubeActions: []clientgotesting.Action{clientgotesting.NewGetAction(serviceAccountsResource, "ns-01", "default")},
 			expectedOSActions:   []clientgotesting.Action{},
 		},
@@ -87,11 +112,12 @@ func TestGetClient(t *testing.T) {
 						Annotations: map[string]string{OAuthRedirectModelAnnotationURIPrefix + "one": "http://anywhere"},
 					},
 				}),
-			osClient:    ostestclient.NewSimpleFake(),
-			expectedErr: `system:serviceaccount:ns-01:default has no tokens`,
+			routeClient:      routefake.NewSimpleClientset(),
+			expectedErr:      `system:serviceaccount:ns-01:default has no tokens`,
+			expectedEventMsg: `Warning NoSAOAuthTokens system:serviceaccount:ns-01:default has no tokens`,
 			expectedKubeActions: []clientgotesting.Action{
 				clientgotesting.NewGetAction(serviceAccountsResource, "ns-01", "default"),
-				clientgotesting.NewListAction(secretsResource, "ns-01", metav1.ListOptions{}),
+				clientgotesting.NewListAction(secretsResource, secretKind, "ns-01", metav1.ListOptions{}),
 			},
 			expectedOSActions: []clientgotesting.Action{},
 		},
@@ -119,7 +145,7 @@ func TestGetClient(t *testing.T) {
 					Type: kapi.SecretTypeServiceAccountToken,
 					Data: map[string][]byte{kapi.ServiceAccountTokenKey: []byte("foo")},
 				}),
-			osClient: ostestclient.NewSimpleFake(),
+			routeClient: routefake.NewSimpleClientset(),
 			expectedClient: &oauthapi.OAuthClient{
 				ObjectMeta:        metav1.ObjectMeta{Name: "system:serviceaccount:ns-01:default"},
 				ScopeRestrictions: getScopeRestrictionsFor("ns-01", "default"),
@@ -129,7 +155,7 @@ func TestGetClient(t *testing.T) {
 			},
 			expectedKubeActions: []clientgotesting.Action{
 				clientgotesting.NewGetAction(serviceAccountsResource, "ns-01", "default"),
-				clientgotesting.NewListAction(secretsResource, "ns-01", metav1.ListOptions{}),
+				clientgotesting.NewListAction(secretsResource, secretKind, "ns-01", metav1.ListOptions{}),
 			},
 			expectedOSActions: []clientgotesting.Action{},
 		},
@@ -144,7 +170,7 @@ func TestGetClient(t *testing.T) {
 						UID:       types.UID("any"),
 						Annotations: map[string]string{
 							OAuthRedirectModelAnnotationURIPrefix + "one":     "http://anywhere",
-							OAuthRedirectModelAnnotationReferencePrefix + "1": buildRedirectObjectReferenceString(routeKind, "route1", ""),
+							OAuthRedirectModelAnnotationReferencePrefix + "1": buildRedirectObjectReferenceString(routeKind, "route1", "route.openshift.io"),
 						},
 					},
 				},
@@ -160,7 +186,7 @@ func TestGetClient(t *testing.T) {
 					Type: kapi.SecretTypeServiceAccountToken,
 					Data: map[string][]byte{kapi.ServiceAccountTokenKey: []byte("foo")},
 				}),
-			osClient: ostestclient.NewSimpleFake(
+			routeClient: routefake.NewSimpleClientset(
 				&routeapi.Route{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "ns-01",
@@ -187,7 +213,7 @@ func TestGetClient(t *testing.T) {
 			},
 			expectedKubeActions: []clientgotesting.Action{
 				clientgotesting.NewGetAction(serviceAccountsResource, "ns-01", "default"),
-				clientgotesting.NewListAction(secretsResource, "ns-01", metav1.ListOptions{}),
+				clientgotesting.NewListAction(secretsResource, secretKind, "ns-01", metav1.ListOptions{}),
 			},
 			expectedOSActions: []clientgotesting.Action{
 				clientgotesting.NewGetAction(routesResource, "ns-01", "route1"),
@@ -221,7 +247,7 @@ func TestGetClient(t *testing.T) {
 					Type: kapi.SecretTypeServiceAccountToken,
 					Data: map[string][]byte{kapi.ServiceAccountTokenKey: []byte("foo")},
 				}),
-			osClient: ostestclient.NewSimpleFake(
+			routeClient: routefake.NewSimpleClientset(
 				&routeapi.Route{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "ns-01",
@@ -250,12 +276,12 @@ func TestGetClient(t *testing.T) {
 			},
 			expectedKubeActions: []clientgotesting.Action{
 				clientgotesting.NewGetAction(serviceAccountsResource, "ns-01", "default"),
-				clientgotesting.NewListAction(secretsResource, "ns-01", metav1.ListOptions{}),
+				clientgotesting.NewListAction(secretsResource, secretKind, "ns-01", metav1.ListOptions{}),
 			},
 			expectedOSActions: []clientgotesting.Action{},
 		},
 		{
-			name:       "good SA with a route that don't have a host",
+			name:       "good SA with a route that doesn't have a host",
 			clientName: "system:serviceaccount:ns-01:default",
 			kubeClient: fake.NewSimpleClientset(
 				&kapi.ServiceAccount{
@@ -281,7 +307,7 @@ func TestGetClient(t *testing.T) {
 					Type: kapi.SecretTypeServiceAccountToken,
 					Data: map[string][]byte{kapi.ServiceAccountTokenKey: []byte("foo")},
 				}),
-			osClient: ostestclient.NewSimpleFake(
+			routeClient: routefake.NewSimpleClientset(
 				&routeapi.Route{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "ns-01",
@@ -308,7 +334,7 @@ func TestGetClient(t *testing.T) {
 			},
 			expectedKubeActions: []clientgotesting.Action{
 				clientgotesting.NewGetAction(serviceAccountsResource, "ns-01", "default"),
-				clientgotesting.NewListAction(secretsResource, "ns-01", metav1.ListOptions{}),
+				clientgotesting.NewListAction(secretsResource, secretKind, "ns-01", metav1.ListOptions{}),
 			},
 			expectedOSActions: []clientgotesting.Action{
 				clientgotesting.NewGetAction(routesResource, "ns-01", "route1"),
@@ -343,7 +369,7 @@ func TestGetClient(t *testing.T) {
 					Type: kapi.SecretTypeServiceAccountToken,
 					Data: map[string][]byte{kapi.ServiceAccountTokenKey: []byte("foo")},
 				}),
-			osClient: ostestclient.NewSimpleFake(
+			routeClient: routefake.NewSimpleClientset(
 				&routeapi.Route{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "ns-01",
@@ -394,10 +420,10 @@ func TestGetClient(t *testing.T) {
 			},
 			expectedKubeActions: []clientgotesting.Action{
 				clientgotesting.NewGetAction(serviceAccountsResource, "ns-01", "default"),
-				clientgotesting.NewListAction(secretsResource, "ns-01", metav1.ListOptions{}),
+				clientgotesting.NewListAction(secretsResource, secretKind, "ns-01", metav1.ListOptions{}),
 			},
 			expectedOSActions: []clientgotesting.Action{
-				clientgotesting.NewListAction(routesResource, "ns-01", metav1.ListOptions{}),
+				clientgotesting.NewListAction(routesResource, routeClientKind, "ns-01", metav1.ListOptions{}),
 			},
 		},
 		{
@@ -429,7 +455,7 @@ func TestGetClient(t *testing.T) {
 					Type: kapi.SecretTypeServiceAccountToken,
 					Data: map[string][]byte{kapi.ServiceAccountTokenKey: []byte("foo")},
 				}),
-			osClient: ostestclient.NewSimpleFake(
+			routeClient: routefake.NewSimpleClientset(
 				&routeapi.Route{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "ns-01",
@@ -473,10 +499,10 @@ func TestGetClient(t *testing.T) {
 			},
 			expectedKubeActions: []clientgotesting.Action{
 				clientgotesting.NewGetAction(serviceAccountsResource, "ns-01", "default"),
-				clientgotesting.NewListAction(secretsResource, "ns-01", metav1.ListOptions{}),
+				clientgotesting.NewListAction(secretsResource, secretKind, "ns-01", metav1.ListOptions{}),
 			},
 			expectedOSActions: []clientgotesting.Action{
-				clientgotesting.NewListAction(routesResource, "ns-01", metav1.ListOptions{}),
+				clientgotesting.NewListAction(routesResource, routeClientKind, "ns-01", metav1.ListOptions{}),
 			},
 		},
 		{
@@ -508,7 +534,7 @@ func TestGetClient(t *testing.T) {
 					Type: kapi.SecretTypeServiceAccountToken,
 					Data: map[string][]byte{kapi.ServiceAccountTokenKey: []byte("foo")},
 				}),
-			osClient: ostestclient.NewSimpleFake(
+			routeClient: routefake.NewSimpleClientset(
 				&routeapi.Route{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "ns-01",
@@ -534,7 +560,7 @@ func TestGetClient(t *testing.T) {
 			},
 			expectedKubeActions: []clientgotesting.Action{
 				clientgotesting.NewGetAction(serviceAccountsResource, "ns-01", "default"),
-				clientgotesting.NewListAction(secretsResource, "ns-01", metav1.ListOptions{}),
+				clientgotesting.NewListAction(secretsResource, secretKind, "ns-01", metav1.ListOptions{}),
 			},
 			expectedOSActions: []clientgotesting.Action{
 				clientgotesting.NewGetAction(routesResource, "ns-01", "route1"),
@@ -544,8 +570,17 @@ func TestGetClient(t *testing.T) {
 
 	for _, tc := range testCases {
 		delegate := &fakeDelegate{}
-		getter := NewServiceAccountOAuthClientGetter(tc.kubeClient.Core(), tc.kubeClient.Core(), tc.osClient, delegate, oauthapi.GrantHandlerPrompt)
-		client, err := getter.GetClient(apirequest.NewContext(), tc.clientName, &metav1.GetOptions{})
+		fakerecorder := record.NewFakeRecorder(100)
+		getter := saOAuthClientAdapter{
+			saClient:      tc.kubeClient.Core(),
+			secretClient:  tc.kubeClient.Core(),
+			eventRecorder: fakerecorder,
+			routeClient:   tc.routeClient.Route(),
+			delegate:      delegate,
+			grantMethod:   oauthapi.GrantHandlerPrompt,
+			decoder:       kapi.Codecs.UniversalDecoder(),
+		}
+		client, err := getter.Get(tc.clientName, metav1.GetOptions{})
 		switch {
 		case len(tc.expectedErr) == 0 && err == nil:
 		case len(tc.expectedErr) == 0 && err != nil,
@@ -560,7 +595,7 @@ func TestGetClient(t *testing.T) {
 			continue
 		}
 
-		if !kapi.Semantic.DeepEqual(tc.expectedClient, client) {
+		if !kapihelper.Semantic.DeepEqual(tc.expectedClient, client) {
 			t.Errorf("%s: expected %#v, got %#v", tc.name, tc.expectedClient, client)
 			continue
 		}
@@ -570,19 +605,29 @@ func TestGetClient(t *testing.T) {
 			continue
 		}
 
-		if !reflect.DeepEqual(tc.expectedOSActions, tc.osClient.Actions()) {
-			t.Errorf("%s: expected %#v, got %#v", tc.name, tc.expectedOSActions, tc.osClient.Actions())
+		if !reflect.DeepEqual(tc.expectedOSActions, tc.routeClient.Actions()) {
+			t.Errorf("%s: expected %#v, got %#v", tc.name, tc.expectedOSActions, tc.routeClient.Actions())
 			continue
 		}
-	}
 
+		if len(tc.expectedEventMsg) > 0 {
+			var ev string
+			select {
+			case ev = <-fakerecorder.Events:
+			default:
+			}
+			if tc.expectedEventMsg != ev {
+				t.Errorf("%s: expected event message %#v, got %#v", tc.name, tc.expectedEventMsg, ev)
+			}
+		}
+	}
 }
 
 type fakeDelegate struct {
 	called bool
 }
 
-func (d *fakeDelegate) GetClient(ctx apirequest.Context, name string, options *metav1.GetOptions) (*oauthapi.OAuthClient, error) {
+func (d *fakeDelegate) Get(name string, options metav1.GetOptions) (*oauthapi.OAuthClient, error) {
 	d.called = true
 	return nil, nil
 }
@@ -813,8 +858,12 @@ func TestParseModelsMap(t *testing.T) {
 			},
 		},
 	} {
-		if !reflect.DeepEqual(test.expected, parseModelsMap(test.annotations, decoder)) {
-			t.Errorf("%s: expected %#v, got %#v", test.name, test.expected, parseModelsMap(test.annotations, decoder))
+		models, errs := parseModelsMap(test.annotations, decoder)
+		if len(errs) > 0 {
+			t.Errorf("%s: unexpected parseModelsMap errors %v", test.name, errs)
+		}
+		if !reflect.DeepEqual(test.expected, models) {
+			t.Errorf("%s: expected %#v, got %#v", test.name, test.expected, models)
 		}
 	}
 }
@@ -1002,7 +1051,11 @@ func TestGetRedirectURIs(t *testing.T) {
 		},
 	} {
 		a := buildRouteClient(test.routes)
-		actual := test.models.getRedirectURIs(a.redirectURIsFromRoutes(test.namespace, test.models.getNames()))
+		uris, errs := a.redirectURIsFromRoutes(test.namespace, test.models.getNames())
+		if len(errs) > 0 {
+			t.Errorf("%s: unexpected redirectURIsFromRoutes errors %v", test.name, errs)
+		}
+		actual := test.models.getRedirectURIs(uris)
 		if !reflect.DeepEqual(test.expected, actual) {
 			t.Errorf("%s: expected %#v, got %#v", test.name, test.expected, actual)
 		}
@@ -1169,8 +1222,12 @@ func TestRedirectURIsFromRoutes(t *testing.T) {
 		},
 	} {
 		a := buildRouteClient(test.routes)
-		if !reflect.DeepEqual(test.expected, a.redirectURIsFromRoutes(test.namespace, test.names)) {
-			t.Errorf("%s: expected %#v, got %#v", test.name, test.expected, a.redirectURIsFromRoutes(test.namespace, test.names))
+		uris, errs := a.redirectURIsFromRoutes(test.namespace, test.names)
+		if len(errs) > 0 {
+			t.Errorf("%s: unexpected redirectURIsFromRoutes errors %v", test.name, errs)
+		}
+		if !reflect.DeepEqual(test.expected, uris) {
+			t.Errorf("%s: expected %#v, got %#v", test.name, test.expected, uris)
 		}
 	}
 }
@@ -1180,7 +1237,10 @@ func buildRouteClient(routes []*routeapi.Route) saOAuthClientAdapter {
 	for _, route := range routes {
 		objects = append(objects, route)
 	}
-	return saOAuthClientAdapter{routeClient: ostestclient.NewSimpleFake(objects...)}
+	return saOAuthClientAdapter{
+		routeClient:   routefake.NewSimpleClientset(objects...).Route(),
+		eventRecorder: record.NewFakeRecorder(100),
+	}
 }
 
 func buildRedirectObjectReferenceString(kind, name, group string) string {

@@ -4,11 +4,11 @@ import (
 	"crypto/md5"
 	"fmt"
 	"reflect"
-	"regexp"
 	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	routeapi "github.com/openshift/origin/pkg/route/apis/route"
 )
@@ -206,7 +206,7 @@ func TestRouteKey(t *testing.T) {
 		},
 	}
 
-	key := router.routeKey(route)
+	key := routeKey(route)
 
 	if key != "foo:bar" {
 		t.Errorf("Expected key 'foo:bar' but got: %s", key)
@@ -267,7 +267,7 @@ func TestRouteKey(t *testing.T) {
 		}
 
 		router.AddRoute(route)
-		routeKey := router.routeKey(route)
+		routeKey := routeKey(route)
 		_, ok := router.state[routeKey]
 		if !ok {
 			t.Errorf("Unable to find created service alias config for route %s", routeKey)
@@ -288,7 +288,7 @@ func TestCreateServiceAliasConfig(t *testing.T) {
 
 	namespace := "foo"
 	serviceName := "TestService"
-	serviceWeight := int32(30)
+	serviceWeight := int32(0)
 
 	route := &routeapi.Route{
 		ObjectMeta: metav1.ObjectMeta{
@@ -317,15 +317,15 @@ func TestCreateServiceAliasConfig(t *testing.T) {
 
 	config := *router.createServiceAliasConfig(route, "foo")
 
-	suName := fmt.Sprintf("%s/%s", namespace, serviceName)
+	suName := endpointsKeyFromParts(namespace, serviceName)
 	expectedSUs := map[string]int32{
 		suName: serviceWeight,
 	}
 
 	// Basic sanity, validate more fields as necessary
 	if config.Host != route.Spec.Host || config.Path != route.Spec.Path || !compareTLS(route, config, t) ||
-		config.PreferPort != route.Spec.Port.TargetPort.String() || !reflect.DeepEqual(expectedSUs, config.ServiceUnitNames) ||
-		config.ActiveServiceUnits != 1 {
+		config.PreferPort != route.Spec.Port.TargetPort.String() || !reflect.DeepEqual(expectedSUs, config.ServiceUnits) ||
+		config.ActiveServiceUnits != 0 {
 		t.Errorf("Route %v did not match service alias config %v", route, config)
 	}
 
@@ -357,7 +357,7 @@ func TestAddRoute(t *testing.T) {
 		t.Fatalf("router state not marked as changed")
 	}
 
-	suName := fmt.Sprintf("%s/%s", namespace, serviceName)
+	suName := endpointsKeyFromParts(namespace, serviceName)
 	expectedSUs := map[string]ServiceUnit{
 		suName: {
 			Name:          suName,
@@ -370,7 +370,7 @@ func TestAddRoute(t *testing.T) {
 		t.Fatalf("Unexpected service units:\nwant: %#v\n got: %#v", expectedSUs, router.serviceUnits)
 	}
 
-	routeKey := router.routeKey(route)
+	routeKey := routeKey(route)
 
 	if config, ok := router.state[routeKey]; !ok {
 		t.Errorf("Unable to find created service alias config for route %s", routeKey)
@@ -477,7 +477,7 @@ func TestRemoveRoute(t *testing.T) {
 			Host: "host",
 		},
 	}
-	suKey := "bar/test"
+	suKey := endpointsKeyFromParts("bar", "test")
 
 	router.CreateServiceUnit(suKey)
 	router.AddRoute(route)
@@ -488,20 +488,20 @@ func TestRemoveRoute(t *testing.T) {
 		t.Fatalf("Unable to find created service unit %s", suKey)
 	}
 
-	routeKey := router.routeKey(route)
-	saCfg, ok := router.state[routeKey]
+	rKey := routeKey(route)
+	saCfg, ok := router.state[rKey]
 	if !ok {
-		t.Fatalf("Unable to find created serivce alias config for route %s", routeKey)
+		t.Fatalf("Unable to find created serivce alias config for route %s", rKey)
 	}
 	if saCfg.Host != route.Spec.Host || saCfg.Path != route.Spec.Path {
 		t.Fatalf("Route %v did not match serivce alias config %v", route, saCfg)
 	}
 
 	router.RemoveRoute(route)
-	if _, ok := router.state[routeKey]; ok {
+	if _, ok := router.state[rKey]; ok {
 		t.Errorf("Route %v was expected to be deleted but was still found", route)
 	}
-	if _, ok := router.state[router.routeKey(route2)]; !ok {
+	if _, ok := router.state[routeKey(route2)]; !ok {
 		t.Errorf("Route %v was expected to exist but was not found", route2)
 	}
 }
@@ -658,7 +658,7 @@ func TestAddRouteEdgeTerminationInsecurePolicy(t *testing.T) {
 
 		router.AddRoute(route)
 
-		routeKey := router.routeKey(route)
+		routeKey := routeKey(route)
 		saCfg, ok := router.state[routeKey]
 
 		if !ok {
@@ -673,226 +673,98 @@ func TestAddRouteEdgeTerminationInsecurePolicy(t *testing.T) {
 	}
 }
 
-func TestGenerateRouteRegexp(t *testing.T) {
-	tests := []struct {
-		name     string
-		hostname string
-		path     string
-		wildcard bool
+func TestFilterNamespaces(t *testing.T) {
+	router := NewFakeTemplateRouter()
 
-		match   []string
-		nomatch []string
+	testCases := []struct {
+		name         string
+		serviceUnits map[string]ServiceUnit
+		state        map[string]ServiceAliasConfig
+
+		filterNamespaces sets.String
+
+		expectedServiceUnits map[string]ServiceUnit
+		expectedState        map[string]ServiceAliasConfig
+		expectedStateChanged bool
 	}{
 		{
-			name:     "no path",
-			hostname: "example.com",
-			path:     "",
-			wildcard: false,
-			match: []string{
-				"example.com",
-				"example.com:80",
-				"example.com/",
-				"example.com/sub",
-				"example.com/sub/",
-			},
-			nomatch: []string{"other.com"},
+			name:                 "empty",
+			serviceUnits:         map[string]ServiceUnit{},
+			state:                map[string]ServiceAliasConfig{},
+			filterNamespaces:     sets.NewString("ns1"),
+			expectedServiceUnits: map[string]ServiceUnit{},
+			expectedState:        map[string]ServiceAliasConfig{},
+			expectedStateChanged: false,
 		},
 		{
-			name:     "root path with trailing slash",
-			hostname: "example.com",
-			path:     "/",
-			wildcard: false,
-			match: []string{
-				"example.com",
-				"example.com:80",
-				"example.com/",
-				"example.com/sub",
-				"example.com/sub/",
+			name: "valid, filter none",
+			serviceUnits: map[string]ServiceUnit{
+				endpointsKeyFromParts("ns1", "svc"): {},
+				endpointsKeyFromParts("ns2", "svc"): {},
 			},
-			nomatch: []string{"other.com"},
+			state: map[string]ServiceAliasConfig{
+				routeKeyFromParts("ns1", "svc"): {},
+				routeKeyFromParts("ns2", "svc"): {},
+			},
+			filterNamespaces: sets.NewString("ns1", "ns2"),
+			expectedServiceUnits: map[string]ServiceUnit{
+				endpointsKeyFromParts("ns1", "svc"): {},
+				endpointsKeyFromParts("ns2", "svc"): {},
+			},
+			expectedState: map[string]ServiceAliasConfig{
+				routeKeyFromParts("ns1", "svc"): {},
+				routeKeyFromParts("ns2", "svc"): {},
+			},
+			expectedStateChanged: false,
 		},
 		{
-			name:     "subpath with trailing slash",
-			hostname: "example.com",
-			path:     "/sub/",
-			wildcard: false,
-			match: []string{
-				"example.com/sub/",
-				"example.com/sub/subsub",
+			name: "valid, filter some",
+			serviceUnits: map[string]ServiceUnit{
+				endpointsKeyFromParts("ns1", "svc"): {},
+				endpointsKeyFromParts("ns2", "svc"): {},
 			},
-			nomatch: []string{
-				"other.com",
-				"example.com",
-				"example.com:80",
-				"example.com/",
-				"example.com/sub",    // path with trailing slash doesn't match URL without
-				"example.com/subpar", // path segment boundary match required
+			state: map[string]ServiceAliasConfig{
+				routeKeyFromParts("ns1", "svc"): {},
+				routeKeyFromParts("ns2", "svc"): {},
 			},
+			filterNamespaces: sets.NewString("ns2"),
+			expectedServiceUnits: map[string]ServiceUnit{
+				endpointsKeyFromParts("ns2", "svc"): {},
+			},
+			expectedState: map[string]ServiceAliasConfig{
+				routeKeyFromParts("ns2", "svc"): {},
+			},
+			expectedStateChanged: true,
 		},
 		{
-			name:     "subpath without trailing slash",
-			hostname: "example.com",
-			path:     "/sub",
-			wildcard: false,
-			match: []string{
-				"example.com/sub",
-				"example.com/sub/",
-				"example.com/sub/subsub",
+			name: "valid, filter all",
+			serviceUnits: map[string]ServiceUnit{
+				endpointsKeyFromParts("ns1", "svc"): {},
+				endpointsKeyFromParts("ns2", "svc"): {},
 			},
-			nomatch: []string{
-				"other.com",
-				"example.com",
-				"example.com:80",
-				"example.com/",
-				"example.com/subpar", // path segment boundary match required
+			state: map[string]ServiceAliasConfig{
+				routeKeyFromParts("ns1", "svc"): {},
+				routeKeyFromParts("ns2", "svc"): {},
 			},
-		},
-		{
-			name:     "wildcard",
-			hostname: "www.example.com",
-			path:     "/",
-			wildcard: true,
-			match: []string{
-				"www.example.com",
-				"www.example.com/",
-				"www.example.com/sub",
-				"www.example.com/sub/",
-				"www.example.com:80",
-				"www.example.com:80/",
-				"www.example.com:80/sub",
-				"www.example.com:80/sub/",
-				"foo.example.com",
-				"foo.example.com/",
-				"foo.example.com/sub",
-				"foo.example.com/sub/",
-			},
-			nomatch: []string{
-				"wwwexample.com",
-				"foo.bar.example.com",
-			},
-		},
-		{
-			name:     "non-wildcard",
-			hostname: "www.example.com",
-			path:     "/",
-			wildcard: false,
-			match: []string{
-				"www.example.com",
-				"www.example.com/",
-				"www.example.com/sub",
-				"www.example.com/sub/",
-				"www.example.com:80",
-				"www.example.com:80/",
-				"www.example.com:80/sub",
-				"www.example.com:80/sub/",
-			},
-			nomatch: []string{
-				"foo.example.com",
-				"foo.example.com/",
-				"foo.example.com/sub",
-				"foo.example.com/sub/",
-				"wwwexample.com",
-				"foo.bar.example.com",
-			},
+			filterNamespaces:     sets.NewString("ns3"),
+			expectedServiceUnits: map[string]ServiceUnit{},
+			expectedState:        map[string]ServiceAliasConfig{},
+			expectedStateChanged: true,
 		},
 	}
 
-	for _, tt := range tests {
-		r := regexp.MustCompile(generateRouteRegexp(tt.hostname, tt.path, tt.wildcard))
-		for _, s := range tt.match {
-			if !r.Match([]byte(s)) {
-				t.Errorf("%s: expected %s to match %s, but didn't", tt.name, r, s)
-			}
+	for _, tc := range testCases {
+		router.serviceUnits = tc.serviceUnits
+		router.state = tc.state
+		router.FilterNamespaces(tc.filterNamespaces)
+		if !reflect.DeepEqual(router.serviceUnits, tc.expectedServiceUnits) {
+			t.Errorf("test %s: expected router serviceUnits:%v but got %v", tc.name, tc.expectedServiceUnits, router.serviceUnits)
 		}
-		for _, s := range tt.nomatch {
-			if r.Match([]byte(s)) {
-				t.Errorf("%s: expected %s not to match %s, but did", tt.name, r, s)
-			}
+		if !reflect.DeepEqual(router.state, tc.expectedState) {
+			t.Errorf("test %s: expected router state:%v but got %v", tc.name, tc.expectedState, router.state)
 		}
-	}
-}
-
-func TestMatchPattern(t *testing.T) {
-	testMatches := []struct {
-		name    string
-		pattern string
-		input   string
-	}{
-		// Test that basic regex stuff works
-		{
-			name:    "exact match",
-			pattern: `asd`,
-			input:   "asd",
-		},
-		{
-			name:    "basic regex",
-			pattern: `.*asd.*`,
-			input:   "123asd123",
-		},
-		{
-			name:    "match newline",
-			pattern: `(?s).*asd.*`,
-			input:   "123\nasd123",
-		},
-		{
-			name:    "match multiline",
-			pattern: `(?m)(^asd\d$\n?)+`,
-			input:   "asd1\nasd2\nasd3\n",
-		},
-	}
-
-	testNoMatches := []struct {
-		name    string
-		pattern string
-		input   string
-	}{
-		// Make sure we are anchoring the regex at the start and end
-		{
-			name:    "no-substring",
-			pattern: `asd`,
-			input:   "123asd123",
-		},
-		// Make sure that we group their pattern separately from the anchors
-		{
-			name:    "prefix alternation",
-			pattern: `|asd`,
-			input:   "anything",
-		},
-		{
-			name:    "postfix alternation",
-			pattern: `asd|`,
-			input:   "anything",
-		},
-		// Make sure that a change in anchor behaviors doesn't break us
-		{
-			name:    "substring behavior",
-			pattern: `(?m)asd`,
-			input:   "asd\n123",
-		},
-		// Check some other regex things that should fail
-		{
-			name:    "don't match newline",
-			pattern: `.*asd.*`,
-			input:   "123\nasd123",
-		},
-		{
-			name:    "don't match multiline",
-			pattern: `(^asd\d$\n?)+`,
-			input:   "asd1\nasd2\nasd3\n",
-		},
-	}
-
-	for _, tt := range testMatches {
-		match := matchPattern(tt.pattern, tt.input)
-		if !match {
-			t.Errorf("%s: expected %s to match %s, but didn't", tt.name, tt.input, tt.pattern)
-		}
-	}
-
-	for _, tt := range testNoMatches {
-		match := matchPattern(tt.pattern, tt.input)
-		if match {
-			t.Errorf("%s: expected %s not to match %s, but did", tt.name, tt.input, tt.pattern)
+		if router.stateChanged != tc.expectedStateChanged {
+			t.Errorf("test %s: expected router stateChanged:%v but got %v", tc.name, tc.expectedStateChanged, router.stateChanged)
 		}
 	}
 }

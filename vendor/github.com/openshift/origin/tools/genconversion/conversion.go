@@ -13,7 +13,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/gengo/args"
 	"k8s.io/gengo/generator"
-	"k8s.io/kubernetes/cmd/libs/go2idl/conversion-gen/generators"
+
+	"k8s.io/code-generator/cmd/conversion-gen/generators"
 )
 
 func main() {
@@ -23,16 +24,17 @@ func main() {
 	expectedPackages := sets.NewString(
 		"github.com/openshift/origin/pkg/authorization/apis/authorization/v1",
 		"github.com/openshift/origin/pkg/build/apis/build/v1",
-		"github.com/openshift/origin/pkg/deploy/apis/apps/v1",
+		"github.com/openshift/origin/pkg/apps/apis/apps/v1",
 		"github.com/openshift/origin/pkg/image/apis/image/v1",
 		"github.com/openshift/origin/pkg/oauth/apis/oauth/v1",
 		"github.com/openshift/origin/pkg/project/apis/project/v1",
 		"github.com/openshift/origin/pkg/quota/apis/quota/v1",
 		"github.com/openshift/origin/pkg/route/apis/route/v1",
-		"github.com/openshift/origin/pkg/sdn/apis/network/v1",
+		"github.com/openshift/origin/pkg/network/apis/network/v1",
 		"github.com/openshift/origin/pkg/template/apis/template/v1",
 		"github.com/openshift/origin/pkg/user/apis/user/v1",
 		"github.com/openshift/origin/pkg/security/apis/security/v1",
+		"github.com/openshift/origin/pkg/template/servicebroker/apis/config/v1",
 	)
 
 	// These are the packages containing types and conversion functions used by the packages we want to generate for
@@ -45,13 +47,13 @@ func main() {
 		"k8s.io/apimachinery/pkg/conversion",
 		"github.com/openshift/origin/pkg/authorization/apis/authorization",
 		"github.com/openshift/origin/pkg/build/apis/build",
-		"github.com/openshift/origin/pkg/deploy/apis/apps",
+		"github.com/openshift/origin/pkg/apps/apis/apps",
 		"github.com/openshift/origin/pkg/image/apis/image",
 		"github.com/openshift/origin/pkg/oauth/apis/oauth",
 		"github.com/openshift/origin/pkg/project/apis/project",
 		"github.com/openshift/origin/pkg/quota/apis/quota",
 		"github.com/openshift/origin/pkg/route/apis/route",
-		"github.com/openshift/origin/pkg/sdn/apis/network",
+		"github.com/openshift/origin/pkg/network/apis/network",
 		"github.com/openshift/origin/pkg/template/apis/template",
 		"github.com/openshift/origin/pkg/user/apis/user",
 		"github.com/openshift/origin/pkg/security/apis/security",

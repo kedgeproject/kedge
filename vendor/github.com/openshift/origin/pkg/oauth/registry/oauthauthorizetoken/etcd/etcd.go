@@ -4,6 +4,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apiserver/pkg/registry/generic"
 	"k8s.io/apiserver/pkg/registry/generic/registry"
+	"k8s.io/apiserver/pkg/registry/rest"
+	"k8s.io/apiserver/pkg/storage"
 	kapi "k8s.io/kubernetes/pkg/api"
 
 	oauthapi "github.com/openshift/origin/pkg/oauth/apis/oauth"
@@ -17,15 +19,16 @@ type REST struct {
 	*registry.Store
 }
 
+var _ rest.StandardStorage = &REST{}
+
 // NewREST returns a RESTStorage object that will work against authorize tokens
 func NewREST(optsGetter restoptions.Getter, clientGetter oauthclient.Getter) (*REST, error) {
 	strategy := oauthauthorizetoken.NewStrategy(clientGetter)
 	store := &registry.Store{
-		Copier:            kapi.Scheme,
-		NewFunc:           func() runtime.Object { return &oauthapi.OAuthAuthorizeToken{} },
-		NewListFunc:       func() runtime.Object { return &oauthapi.OAuthAuthorizeTokenList{} },
-		PredicateFunc:     oauthauthorizetoken.Matcher,
-		QualifiedResource: oauthapi.Resource("oauthauthorizetokens"),
+		Copier:                   kapi.Scheme,
+		NewFunc:                  func() runtime.Object { return &oauthapi.OAuthAuthorizeToken{} },
+		NewListFunc:              func() runtime.Object { return &oauthapi.OAuthAuthorizeTokenList{} },
+		DefaultQualifiedResource: oauthapi.Resource("oauthauthorizetokens"),
 
 		TTLFunc: func(obj runtime.Object, existing uint64, update bool) (uint64, error) {
 			token := obj.(*oauthapi.OAuthAuthorizeToken)
@@ -38,7 +41,10 @@ func NewREST(optsGetter restoptions.Getter, clientGetter oauthclient.Getter) (*R
 		DeleteStrategy: strategy,
 	}
 
-	options := &generic.StoreOptions{RESTOptions: optsGetter, AttrFunc: oauthauthorizetoken.GetAttrs}
+	options := &generic.StoreOptions{
+		RESTOptions: optsGetter,
+		AttrFunc:    storage.AttrFunc(storage.DefaultNamespaceScopedAttr).WithFieldMutation(oauthapi.OAuthAuthorizeTokenFieldSelector),
+	}
 	if err := store.CompleteWithOptions(options); err != nil {
 		return nil, err
 	}

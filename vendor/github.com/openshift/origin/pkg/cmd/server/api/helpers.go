@@ -20,7 +20,6 @@ import (
 	kclientsetinternal "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 	kubeletclient "k8s.io/kubernetes/pkg/kubelet/client"
 
-	"github.com/openshift/origin/pkg/client"
 	cmdutil "github.com/openshift/origin/pkg/cmd/util"
 )
 
@@ -241,6 +240,10 @@ func GetMasterFileReferences(config *MasterConfig) []*string {
 
 		refs = append(refs, &config.KubernetesMasterConfig.ProxyClientInfo.CertFile)
 		refs = append(refs, &config.KubernetesMasterConfig.ProxyClientInfo.KeyFile)
+
+		refs = appendFlagsWithFileExtensions(refs, config.KubernetesMasterConfig.APIServerArguments)
+		refs = appendFlagsWithFileExtensions(refs, config.KubernetesMasterConfig.SchedulerArguments)
+		refs = appendFlagsWithFileExtensions(refs, config.KubernetesMasterConfig.ControllerArguments)
 	}
 
 	if config.AuthConfig.RequestHeader != nil {
@@ -267,7 +270,23 @@ func GetMasterFileReferences(config *MasterConfig) []*string {
 	}
 
 	refs = append(refs, &config.AuditConfig.AuditFilePath)
+	refs = append(refs, &config.AuditConfig.PolicyFile)
 
+	return refs
+}
+
+func appendFlagsWithFileExtensions(refs []*string, args ExtendedArguments) []*string {
+	for key, s := range args {
+		if len(s) == 0 {
+			continue
+		}
+		if !strings.HasSuffix(key, "-file") && !strings.HasSuffix(key, "-dir") {
+			continue
+		}
+		for i := range s {
+			refs = append(refs, &s[i])
+		}
+	}
 	return refs
 }
 
@@ -300,6 +319,8 @@ func GetNodeFileReferences(config *NodeConfig) []*string {
 		refs = append(refs, &config.PodManifestConfig.Path)
 	}
 
+	refs = appendFlagsWithFileExtensions(refs, config.KubeletArguments)
+
 	return refs
 }
 
@@ -311,6 +332,27 @@ func SetProtobufClientDefaults(overrides *ClientConnectionOverrides) {
 	overrides.ContentType = "application/vnd.kubernetes.protobuf"
 	overrides.QPS *= 2
 	overrides.Burst *= 2
+}
+
+// GetKubeConfigOrInClusterConfig loads in-cluster config if kubeConfigFile is empty or the file if not,
+// then applies overrides.
+func GetKubeConfigOrInClusterConfig(kubeConfigFile string, overrides *ClientConnectionOverrides) (*restclient.Config, error) {
+	var kubeConfig *restclient.Config
+	var err error
+	if len(kubeConfigFile) == 0 {
+		kubeConfig, err = restclient.InClusterConfig()
+	} else {
+		loadingRules := &clientcmd.ClientConfigLoadingRules{}
+		loadingRules.ExplicitPath = kubeConfigFile
+		loader := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, &clientcmd.ConfigOverrides{})
+
+		kubeConfig, err = loader.ClientConfig()
+	}
+	if err != nil {
+		return nil, err
+	}
+	applyClientConnectionOverrides(overrides, kubeConfig)
+	return kubeConfig, nil
 }
 
 // TODO: clients should be copied and instantiated from a common client config, tweaked, then
@@ -357,30 +399,6 @@ func GetExternalKubeClient(kubeConfigFile string, overrides *ClientConnectionOve
 	return clientset, kubeConfig, nil
 }
 
-// TODO: clients should be copied and instantiated from a common client config, tweaked, then
-// given to individual controllers and other infrastructure components. Overrides are optional
-// and may alter the default configuration.
-func GetOpenShiftClient(kubeConfigFile string, overrides *ClientConnectionOverrides) (*client.Client, *restclient.Config, error) {
-	loadingRules := &clientcmd.ClientConfigLoadingRules{}
-	loadingRules.ExplicitPath = kubeConfigFile
-	loader := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, &clientcmd.ConfigOverrides{})
-
-	kubeConfig, err := loader.ClientConfig()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	applyClientConnectionOverrides(overrides, kubeConfig)
-
-	kubeConfig.WrapTransport = DefaultClientTransport
-	openshiftClient, err := client.New(kubeConfig)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return openshiftClient, kubeConfig, nil
-}
-
 // applyClientConnectionOverrides updates a kubeConfig with the overrides from the config.
 func applyClientConnectionOverrides(overrides *ClientConnectionOverrides, kubeConfig *restclient.Config) {
 	if overrides == nil {
@@ -408,10 +426,6 @@ func DefaultClientTransport(rt http.RoundTripper) http.RoundTripper {
 	return transport
 }
 
-func UseTLS(servingInfo ServingInfo) bool {
-	return len(servingInfo.ServerCert.CertFile) > 0
-}
-
 // GetAPIClientCertCAPool returns the cert pool used to validate client certificates to the API server
 func GetAPIClientCertCAPool(options MasterConfig) (*x509.CertPool, error) {
 	return cmdutil.CertPoolFromFile(options.ServingInfo.ClientCA)
@@ -437,36 +451,7 @@ func GetNamedCertificateMap(namedCertificates []NamedCertificate) (map[string]*t
 	return namedCerts, nil
 }
 
-// GetClientCertCAPool returns a cert pool containing all client CAs that could be presented (union of API and OAuth)
-func GetClientCertCAPool(options MasterConfig) (*x509.CertPool, error) {
-	roots := x509.NewCertPool()
-
-	// Add CAs for OAuth
-	certs, err := GetOAuthClientCertCAs(options)
-	if err != nil {
-		return nil, err
-	}
-	for _, root := range certs {
-		roots.AddCert(root)
-	}
-
-	// Add CAs for API
-	certs, err = getAPIClientCertCAs(options)
-	if err != nil {
-		return nil, err
-	}
-	for _, root := range certs {
-		roots.AddCert(root)
-	}
-
-	return roots, nil
-}
-
 func GetOAuthClientCertCAs(options MasterConfig) ([]*x509.Certificate, error) {
-	if !UseTLS(options.ServingInfo.ServingInfo) {
-		return nil, nil
-	}
-
 	allCerts := []*x509.Certificate{}
 
 	if options.OAuthConfig != nil {
@@ -490,29 +475,6 @@ func GetOAuthClientCertCAs(options MasterConfig) ([]*x509.Certificate, error) {
 	return allCerts, nil
 }
 
-func GetRequestHeaderClientCertCAs(options MasterConfig) ([]*x509.Certificate, error) {
-	if !UseTLS(options.ServingInfo.ServingInfo) {
-		return nil, nil
-	}
-	if options.AuthConfig.RequestHeader == nil {
-		return nil, nil
-	}
-
-	certs, err := cmdutil.CertificatesFromFile(options.AuthConfig.RequestHeader.ClientCA)
-	if err != nil {
-		return nil, fmt.Errorf("Error reading %s: %s", options.AuthConfig.RequestHeader.ClientCA, err)
-	}
-	return certs, nil
-}
-
-func getAPIClientCertCAs(options MasterConfig) ([]*x509.Certificate, error) {
-	if !UseTLS(options.ServingInfo.ServingInfo) {
-		return nil, nil
-	}
-
-	return cmdutil.CertificatesFromFile(options.ServingInfo.ClientCA)
-}
-
 func GetKubeletClientConfig(options MasterConfig) *kubeletclient.KubeletClientConfig {
 	config := &kubeletclient.KubeletClientConfig{
 		Port: options.KubeletClientInfo.Port,
@@ -520,7 +482,6 @@ func GetKubeletClientConfig(options MasterConfig) *kubeletclient.KubeletClientCo
 			string(api.NodeHostName),
 			string(api.NodeInternalIP),
 			string(api.NodeExternalIP),
-			string(api.NodeLegacyHostIP),
 		},
 	}
 
@@ -587,11 +548,6 @@ func IsOAuthIdentityProvider(provider IdentityProvider) bool {
 	}
 
 	return false
-}
-
-func HasOpenShiftAPILevel(config MasterConfig, apiLevel string) bool {
-	apiLevelSet := sets.NewString(config.APILevels...)
-	return apiLevelSet.Has(apiLevel)
 }
 
 const kubeAPIEnablementFlag = "runtime-config"

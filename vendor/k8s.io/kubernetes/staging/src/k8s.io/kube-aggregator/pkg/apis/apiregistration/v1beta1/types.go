@@ -112,11 +112,13 @@ type APIServiceCondition struct {
 type APIServiceStatus struct {
 	// Current service state of apiService.
 	// +optional
+	// +patchMergeKey=type
+	// +patchStrategy=merge
 	Conditions []APIServiceCondition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
 }
 
-// +genclient=true
-// +nonNamespaced=true
+// +genclient
+// +genclient:nonNamespaced
 
 // APIService represents a server for a particular GroupVersion.
 // Name must be "version.group".

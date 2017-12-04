@@ -29,7 +29,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/emicklei/go-restful/swagger"
+	"github.com/emicklei/go-restful-swagger12"
 	"github.com/go-openapi/spec"
 	"github.com/pborman/uuid"
 
@@ -39,6 +39,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/apiserver/pkg/admission"
+	"k8s.io/apiserver/pkg/audit"
+	auditpolicy "k8s.io/apiserver/pkg/audit/policy"
 	"k8s.io/apiserver/pkg/authentication/authenticator"
 	"k8s.io/apiserver/pkg/authentication/authenticatorfactory"
 	authenticatorunion "k8s.io/apiserver/pkg/authentication/request/union"
@@ -50,10 +52,13 @@ import (
 	genericapifilters "k8s.io/apiserver/pkg/endpoints/filters"
 	apiopenapi "k8s.io/apiserver/pkg/endpoints/openapi"
 	apirequest "k8s.io/apiserver/pkg/endpoints/request"
+	"k8s.io/apiserver/pkg/features"
 	genericregistry "k8s.io/apiserver/pkg/registry/generic"
 	genericfilters "k8s.io/apiserver/pkg/server/filters"
 	"k8s.io/apiserver/pkg/server/healthz"
 	"k8s.io/apiserver/pkg/server/routes"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/client-go/informers"
 	restclient "k8s.io/client-go/rest"
 	certutil "k8s.io/client-go/util/cert"
 
@@ -99,8 +104,12 @@ type Config struct {
 
 	// Version will enable the /version endpoint if non-nil
 	Version *version.Info
-	// AuditWriter is the destination for audit logs.  If nil, they will not be written.
-	AuditWriter io.Writer
+	// LegacyAuditWriter is the destination for audit logs.  If nil, they will not be written.
+	LegacyAuditWriter io.Writer
+	// AuditBackend is where audit events are sent to.
+	AuditBackend audit.Backend
+	// AuditPolicyChecker makes the decision of whether and how to audit log a request.
+	AuditPolicyChecker auditpolicy.Checker
 	// SupportsBasicAuth indicates that's at least one Authenticator supports basic auth
 	// If this is true, a basic auth challenge is returned on authentication failure
 	// TODO(roberthbailey): Remove once the server no longer supports http basic auth.
@@ -109,6 +118,8 @@ type Config struct {
 	// Will default to a value based on secure serving info and available ipv4 IPs.
 	ExternalAddress string
 
+	// SharedInformerFactory provides shared informers for resources
+	SharedInformerFactory informers.SharedInformerFactory
 	//===========================================================================
 	// Fields you probably don't care about changing
 	//===========================================================================
@@ -126,6 +137,9 @@ type Config struct {
 	// RequestContextMapper maps requests to contexts. Exported so downstream consumers can provider their own mappers
 	// TODO confirm that anyone downstream actually uses this and doesn't just need an accessor
 	RequestContextMapper apirequest.RequestContextMapper
+	// RequestInfoResolver is used to assign attributes (used by admission and authorization) based on a request URL.
+	// Use-cases that are like kubelets may need to customize this.
+	RequestInfoResolver apirequest.RequestInfoResolver
 	// Serializer is required and provides the interface for serializing and converting objects to and from the wire
 	// The default (api.Codecs) usually works fine.
 	Serializer runtime.NegotiatedSerializer
@@ -137,8 +151,11 @@ type Config struct {
 	// RESTOptionsGetter is used to construct RESTStorage types via the generic registry.
 	RESTOptionsGetter genericregistry.RESTOptionsGetter
 
-	// If specified, requests will be allocated a random timeout between this value, and twice this value.
-	// Note that it is up to the request handlers to ignore or honor this timeout. In seconds.
+	// If specified, all requests except those which match the LongRunningFunc predicate will timeout
+	// after this duration.
+	RequestTimeout time.Duration
+	// If specified, long running requests such as watch will be allocated a random timeout between this value, and
+	// twice this value.  Note that it is up to the request handlers to ignore or honor this timeout. In seconds.
 	MinRequestTimeout int
 	// MaxRequestsInFlight is the maximum number of parallel non-long-running requests. Every further
 	// request has to wait. Applies only to non-mutating requests.
@@ -147,7 +164,7 @@ type Config struct {
 	// request has to wait.
 	MaxMutatingRequestsInFlight int
 	// Predicate which is true for paths of long-running http requests
-	LongRunningFunc genericfilters.LongRunningRequestCheck
+	LongRunningFunc apirequest.LongRunningRequestCheck
 
 	//===========================================================================
 	// values below here are targets for removal
@@ -184,11 +201,11 @@ type SecureServingInfo struct {
 	ClientCA *x509.CertPool
 
 	// MinTLSVersion optionally overrides the minimum TLS version supported.
-	// If 0, the default is used.
+	// Values are from tls package constants (https://golang.org/pkg/crypto/tls/#pkg-constants).
 	MinTLSVersion uint16
 
-	// CipherSuites optionally overrides the list of cipher suites for the server.
-	// If empty, the default is used.
+	// CipherSuites optionally overrides the list of allowed cipher suites for the server.
+	// Values are from tls package constants (https://golang.org/pkg/crypto/tls/#pkg-constants).
 	CipherSuites []uint16
 }
 
@@ -207,6 +224,7 @@ func NewConfig(codecs serializer.CodecFactory) *Config {
 		EnableProfiling:             true,
 		MaxRequestsInFlight:         400,
 		MaxMutatingRequestsInFlight: 200,
+		RequestTimeout:              time.Duration(60) * time.Second,
 		MinRequestTimeout:           1800,
 
 		// Default to treating watch as a long-running operation
@@ -349,6 +367,10 @@ func (c *Config) Complete() completedConfig {
 		c.Authorizer = authorizerunion.New(tokenAuthorizer, c.Authorizer)
 	}
 
+	if c.RequestInfoResolver == nil {
+		c.RequestInfoResolver = NewRequestInfoResolver(c)
+	}
+
 	return completedConfig{c}
 }
 
@@ -381,6 +403,7 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 		admissionControl:       c.AdmissionControl,
 		requestContextMapper:   c.RequestContextMapper,
 		Serializer:             c.Serializer,
+		AuditBackend:           c.AuditBackend,
 
 		minRequestTimeout: time.Duration(c.MinRequestTimeout) * time.Second,
 
@@ -391,21 +414,32 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 
 		listedPathProvider: apiServerHandler,
 
-		swaggerConfig: c.SwaggerConfig,
-		openAPIConfig: c.OpenAPIConfig,
+		swaggerConfig:           c.SwaggerConfig,
+		openAPIConfig:           c.OpenAPIConfig,
+		openAPIDelegationTarget: delegationTarget,
 
 		postStartHooks:         map[string]postStartHookEntry{},
 		disabledPostStartHooks: c.DisabledPostStartHooks,
 
 		healthzChecks: c.HealthzChecks,
 
-		DiscoveryGroupManager: discovery.NewRootAPIsHandler(c.DiscoveryAddresses, c.Serializer),
+		DiscoveryGroupManager: discovery.NewRootAPIsHandler(c.DiscoveryAddresses, c.Serializer, c.RequestContextMapper),
 	}
 
 	for k, v := range delegationTarget.PostStartHooks() {
 		s.postStartHooks[k] = v
 	}
 
+	genericApiServerHookName := "generic-apiserver-start-informers"
+	if c.SharedInformerFactory != nil && !s.isHookRegistered(genericApiServerHookName) {
+		err := s.AddPostStartHook(genericApiServerHookName, func(context PostStartHookContext) error {
+			c.SharedInformerFactory.Start(context.StopCh)
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
 	for _, delegateCheck := range delegationTarget.HealthzChecks() {
 		skip := false
 		for _, existingCheck := range c.HealthzChecks {
@@ -439,14 +473,22 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 
 func DefaultBuildHandlerChain(apiHandler http.Handler, c *Config) http.Handler {
 	handler := genericapifilters.WithAuthorization(apiHandler, c.RequestContextMapper, c.Authorizer)
+	handler = genericfilters.WithMaxInFlightLimit(handler, c.MaxRequestsInFlight, c.MaxMutatingRequestsInFlight, c.RequestContextMapper, c.LongRunningFunc)
 	handler = genericapifilters.WithImpersonation(handler, c.RequestContextMapper, c.Authorizer)
-	handler = genericapifilters.WithAudit(handler, c.RequestContextMapper, c.AuditWriter)
-	handler = genericapifilters.WithAuthentication(handler, c.RequestContextMapper, c.Authenticator, genericapifilters.Unauthorized(c.SupportsBasicAuth))
+	if utilfeature.DefaultFeatureGate.Enabled(features.AdvancedAuditing) {
+		handler = genericapifilters.WithAudit(handler, c.RequestContextMapper, c.AuditBackend, c.AuditPolicyChecker, c.LongRunningFunc)
+	} else {
+		handler = genericapifilters.WithLegacyAudit(handler, c.RequestContextMapper, c.LegacyAuditWriter)
+	}
+	var failedHandler http.Handler = genericapifilters.Unauthorized(c.SupportsBasicAuth)
+	if utilfeature.DefaultFeatureGate.Enabled(features.AdvancedAuditing) {
+		failedHandler = genericapifilters.WithFailedAuthenticationAudit(failedHandler, c.RequestContextMapper, c.AuditBackend, c.AuditPolicyChecker)
+	}
+	handler = genericapifilters.WithAuthentication(handler, c.RequestContextMapper, c.Authenticator, failedHandler)
 	handler = genericfilters.WithCORS(handler, c.CorsAllowedOriginList, nil, nil, nil, "true")
 	handler = genericfilters.WithPanicRecovery(handler)
-	handler = genericfilters.WithTimeoutForNonLongRunningRequests(handler, c.RequestContextMapper, c.LongRunningFunc)
-	handler = genericfilters.WithMaxInFlightLimit(handler, c.MaxRequestsInFlight, c.MaxMutatingRequestsInFlight, c.RequestContextMapper, c.LongRunningFunc)
-	handler = genericapifilters.WithRequestInfo(handler, NewRequestInfoResolver(c), c.RequestContextMapper)
+	handler = genericfilters.WithTimeoutForNonLongRunningRequests(handler, c.RequestContextMapper, c.LongRunningFunc, c.RequestTimeout)
+	handler = genericapifilters.WithRequestInfo(handler, c.RequestInfoResolver, c.RequestContextMapper)
 	handler = apirequest.WithRequestContext(handler, c.RequestContextMapper)
 	return handler
 }
@@ -471,8 +513,9 @@ func installAPI(s *GenericAPIServer, c *Config) {
 			routes.DefaultMetrics{}.Install(s.Handler.NonGoRestfulMux)
 		}
 	}
-	routes.Version{Version: c.Version}.Install(s.Handler.GoRestfulContainer)
-
+	if c.Version != nil {
+		routes.Version{Version: c.Version}.Install(s.Handler.NonGoRestfulMux)
+	}
 	if c.EnableDiscovery {
 		s.Handler.GoRestfulContainer.Add(s.DiscoveryGroupManager.WebService())
 	}

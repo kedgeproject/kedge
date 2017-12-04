@@ -17,6 +17,7 @@ package libcontainer
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path"
@@ -98,7 +99,7 @@ func GetStats(cgroupManager cgroups.Manager, rootFs string, pid int, ignoreMetri
 	if !ignoreMetrics.Has(container.NetworkUsageMetrics) {
 		netStats, err := networkStatsFromProc(rootFs, pid)
 		if err != nil {
-			glog.V(2).Infof("Unable to get network stats from pid %d: %v", pid, err)
+			glog.V(4).Infof("Unable to get network stats from pid %d: %v", pid, err)
 		} else {
 			stats.Network.Interfaces = append(stats.Network.Interfaces, netStats...)
 		}
@@ -106,16 +107,31 @@ func GetStats(cgroupManager cgroups.Manager, rootFs string, pid int, ignoreMetri
 	if !ignoreMetrics.Has(container.NetworkTcpUsageMetrics) {
 		t, err := tcpStatsFromProc(rootFs, pid, "net/tcp")
 		if err != nil {
-			glog.V(2).Infof("Unable to get tcp stats from pid %d: %v", pid, err)
+			glog.V(4).Infof("Unable to get tcp stats from pid %d: %v", pid, err)
 		} else {
 			stats.Network.Tcp = t
 		}
 
 		t6, err := tcpStatsFromProc(rootFs, pid, "net/tcp6")
 		if err != nil {
-			glog.V(2).Infof("Unable to get tcp6 stats from pid %d: %v", pid, err)
+			glog.V(4).Infof("Unable to get tcp6 stats from pid %d: %v", pid, err)
 		} else {
 			stats.Network.Tcp6 = t6
+		}
+	}
+	if !ignoreMetrics.Has(container.NetworkUdpUsageMetrics) {
+		u, err := udpStatsFromProc(rootFs, pid, "net/udp")
+		if err != nil {
+			glog.V(4).Infof("Unable to get udp stats from pid %d: %v", pid, err)
+		} else {
+			stats.Network.Udp = u
+		}
+
+		u6, err := udpStatsFromProc(rootFs, pid, "net/udp6")
+		if err != nil {
+			glog.V(4).Infof("Unable to get udp6 stats from pid %d: %v", pid, err)
+		} else {
+			stats.Network.Udp6 = u6
 		}
 	}
 
@@ -291,6 +307,74 @@ func scanTcpStats(tcpStatsFile string) (info.TcpStat, error) {
 	return stats, nil
 }
 
+func udpStatsFromProc(rootFs string, pid int, file string) (info.UdpStat, error) {
+	var err error
+	var udpStats info.UdpStat
+
+	udpStatsFile := path.Join(rootFs, "proc", strconv.Itoa(pid), file)
+
+	r, err := os.Open(udpStatsFile)
+	if err != nil {
+		return udpStats, fmt.Errorf("failure opening %s: %v", udpStatsFile, err)
+	}
+
+	udpStats, err = scanUdpStats(r)
+	if err != nil {
+		return udpStats, fmt.Errorf("couldn't read udp stats: %v", err)
+	}
+
+	return udpStats, nil
+}
+
+func scanUdpStats(r io.Reader) (info.UdpStat, error) {
+	var stats info.UdpStat
+
+	scanner := bufio.NewScanner(r)
+	scanner.Split(bufio.ScanLines)
+
+	// Discard header line
+	if b := scanner.Scan(); !b {
+		return stats, scanner.Err()
+	}
+
+	listening := uint64(0)
+	dropped := uint64(0)
+	rxQueued := uint64(0)
+	txQueued := uint64(0)
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		// Format: sl local_address rem_address st tx_queue rx_queue tr tm->when retrnsmt  uid timeout inode ref pointer drops
+
+		listening++
+
+		fs := strings.Fields(line)
+		if len(fs) != 13 {
+			continue
+		}
+
+		rx, tx := uint64(0), uint64(0)
+		fmt.Sscanf(fs[4], "%X:%X", &rx, &tx)
+		rxQueued += rx
+		txQueued += tx
+
+		d, err := strconv.Atoi(string(fs[12]))
+		if err != nil {
+			continue
+		}
+		dropped += uint64(d)
+	}
+
+	stats = info.UdpStat{
+		Listen:   listening,
+		Dropped:  dropped,
+		RxQueued: rxQueued,
+		TxQueued: txQueued,
+	}
+
+	return stats, nil
+}
+
 func GetProcesses(cgroupManager cgroups.Manager) ([]int, error) {
 	pids, err := cgroupManager.GetPids()
 	if err != nil {
@@ -382,8 +466,14 @@ func setMemoryStats(s *cgroups.Stats, ret *info.ContainerStats) {
 	ret.Memory.Usage = s.MemoryStats.Usage.Usage
 	ret.Memory.Failcnt = s.MemoryStats.Usage.Failcnt
 	ret.Memory.Cache = s.MemoryStats.Stats["cache"]
-	ret.Memory.RSS = s.MemoryStats.Stats["rss"]
-	ret.Memory.Swap = s.MemoryStats.Stats["swap"]
+
+	if s.MemoryStats.UseHierarchy {
+		ret.Memory.RSS = s.MemoryStats.Stats["total_rss"]
+		ret.Memory.Swap = s.MemoryStats.Stats["total_swap"]
+	} else {
+		ret.Memory.RSS = s.MemoryStats.Stats["rss"]
+		ret.Memory.Swap = s.MemoryStats.Stats["swap"]
+	}
 	if v, ok := s.MemoryStats.Stats["pgfault"]; ok {
 		ret.Memory.ContainerData.Pgfault = v
 		ret.Memory.HierarchicalData.Pgfault = v

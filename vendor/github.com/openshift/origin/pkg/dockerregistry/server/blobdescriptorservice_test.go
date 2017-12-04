@@ -18,16 +18,12 @@ import (
 	"github.com/docker/distribution/registry/api/errcode"
 	"github.com/docker/distribution/registry/api/v2"
 	registryauth "github.com/docker/distribution/registry/auth"
-	"github.com/docker/distribution/registry/handlers"
 	"github.com/docker/distribution/registry/middleware/registry"
 	"github.com/docker/distribution/registry/storage"
 
+	registryclient "github.com/openshift/origin/pkg/dockerregistry/server/client"
 	srvconfig "github.com/openshift/origin/pkg/dockerregistry/server/configuration"
 	registrytest "github.com/openshift/origin/pkg/dockerregistry/testutil"
-	restclient "k8s.io/client-go/rest"
-	kcoreclient "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/typed/core/internalversion"
-
-	osclient "github.com/openshift/origin/pkg/client"
 )
 
 const testPassthroughToUpstream = "openshift.test.passthrough-to-upstream"
@@ -45,19 +41,20 @@ func GetTestPassThroughToUpstream(ctx context.Context) bool {
 // It relies on the fact that blobDescriptorService requires higher levels to set repository object on given
 // context. If the object isn't given, its method will err out.
 func TestBlobDescriptorServiceIsApplied(t *testing.T) {
+	ctx := context.Background()
+	ctx = registrytest.WithTestLogger(ctx, t)
+
 	// don't do any authorization check
 	installFakeAccessController(t)
 	m := fakeBlobDescriptorService(t)
 	// to make other unit tests working
 	defer m.changeUnsetRepository(false)
 
-	fos, client := registrytest.NewFakeOpenShiftWithClient()
+	fos, imageClient := registrytest.NewFakeOpenShiftWithClient(ctx)
 	testImage := registrytest.AddRandomImage(t, fos, "user", "app", "latest")
 
-	ctx := context.Background()
-	ctx = WithConfiguration(ctx, &srvconfig.Configuration{})
-	ctx = WithRegistryClient(ctx, makeFakeRegistryClient(client, nil))
-	app := handlers.NewApp(ctx, &configuration.Configuration{
+	os.Setenv("OPENSHIFT_DEFAULT_REGISTRY", "localhost:5000")
+	app := NewApp(ctx, registryclient.NewFakeRegistryClient(imageClient), &configuration.Configuration{
 		Loglevel: "debug",
 		Auth: map[string]configuration.Parameters{
 			fakeAuthorizerName: {"realm": fakeAuthorizerName},
@@ -81,7 +78,7 @@ func TestBlobDescriptorServiceIsApplied(t *testing.T) {
 			"repository": {{Name: "openshift"}},
 			"storage":    {{Name: "openshift"}},
 		},
-	})
+	}, &srvconfig.Configuration{}, nil)
 	server := httptest.NewServer(app)
 	router := v2.Router()
 
@@ -89,9 +86,8 @@ func TestBlobDescriptorServiceIsApplied(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error parsing server url: %v", err)
 	}
-	os.Setenv("OPENSHIFT_DEFAULT_REGISTRY", serverURL.Host)
 
-	desc, _, err := registrytest.UploadRandomTestBlob(serverURL, nil, "user/app")
+	desc, _, err := registrytest.UploadRandomTestBlob(ctx, serverURL, nil, "user/app")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -488,25 +484,6 @@ func (f *fakeAccessController) Authorized(ctx context.Context, access ...registr
 
 	ctx = withAuthPerformed(ctx)
 	return ctx, nil
-}
-
-func makeFakeRegistryClient(client osclient.Interface, kCoreClient kcoreclient.CoreInterface) RegistryClient {
-	return &fakeRegistryClient{
-		client:      client,
-		kCoreClient: kCoreClient,
-	}
-}
-
-type fakeRegistryClient struct {
-	client      osclient.Interface
-	kCoreClient kcoreclient.CoreInterface
-}
-
-func (f *fakeRegistryClient) Clients() (osclient.Interface, kcoreclient.CoreInterface, error) {
-	return f.client, f.kCoreClient, nil
-}
-func (f *fakeRegistryClient) SafeClientConfig() restclient.Config {
-	return (&registryClient{}).SafeClientConfig()
 }
 
 // passthroughBlobDescriptorService passes all Stat and Clear requests to

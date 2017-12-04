@@ -17,22 +17,23 @@ limitations under the License.
 package flexvolume
 
 import (
-	"path"
 	"time"
 
 	"github.com/golang/glog"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/kubernetes/pkg/api/v1"
 	"k8s.io/kubernetes/pkg/volume"
 )
 
 type flexVolumeAttacher struct {
-	plugin *flexVolumePlugin
+	plugin *flexVolumeAttachablePlugin
 }
 
 var _ volume.Attacher = &flexVolumeAttacher{}
 
 // Attach is part of the volume.Attacher interface
 func (a *flexVolumeAttacher) Attach(spec *volume.Spec, hostName types.NodeName) (string, error) {
+
 	call := a.plugin.NewDriverCall(attachCmd)
 	call.AppendSpec(spec, a.plugin.host, nil)
 	call.Append(string(hostName))
@@ -47,7 +48,7 @@ func (a *flexVolumeAttacher) Attach(spec *volume.Spec, hostName types.NodeName) 
 }
 
 // WaitForAttach is part of the volume.Attacher interface
-func (a *flexVolumeAttacher) WaitForAttach(spec *volume.Spec, devicePath string, timeout time.Duration) (string, error) {
+func (a *flexVolumeAttacher) WaitForAttach(spec *volume.Spec, devicePath string, _ *v1.Pod, timeout time.Duration) (string, error) {
 	call := a.plugin.NewDriverCallWithTimeout(waitForAttachCmd, timeout)
 	call.Append(devicePath)
 	call.AppendSpec(spec, a.plugin.host, nil)
@@ -63,9 +64,7 @@ func (a *flexVolumeAttacher) WaitForAttach(spec *volume.Spec, devicePath string,
 
 // GetDeviceMountPath is part of the volume.Attacher interface
 func (a *flexVolumeAttacher) GetDeviceMountPath(spec *volume.Spec) (string, error) {
-	mountsDir := path.Join(a.plugin.host.GetPluginDir(flexVolumePluginName), a.plugin.driverName, "mounts")
-
-	return (*attacherDefaults)(a).GetDeviceMountPath(spec, mountsDir)
+	return a.plugin.getDeviceMountPath(spec)
 }
 
 // MountDevice is part of the volume.Attacher interface

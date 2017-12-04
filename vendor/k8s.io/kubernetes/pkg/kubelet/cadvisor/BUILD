@@ -8,34 +8,6 @@ load(
     "go_test",
 )
 
-go_library(
-    name = "go_default_library",
-    srcs = [
-        "cadvisor_linux.go",
-        "doc.go",
-        "types.go",
-        "util.go",
-    ],
-    tags = ["automanaged"],
-    deps = [
-        "//pkg/api/v1:go_default_library",
-        "//pkg/kubelet/types:go_default_library",
-        "//vendor:github.com/golang/glog",
-        "//vendor:github.com/google/cadvisor/cache/memory",
-        "//vendor:github.com/google/cadvisor/container",
-        "//vendor:github.com/google/cadvisor/events",
-        "//vendor:github.com/google/cadvisor/fs",
-        "//vendor:github.com/google/cadvisor/http",
-        "//vendor:github.com/google/cadvisor/info/v1",
-        "//vendor:github.com/google/cadvisor/info/v2",
-        "//vendor:github.com/google/cadvisor/manager",
-        "//vendor:github.com/google/cadvisor/metrics",
-        "//vendor:github.com/google/cadvisor/utils/sysfs",
-        "//vendor:k8s.io/apimachinery/pkg/api/resource",
-        "//vendor:k8s.io/apimachinery/pkg/util/runtime",
-    ],
-)
-
 go_test(
     name = "go_default_test",
     srcs = ["cadvisor_linux_test.go"],
@@ -43,8 +15,37 @@ go_test(
     tags = ["automanaged"],
     deps = [
         "//pkg/kubelet/types:go_default_library",
-        "//vendor:github.com/google/cadvisor/info/v1",
-        "//vendor:github.com/google/cadvisor/metrics",
+        "//vendor/github.com/google/cadvisor/info/v1:go_default_library",
+        "//vendor/github.com/google/cadvisor/metrics:go_default_library",
+    ],
+)
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "cadvisor_linux.go",
+        "doc.go",
+        "helpers_linux.go",
+        "types.go",
+        "util.go",
+    ],
+    tags = ["automanaged"],
+    deps = [
+        "//pkg/api/v1:go_default_library",
+        "//pkg/kubelet/types:go_default_library",
+        "//vendor/github.com/golang/glog:go_default_library",
+        "//vendor/github.com/google/cadvisor/cache/memory:go_default_library",
+        "//vendor/github.com/google/cadvisor/container:go_default_library",
+        "//vendor/github.com/google/cadvisor/events:go_default_library",
+        "//vendor/github.com/google/cadvisor/fs:go_default_library",
+        "//vendor/github.com/google/cadvisor/http:go_default_library",
+        "//vendor/github.com/google/cadvisor/info/v1:go_default_library",
+        "//vendor/github.com/google/cadvisor/info/v2:go_default_library",
+        "//vendor/github.com/google/cadvisor/manager:go_default_library",
+        "//vendor/github.com/google/cadvisor/metrics:go_default_library",
+        "//vendor/github.com/google/cadvisor/utils/sysfs:go_default_library",
+        "//vendor/k8s.io/apimachinery/pkg/api/resource:go_default_library",
+        "//vendor/k8s.io/apimachinery/pkg/util/runtime:go_default_library",
     ],
 )
 

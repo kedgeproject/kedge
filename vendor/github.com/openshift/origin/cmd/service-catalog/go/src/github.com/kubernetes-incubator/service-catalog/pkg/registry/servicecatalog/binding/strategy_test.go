@@ -17,43 +17,32 @@ limitations under the License.
 package binding
 
 import (
+	"fmt"
 	"testing"
 
-	"k8s.io/client-go/pkg/api/v1"
+	"k8s.io/apiserver/pkg/authentication/user"
+	genericapirequest "k8s.io/apiserver/pkg/endpoints/request"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 
 	"github.com/kubernetes-incubator/service-catalog/pkg/apis/servicecatalog"
-	checksum "github.com/kubernetes-incubator/service-catalog/pkg/apis/servicecatalog/checksum/unversioned"
+	scfeatures "github.com/kubernetes-incubator/service-catalog/pkg/features"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func bindingWithFalseReadyCondition() *servicecatalog.Binding {
-	return &servicecatalog.Binding{
-		Spec: servicecatalog.BindingSpec{
-			InstanceRef: v1.LocalObjectReference{
+func getTestInstanceCredential() *servicecatalog.ServiceBinding {
+	return &servicecatalog.ServiceBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Generation: 1,
+		},
+		Spec: servicecatalog.ServiceBindingSpec{
+			ServiceInstanceRef: servicecatalog.LocalObjectReference{
 				Name: "some-string",
 			},
 		},
-		Status: servicecatalog.BindingStatus{
-			Conditions: []servicecatalog.BindingCondition{
+		Status: servicecatalog.ServiceBindingStatus{
+			Conditions: []servicecatalog.ServiceBindingCondition{
 				{
-					Type:   servicecatalog.BindingConditionReady,
-					Status: servicecatalog.ConditionFalse,
-				},
-			},
-		},
-	}
-}
-
-func bindingWithTrueReadyCondition() *servicecatalog.Binding {
-	return &servicecatalog.Binding{
-		Spec: servicecatalog.BindingSpec{
-			InstanceRef: v1.LocalObjectReference{
-				Name: "some-string",
-			},
-		},
-		Status: servicecatalog.BindingStatus{
-			Conditions: []servicecatalog.BindingCondition{
-				{
-					Type:   servicecatalog.BindingConditionReady,
+					Type:   servicecatalog.ServiceBindingConditionReady,
 					Status: servicecatalog.ConditionTrue,
 				},
 			},
@@ -61,56 +50,91 @@ func bindingWithTrueReadyCondition() *servicecatalog.Binding {
 	}
 }
 
-func TestValidateUpdateStatusPrepareForUpdate(t *testing.T) {
+func contextWithUserName(userName string) genericapirequest.Context {
+	ctx := genericapirequest.NewContext()
+	userInfo := &user.DefaultInfo{
+		Name: userName,
+	}
+	return genericapirequest.WithUser(ctx, userInfo)
+}
+
+// TODO: Un-comment "spec-change" test case when there is a field
+// in the spec to which the reconciler allows a change.
+
+// TestInstanceCredentialUpdate tests that generation is incremented correctly when the
+// spec of a ServiceBinding is updated.
+func TestInstanceCredentialUpdate(t *testing.T) {
 	cases := []struct {
-		name                string
-		old                 *servicecatalog.Binding
-		newer               *servicecatalog.Binding
-		shouldChecksum      bool
-		checksumShouldBeSet bool
+		name                      string
+		older                     *servicecatalog.ServiceBinding
+		newer                     *servicecatalog.ServiceBinding
+		shouldGenerationIncrement bool
 	}{
 		{
-			name:                "not ready -> not ready",
-			old:                 bindingWithFalseReadyCondition(),
-			newer:               bindingWithFalseReadyCondition(),
-			shouldChecksum:      false,
-			checksumShouldBeSet: false,
+			name:  "no spec change",
+			older: getTestInstanceCredential(),
+			newer: getTestInstanceCredential(),
 		},
-		{
-			name: "not ready -> not ready, checksum already set",
-			old: func() *servicecatalog.Binding {
-				b := bindingWithFalseReadyCondition()
-				cs := "22081-9471-471"
-				b.Status.Checksum = &cs
-				return b
-			}(),
-			newer:               bindingWithFalseReadyCondition(),
-			shouldChecksum:      false,
-			checksumShouldBeSet: true,
-		},
-		{
-			name:           "not ready -> ready",
-			old:            bindingWithFalseReadyCondition(),
-			newer:          bindingWithTrueReadyCondition(),
-			shouldChecksum: true,
-		},
+		//		{
+		//			name:  "spec change",
+		//			older: getTestInstanceCredential(),
+		//			newer: func() *v1beta1.ServiceBinding {
+		//				ic := getTestInstanceCredential()
+		//				ic.Spec.ServiceInstanceRef = servicecatalog.LocalObjectReference{
+		//					Name: "new-string",
+		//				}
+		//				return ic
+		//			},
+		//			shouldGenerationIncrement: true,
+		//		},
+	}
+	for _, tc := range cases {
+		bindingRESTStrategies.PrepareForUpdate(nil, tc.newer, tc.older)
+
+		expectedGeneration := tc.older.Generation
+		if tc.shouldGenerationIncrement {
+			expectedGeneration = expectedGeneration + 1
+		}
+		if e, a := expectedGeneration, tc.newer.Generation; e != a {
+			t.Errorf("%v: expected %v, got %v for generation", tc.name, e, a)
+		}
+	}
+}
+
+// TestInstanceCredentialUserInfo tests that the user info is set properly
+// as the user changes for different modifications of the instance credential.
+func TestInstanceCredentialUserInfo(t *testing.T) {
+	// Enable the OriginatingIdentity feature
+	utilfeature.DefaultFeatureGate.Set(fmt.Sprintf("%v=true", scfeatures.OriginatingIdentity))
+	defer utilfeature.DefaultFeatureGate.Set(fmt.Sprintf("%v=false", scfeatures.OriginatingIdentity))
+
+	creatorUserName := "creator"
+	createdInstanceCredential := getTestInstanceCredential()
+	createContext := contextWithUserName(creatorUserName)
+	bindingRESTStrategies.PrepareForCreate(createContext, createdInstanceCredential)
+
+	if e, a := creatorUserName, createdInstanceCredential.Spec.UserInfo.Username; e != a {
+		t.Errorf("unexpected user info in created spec: expected %q, got %q", e, a)
 	}
 
-	for _, tc := range cases {
-		strategy := bindingStatusUpdateStrategy
-		strategy.PrepareForUpdate(nil /* api context */, tc.newer, tc.old)
+	// TODO: Un-comment the following portion of this test when there is a field
+	// in the spec to which the reconciler allows a change.
 
-		if tc.shouldChecksum {
-			if tc.newer.Status.Checksum == nil {
-				t.Errorf("%v: Checksum should have been set", tc.name)
-				continue
-			}
+	//  updaterUserName := "updater"
+	//	updatedInstanceCredential := getTestInstanceCredential()
+	//	updateContext := contextWithUserName(updaterUserName)
+	//	bindingRESTStrategies.PrepareForUpdate(updateContext, updatedInstanceCredential, createdInstanceCredential)
 
-			if e, a := checksum.BindingSpecChecksum(tc.newer.Spec), *tc.newer.Status.Checksum; e != a {
-				t.Errorf("%v: Checksum was incorrect; expected %v got %v", tc.name, e, a)
-			}
-		} else if tc.checksumShouldBeSet != (tc.newer.Status.Checksum != nil) {
-			t.Errorf("%v: expected checksum to be populated, but was nil", tc.name)
-		}
+	//	if e, a := updaterUserName, updatedInstanceCredential.Spec.UserInfo.Username; e != a {
+	//		t.Errorf("unexpected user info in updated spec: expected %q, got %q", e, a)
+	//	}
+
+	deleterUserName := "deleter"
+	deletedInstanceCredential := getTestInstanceCredential()
+	deleteContext := contextWithUserName(deleterUserName)
+	bindingRESTStrategies.CheckGracefulDelete(deleteContext, deletedInstanceCredential, nil)
+
+	if e, a := deleterUserName, deletedInstanceCredential.Spec.UserInfo.Username; e != a {
+		t.Errorf("unexpected user info in deleted spec: expected %q, got %q", e, a)
 	}
 }

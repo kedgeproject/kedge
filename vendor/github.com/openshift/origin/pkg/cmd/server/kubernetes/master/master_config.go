@@ -2,8 +2,8 @@ package master
 
 import (
 	"crypto/tls"
-	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -17,8 +17,8 @@ import (
 	restful "github.com/emicklei/go-restful"
 	"github.com/go-openapi/spec"
 	"github.com/golang/glog"
+	"gopkg.in/natefinch/lumberjack.v2"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	openapicommon "k8s.io/apimachinery/pkg/openapi"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -27,6 +27,9 @@ import (
 	knet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apiserver/pkg/admission"
+	auditinternal "k8s.io/apiserver/pkg/apis/audit"
+	"k8s.io/apiserver/pkg/audit"
+	auditpolicy "k8s.io/apiserver/pkg/audit/policy"
 	"k8s.io/apiserver/pkg/authentication/authenticator"
 	"k8s.io/apiserver/pkg/authorization/authorizer"
 	apiserverendpointsopenapi "k8s.io/apiserver/pkg/endpoints/openapi"
@@ -41,18 +44,17 @@ import (
 	"k8s.io/apiserver/pkg/storage"
 	storagefactory "k8s.io/apiserver/pkg/storage/storagebackend/factory"
 	utilflag "k8s.io/apiserver/pkg/util/flag"
+	auditlog "k8s.io/apiserver/plugin/pkg/audit/log"
+	auditwebhook "k8s.io/apiserver/plugin/pkg/audit/webhook"
+	kubeclientgoinformers "k8s.io/client-go/informers"
 	kapiserveroptions "k8s.io/kubernetes/cmd/kube-apiserver/app/options"
-	cmapp "k8s.io/kubernetes/cmd/kube-controller-manager/app/options"
 	kapi "k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/apis/apps"
 	"k8s.io/kubernetes/pkg/apis/autoscaling"
 	"k8s.io/kubernetes/pkg/apis/batch"
 	batchv2alpha1 "k8s.io/kubernetes/pkg/apis/batch/v2alpha1"
-	"k8s.io/kubernetes/pkg/apis/componentconfig"
 	"k8s.io/kubernetes/pkg/apis/extensions"
-	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/clientset"
-	kinternalclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
-	"k8s.io/kubernetes/pkg/cloudprovider"
+	"k8s.io/kubernetes/pkg/apis/networking"
 	"k8s.io/kubernetes/pkg/master"
 	"k8s.io/kubernetes/pkg/registry/cachesize"
 	"k8s.io/kubernetes/pkg/registry/core/endpoint"
@@ -61,35 +63,28 @@ import (
 	kversion "k8s.io/kubernetes/pkg/version"
 
 	"github.com/openshift/origin/pkg/api"
+	oauthorizer "github.com/openshift/origin/pkg/authorization/authorizer"
 	"github.com/openshift/origin/pkg/authorization/authorizer/scope"
 	"github.com/openshift/origin/pkg/cmd/flagtypes"
 	configapi "github.com/openshift/origin/pkg/cmd/server/api"
-	"github.com/openshift/origin/pkg/cmd/server/cm"
 	"github.com/openshift/origin/pkg/cmd/server/crypto"
 	"github.com/openshift/origin/pkg/cmd/server/election"
+	cmdutil "github.com/openshift/origin/pkg/cmd/util"
 	cmdflags "github.com/openshift/origin/pkg/cmd/util/flags"
 	oauthutil "github.com/openshift/origin/pkg/oauth/util"
 	openapigenerated "github.com/openshift/origin/pkg/openapi"
 	securityapi "github.com/openshift/origin/pkg/security/apis/security"
 	"github.com/openshift/origin/pkg/version"
-)
 
-const DefaultWatchCacheSize = 1000
+	// TODO fix this install, it is required for TestPreferredGroupVersions to pass
+	_ "github.com/openshift/origin/pkg/authorization/apis/authorization/install"
+)
 
 // request paths that match this regular expression will be treated as long running
 // and not subjected to the default server timeout.
 const originLongRunningEndpointsRE = "(/|^)(buildconfigs/.*/instantiatebinary|imagestreamimports)$"
 
 var LegacyAPIGroupPrefixes = sets.NewString(apiserver.DefaultLegacyAPIPrefix, api.Prefix)
-
-// MasterConfig defines the required values to start a Kubernetes master
-type MasterConfig struct {
-	// this is a mutated copy of options!
-	// TODO stop mutating values!
-	Options configapi.KubernetesMasterConfig
-
-	Master *master.Config
-}
 
 // BuildKubeAPIserverOptions constructs the appropriate kube-apiserver run options.
 // It returns an error if no KubernetesMasterConfig was defined.
@@ -115,6 +110,7 @@ func BuildKubeAPIserverOptions(masterConfig configapi.MasterConfig) (*kapiserver
 	server := kapiserveroptions.NewServerRunOptions()
 
 	// Adjust defaults
+	server.EnableLogsHandler = false
 	server.EventTTL = 2 * time.Hour
 	server.ServiceClusterIPRange = net.IPNet(flagtypes.DefaultIPNet(masterConfig.KubernetesMasterConfig.ServicesSubnet))
 	server.ServiceNodePortRange = *portRange
@@ -152,8 +148,9 @@ func BuildKubeAPIserverOptions(masterConfig configapi.MasterConfig) (*kapiserver
 	server.Etcd.StorageConfig.KeyFile = masterConfig.EtcdClientInfo.ClientCert.KeyFile
 	server.Etcd.StorageConfig.CertFile = masterConfig.EtcdClientInfo.ClientCert.CertFile
 	server.Etcd.StorageConfig.CAFile = masterConfig.EtcdClientInfo.CA
-	server.Etcd.DefaultWatchCacheSize = DefaultWatchCacheSize
+	server.Etcd.DefaultWatchCacheSize = 0
 
+	server.GenericServerRunOptions.CorsAllowedOriginList = masterConfig.CORSAllowedOrigins
 	server.GenericServerRunOptions.MaxRequestsInFlight = masterConfig.ServingInfo.MaxRequestsInFlight
 	server.GenericServerRunOptions.MaxMutatingRequestsInFlight = masterConfig.ServingInfo.MaxRequestsInFlight / 2
 	server.GenericServerRunOptions.MinRequestTimeout = masterConfig.ServingInfo.RequestTimeoutSeconds
@@ -169,9 +166,20 @@ func BuildKubeAPIserverOptions(masterConfig configapi.MasterConfig) (*kapiserver
 	server.KubeletConfig.ReadOnlyPort = 0
 
 	// resolve extended arguments
+	args := map[string][]string{}
+	for k, v := range masterConfig.KubernetesMasterConfig.APIServerArguments {
+		args[k] = v
+	}
+	if masterConfig.AuditConfig.Enabled {
+		if existing, ok := args["feature-gates"]; ok {
+			args["feature-gates"] = []string{existing[0] + ",AdvancedAuditing=true"}
+		} else {
+			args["feature-gates"] = []string{"AdvancedAuditing=true"}
+		}
+	}
 	// TODO: this should be done in config validation (along with the above) so we can provide
 	// proper errors
-	if err := cmdflags.Resolve(masterConfig.KubernetesMasterConfig.APIServerArguments, server.AddFlags); len(err) > 0 {
+	if err := cmdflags.Resolve(args, server.AddFlags); len(err) > 0 {
 		return nil, kerrors.NewAggregate(err)
 	}
 
@@ -180,7 +188,7 @@ func BuildKubeAPIserverOptions(masterConfig configapi.MasterConfig) (*kapiserver
 
 // BuildStorageFactory builds a storage factory based on server.Etcd.StorageConfig with overrides from masterConfig.
 // This storage factory is used for kubernetes and origin registries. Compare pkg/util/restoptions/configgetter.go.
-func BuildStorageFactory(masterConfig configapi.MasterConfig, server *kapiserveroptions.ServerRunOptions, enforcedStorageVersions map[schema.GroupResource]schema.GroupVersion) (*apiserverstorage.DefaultStorageFactory, error) {
+func BuildStorageFactory(server *kapiserveroptions.ServerRunOptions, enforcedStorageVersions map[schema.GroupResource]schema.GroupVersion) (*apiserverstorage.DefaultStorageFactory, error) {
 	resourceEncodingConfig := apiserverstorage.NewDefaultResourceEncodingConfig(kapi.Registry)
 
 	storageGroupsToEncodingVersion, err := server.StorageSerialization.StorageGroupsToEncodingVersion()
@@ -208,11 +216,11 @@ func BuildStorageFactory(masterConfig configapi.MasterConfig, server *kapiserver
 	}
 
 	// the order here is important, it defines which version will be used for storage
-	storageFactory.AddCohabitatingResources(batch.Resource("jobs"), extensions.Resource("jobs"))
 	// keep HPAs in the autoscaling apigroup (as in upstream 1.6), but keep extension cohabitation around until origin 3.7.
 	storageFactory.AddCohabitatingResources(autoscaling.Resource("horizontalpodautoscalers"), extensions.Resource("horizontalpodautoscalers"))
 	// keep Deployments in extensions for backwards compatibility, we'll have to migrate at some point, eventually
 	storageFactory.AddCohabitatingResources(extensions.Resource("deployments"), apps.Resource("deployments"))
+	storageFactory.AddCohabitatingResources(extensions.Resource("networkpolicies"), networking.Resource("networkpolicies"))
 	storageFactory.AddCohabitatingResources(kapi.Resource("securitycontextconstraints"), securityapi.Resource("securitycontextconstraints"))
 
 	if server.Etcd.EncryptionProviderConfigFilepath != "" {
@@ -314,69 +322,6 @@ func buildUpstreamClientCARegistrationHook(s *kapiserveroptions.ServerRunOptions
 	}, nil
 }
 
-func BuildControllerManagerServer(masterConfig configapi.MasterConfig) (*cmapp.CMServer, cloudprovider.Interface, error) {
-	podEvictionTimeout, err := time.ParseDuration(masterConfig.KubernetesMasterConfig.PodEvictionTimeout)
-	if err != nil {
-		return nil, nil, fmt.Errorf("unable to parse PodEvictionTimeout: %v", err)
-	}
-
-	// Defaults are tested in TestCMServerDefaults
-	cmserver := cmapp.NewCMServer()
-	// Adjust defaults
-	cmserver.ClusterSigningCertFile = ""
-	cmserver.ClusterSigningKeyFile = ""
-	cmserver.Address = "" // no healthz endpoint
-	cmserver.Port = 0     // no healthz endpoint
-	cmserver.EnableGarbageCollector = true
-	cmserver.PodEvictionTimeout = metav1.Duration{Duration: podEvictionTimeout}
-	cmserver.VolumeConfiguration.EnableDynamicProvisioning = masterConfig.VolumeConfig.DynamicProvisioningEnabled
-
-	// IF YOU ADD ANYTHING TO THIS LIST, MAKE SURE THAT YOU UPDATE THEIR STRATEGIES TO PREVENT GC FINALIZERS
-	cmserver.GCIgnoredResources = append(cmserver.GCIgnoredResources,
-		// explicitly disabled from GC for now - not enough value to track them
-		componentconfig.GroupResource{Group: "authorization.openshift.io", Resource: "rolebindingrestrictions"},
-		componentconfig.GroupResource{Group: "network.openshift.io", Resource: "clusternetworks"},
-		componentconfig.GroupResource{Group: "network.openshift.io", Resource: "egressnetworkpolicies"},
-		componentconfig.GroupResource{Group: "network.openshift.io", Resource: "hostsubnets"},
-		componentconfig.GroupResource{Group: "network.openshift.io", Resource: "netnamespaces"},
-		componentconfig.GroupResource{Group: "oauth.openshift.io", Resource: "oauthclientauthorizations"},
-		componentconfig.GroupResource{Group: "oauth.openshift.io", Resource: "oauthclients"},
-		componentconfig.GroupResource{Group: "quota.openshift.io", Resource: "clusterresourcequotas"},
-		componentconfig.GroupResource{Group: "user.openshift.io", Resource: "groups"},
-		componentconfig.GroupResource{Group: "user.openshift.io", Resource: "identities"},
-		componentconfig.GroupResource{Group: "user.openshift.io", Resource: "users"},
-		componentconfig.GroupResource{Group: "image.openshift.io", Resource: "images"},
-
-		// virtual resource
-		componentconfig.GroupResource{Group: "project.openshift.io", Resource: "projects"},
-		// these resources contain security information in their names, and we don't need to track them
-		componentconfig.GroupResource{Group: "oauth.openshift.io", Resource: "oauthaccesstokens"},
-		componentconfig.GroupResource{Group: "oauth.openshift.io", Resource: "oauthauthorizetokens"},
-		// exposed already as cronjobs
-		componentconfig.GroupResource{Group: "batch", Resource: "scheduledjobs"},
-		// exposed already as extensions v1beta1 by other controllers
-		componentconfig.GroupResource{Group: "apps", Resource: "deployments"},
-		// exposed as autoscaling v1
-		componentconfig.GroupResource{Group: "extensions", Resource: "horizontalpodautoscalers"},
-	)
-
-	// resolve extended arguments
-	// TODO: this should be done in config validation (along with the above) so we can provide
-	// proper errors
-	if err := cmdflags.Resolve(masterConfig.KubernetesMasterConfig.ControllerArguments, cm.OriginControllerManagerAddFlags(cmserver)); len(err) > 0 {
-		return nil, nil, kerrors.NewAggregate(err)
-	}
-	cloud, err := cloudprovider.InitCloudProvider(cmserver.CloudProvider, cmserver.CloudConfigFile)
-	if err != nil {
-		return nil, nil, err
-	}
-	if cloud != nil {
-		glog.V(2).Infof("Successfully initialized cloud provider: %q from the config file: %q\n", cmserver.CloudProvider, cmserver.CloudConfigFile)
-	}
-
-	return cmserver, cloud, nil
-}
-
 func buildProxyClientCerts(masterConfig configapi.MasterConfig) ([]tls.Certificate, error) {
 	var proxyClientCerts []tls.Certificate
 	if len(masterConfig.KubernetesMasterConfig.ProxyClientInfo.CertFile) > 0 {
@@ -411,12 +356,10 @@ func buildPublicAddress(masterConfig configapi.MasterConfig) (net.IP, error) {
 
 func buildKubeApiserverConfig(
 	masterConfig configapi.MasterConfig,
-	requestContextMapper apirequest.RequestContextMapper,
-	kubeClient kclientset.Interface,
-	internalKubeClient kinternalclientset.Interface,
 	admissionControl admission.Interface,
 	originAuthenticator authenticator.Request,
 	kubeAuthorizer authorizer.Authorizer,
+	clientGoInformers kubeclientgoinformers.SharedInformerFactory,
 ) (*master.Config, error) {
 	apiserverOptions, err := BuildKubeAPIserverOptions(masterConfig)
 	if err != nil {
@@ -433,7 +376,7 @@ func buildKubeApiserverConfig(
 		return nil, err
 	}
 
-	storageFactory, err := BuildStorageFactory(masterConfig, apiserverOptions, nil)
+	storageFactory, err := BuildStorageFactory(apiserverOptions, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -454,12 +397,13 @@ func buildKubeApiserverConfig(
 	genericConfig.PublicAddress = publicAddress
 	genericConfig.Authenticator = originAuthenticator // this is used to fulfill the tokenreviews endpoint which is used by node authentication
 	genericConfig.Authorizer = kubeAuthorizer         // this is used to fulfill the kube SAR endpoints
+	genericConfig.SharedInformerFactory = clientGoInformers
 	genericConfig.DisabledPostStartHooks.Insert(rbacrest.PostStartHookName)
 	// This disables the ThirdPartyController which removes handlers from our go-restful containers.  The remove functionality is broken and destroys the serve mux.
 	genericConfig.DisabledPostStartHooks.Insert("extensions/third-party-resources")
 	genericConfig.AdmissionControl = admissionControl
-	genericConfig.RequestContextMapper = requestContextMapper
-	genericConfig.OpenAPIConfig = DefaultOpenAPIConfig(masterConfig)
+	genericConfig.RequestInfoResolver = openshiftRequestInfoResolver()
+	genericConfig.OpenAPIConfig = defaultOpenAPIConfig(masterConfig)
 	genericConfig.SwaggerConfig = apiserver.DefaultSwaggerConfig()
 	genericConfig.SwaggerConfig.PostBuildHandler = customizeSwaggerDefinition
 	_, loopbackClientConfig, err := configapi.GetInternalKubeClient(masterConfig.MasterClients.OpenShiftLoopbackKubeConfig, masterConfig.MasterClients.OpenShiftLoopbackClientConnectionOverrides)
@@ -495,9 +439,32 @@ func buildKubeApiserverConfig(
 		return originLongRunningRequestRE.MatchString(r.URL.Path) || kubeLongRunningFunc(r, requestInfo)
 	}
 
+	if apiserverOptions.Etcd.EnableWatchCache {
+		glog.V(2).Infof("Initializing cache sizes based on %dMB limit", apiserverOptions.GenericServerRunOptions.TargetRAMMB)
+		sizes := cachesize.NewHeuristicWatchCacheSizes(apiserverOptions.GenericServerRunOptions.TargetRAMMB)
+		if userSpecified, err := genericoptions.ParseWatchCacheSizes(apiserverOptions.Etcd.WatchCacheSizes); err == nil {
+			for resource, size := range userSpecified {
+				sizes[resource] = size
+			}
+		}
+		apiserverOptions.Etcd.WatchCacheSizes, err = genericoptions.WriteWatchCacheSizes(sizes)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	if err := apiserverOptions.Etcd.ApplyWithStorageFactoryTo(storageFactory, genericConfig); err != nil {
 		return nil, err
 	}
+
+	// we don't use legacy audit anymore
+	genericConfig.LegacyAuditWriter = nil
+	backend, policyChecker, err := GetAuditConfig(masterConfig.AuditConfig)
+	if err != nil {
+		return nil, err
+	}
+	genericConfig.AuditBackend = backend
+	genericConfig.AuditPolicyChecker = policyChecker
 
 	kubeApiserverConfig := &master.Config{
 		GenericConfig: genericConfig,
@@ -529,12 +496,6 @@ func buildKubeApiserverConfig(
 
 		EnableLogsSupport:     false, // don't expose server logs
 		EnableCoreControllers: true,
-	}
-
-	if apiserverOptions.Etcd.EnableWatchCache {
-		// TODO(rebase): upstream also does the following:
-		// cachesize.InitializeWatchCacheSizes(s.GenericServerRunOptions.TargetRAMMB)
-		cachesize.SetWatchCacheSizes(apiserverOptions.GenericServerRunOptions.WatchCacheSizes)
 	}
 
 	if kubeApiserverConfig.EnableCoreControllers {
@@ -598,38 +559,31 @@ func buildKubeApiserverConfig(
 // TODO this function's parameters need to be refactored
 func BuildKubernetesMasterConfig(
 	masterConfig configapi.MasterConfig,
-	requestContextMapper apirequest.RequestContextMapper,
-	kubeClient kclientset.Interface,
-	internalKubeClient kinternalclientset.Interface,
 	admissionControl admission.Interface,
 	originAuthenticator authenticator.Request,
 	kubeAuthorizer authorizer.Authorizer,
-) (*MasterConfig, error) {
-	if masterConfig.KubernetesMasterConfig == nil {
-		return nil, errors.New("insufficient information to build KubernetesMasterConfig")
-	}
+	clientGoInformers kubeclientgoinformers.SharedInformerFactory,
+) (*master.Config, error) {
 	apiserverConfig, err := buildKubeApiserverConfig(
 		masterConfig,
-		requestContextMapper,
-		kubeClient,
-		internalKubeClient,
 		admissionControl,
 		originAuthenticator,
-		kubeAuthorizer)
+		kubeAuthorizer,
+		clientGoInformers)
 	if err != nil {
 		return nil, err
 	}
 
-	kmaster := &MasterConfig{
-		Options: *masterConfig.KubernetesMasterConfig,
-
-		Master: apiserverConfig,
+	// we do this for integration tests to be able to turn it off for better startup speed
+	// TODO remove the entire option once openapi is faster
+	if masterConfig.DisableOpenAPI {
+		apiserverConfig.GenericConfig.OpenAPIConfig = nil
 	}
 
-	return kmaster, nil
+	return apiserverConfig, nil
 }
 
-func DefaultOpenAPIConfig(config configapi.MasterConfig) *openapicommon.Config {
+func defaultOpenAPIConfig(config configapi.MasterConfig) *openapicommon.Config {
 	securityDefinitions := spec.SecurityDefinitions{}
 	if len(config.ServiceAccountConfig.PublicKeyFiles) > 0 {
 		securityDefinitions["BearerToken"] = &spec.SecurityScheme{
@@ -661,17 +615,13 @@ func DefaultOpenAPIConfig(config configapi.MasterConfig) *openapicommon.Config {
 			},
 		}
 	}
-	if configapi.UseTLS(config.ServingInfo.ServingInfo) {
-		// No support in Swagger's OpenAPI sepc v.2 ¯\_(ツ)_/¯
-		// TODO: Add x509 specification once available
-	}
 	defNamer := apiserverendpointsopenapi.NewDefinitionNamer(kapi.Scheme)
 	return &openapicommon.Config{
 		ProtocolList:      []string{"https"},
 		GetDefinitions:    openapigenerated.GetOpenAPIDefinitions,
 		IgnorePrefixes:    []string{"/swaggerapi", "/healthz", "/controllers", "/metrics", "/version/openshift", "/brokers"},
 		GetDefinitionName: defNamer.GetDefinitionName,
-		GetOperationIDAndTags: func(servePath string, r *restful.Route) (string, []string, error) {
+		GetOperationIDAndTags: func(r *restful.Route) (string, []string, error) {
 			op := r.Operation
 			path := r.Path
 			// DEPRECATED: These endpoints are going to be removed in 1.8 or 1.9 release.
@@ -683,13 +633,11 @@ func DefaultOpenAPIConfig(config configapi.MasterConfig) *openapicommon.Config {
 				op = "createProcessedTemplateForAllNamespacesV1"
 			} else if strings.HasPrefix(path, "/apis/template.openshift.io/v1/processedtemplates") {
 				op = "createProcessedTemplateForAllNamespaces"
-			} else if strings.HasPrefix(path, "/oapi/v1/namespaces/{namespace}/generatedeploymentconfigs") {
-				op = "generateNamespacedDeploymentConfig"
 			}
 			if op != r.Operation {
 				return op, []string{}, nil
 			}
-			return apiserverendpointsopenapi.GetOperationIDAndTags(servePath, r)
+			return apiserverendpointsopenapi.GetOperationIDAndTags(r)
 		},
 		Info: &spec.Info{
 			InfoProps: spec.InfoProps{
@@ -803,4 +751,71 @@ func readCAorNil(file string) ([]byte, error) {
 
 func newMasterLeases(storage storage.Interface, masterEndpointReconcileTTL int) election.Leases {
 	return election.NewLeases(storage, "/masterleases/", uint64(masterEndpointReconcileTTL))
+}
+
+func openshiftRequestInfoResolver() apirequest.RequestInfoResolver {
+	// Default API request info factory
+	requestInfoFactory := &apirequest.RequestInfoFactory{
+		APIPrefixes:          sets.NewString("api", "osapi", "oapi", "apis"),
+		GrouplessAPIPrefixes: sets.NewString("api", "osapi", "oapi"),
+	}
+	personalSARRequestInfoResolver := oauthorizer.NewPersonalSARRequestInfoResolver(requestInfoFactory)
+	projectRequestInfoResolver := oauthorizer.NewProjectRequestInfoResolver(personalSARRequestInfoResolver)
+	return projectRequestInfoResolver
+}
+
+func GetAuditConfig(auditConfig configapi.AuditConfig) (audit.Backend, auditpolicy.Checker, error) {
+	if !auditConfig.Enabled {
+		return nil, nil, nil
+	}
+	var (
+		backend       audit.Backend
+		policyChecker auditpolicy.Checker
+		writer        io.Writer
+	)
+	if len(auditConfig.AuditFilePath) > 0 {
+		writer = &lumberjack.Logger{
+			Filename:   auditConfig.AuditFilePath,
+			MaxAge:     auditConfig.MaximumFileRetentionDays,
+			MaxBackups: auditConfig.MaximumRetainedFiles,
+			MaxSize:    auditConfig.MaximumFileSizeMegabytes,
+		}
+	} else {
+		// backwards compatible writer to regular log
+		writer = cmdutil.NewGLogWriterV(0)
+	}
+	backend = auditlog.NewBackend(writer, auditlog.FormatLegacy)
+	policyChecker = auditpolicy.NewChecker(&auditinternal.Policy{
+		// This is for backwards compatibility maintaining the old visibility, ie. just
+		// raw overview of the requests comming in.
+		Rules: []auditinternal.PolicyRule{{Level: auditinternal.LevelMetadata}},
+	})
+
+	// when a policy file is defined we enable the advanced auditing
+	if auditConfig.PolicyConfiguration != nil || len(auditConfig.PolicyFile) > 0 {
+		// policy configuration
+		if auditConfig.PolicyConfiguration == nil {
+			p, _ := auditpolicy.LoadPolicyFromFile(auditConfig.PolicyFile)
+			policyChecker = auditpolicy.NewChecker(p)
+		} else if len(auditConfig.PolicyFile) > 0 {
+			p := auditConfig.PolicyConfiguration.(*auditinternal.Policy)
+			policyChecker = auditpolicy.NewChecker(p)
+		}
+
+		// log configuration, only when file path was provided
+		if len(auditConfig.AuditFilePath) > 0 {
+			backend = auditlog.NewBackend(writer, string(auditConfig.LogFormat))
+		}
+
+		// webhook configuration, only when config file was provided
+		if len(auditConfig.WebHookKubeConfig) > 0 {
+			webhook, err := auditwebhook.NewBackend(auditConfig.WebHookKubeConfig, string(auditConfig.WebHookMode))
+			if err != nil {
+				glog.Fatalf("Audit webhook initialization failed: %v", err)
+			}
+			backend = audit.Union(backend, webhook)
+		}
+	}
+
+	return backend, policyChecker, nil
 }

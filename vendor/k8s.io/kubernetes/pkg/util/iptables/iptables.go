@@ -54,13 +54,11 @@ type Interface interface {
 	DeleteRule(table Table, chain Chain, args ...string) error
 	// IsIpv6 returns true if this is managing ipv6 tables
 	IsIpv6() bool
-	// Save calls `iptables-save` for table.
-	Save(table Table) ([]byte, error)
-	// SaveAll calls `iptables-save`.
-	SaveAll() ([]byte, error)
+	// SaveInto calls `iptables-save` for table and stores result in a given buffer.
+	SaveInto(table Table, buffer *bytes.Buffer) error
 	// Restore runs `iptables-restore` passing data through []byte.
 	// table is the Table to restore
-	// data should be formatted like the output of Save()
+	// data should be formatted like the output of SaveInto()
 	// flush sets the presence of the "--noflush" flag. see: FlushFlag
 	// counters sets the "--counters" flag. see: RestoreCountersFlag
 	Restore(table Table, data []byte, flush FlushFlag, counters RestoreCountersFlag) error
@@ -118,9 +116,11 @@ const NoFlushTables FlushFlag = false
 // (test whether a rule exists).
 const MinCheckVersion = "1.4.11"
 
-// Minimum iptables versions supporting the -w and -w2 flags
-const MinWaitVersion = "1.4.20"
-const MinWait2Version = "1.4.22"
+// Minimum iptables versions supporting the -w and -w<seconds> flags
+const WaitMinVersion = "1.4.20"
+const WaitSecondsMinVersion = "1.4.22"
+const WaitString = "-w"
+const WaitSecondsString = "-w5"
 
 const LockfilePath16x = "/run/xtables.lock"
 
@@ -161,6 +161,8 @@ func newInternal(exec utilexec.Interface, dbus utildbus.Interface, protocol Prot
 		restoreWaitFlag: getIPTablesRestoreWaitFlag(exec),
 		lockfilePath:    lockfilePath,
 	}
+	// TODO this needs to be moved to a separate Start() or Run() function so that New() has zero side
+	// effects.
 	runner.connectToFirewallD()
 	return runner
 }
@@ -304,25 +306,23 @@ func (runner *runner) IsIpv6() bool {
 	return runner.protocol == ProtocolIpv6
 }
 
-// Save is part of Interface.
-func (runner *runner) Save(table Table) ([]byte, error) {
+// SaveInto is part of Interface.
+func (runner *runner) SaveInto(table Table, buffer *bytes.Buffer) error {
 	runner.mu.Lock()
 	defer runner.mu.Unlock()
 
 	// run and return
 	args := []string{"-t", string(table)}
 	glog.V(4).Infof("running iptables-save %v", args)
-	return runner.exec.Command(cmdIPTablesSave, args...).CombinedOutput()
-}
-
-// SaveAll is part of Interface.
-func (runner *runner) SaveAll() ([]byte, error) {
-	runner.mu.Lock()
-	defer runner.mu.Unlock()
-
-	// run and return
-	glog.V(4).Infof("running iptables-save")
-	return runner.exec.Command(cmdIPTablesSave, []string{}...).CombinedOutput()
+	cmd := runner.exec.Command(cmdIPTablesSave, args...)
+	// Since CombinedOutput() doesn't support redirecting it to a buffer,
+	// we need to workaround it by redirecting stdout and stderr to buffer
+	// and explicitly calling Run() [CombinedOutput() underneath itself
+	// creates a new buffer, redirects stdout and stderr to it and also
+	// calls Run()].
+	cmd.SetStdout(buffer)
+	cmd.SetStderr(buffer)
+	return cmd.Run()
 }
 
 // Restore is part of Interface.
@@ -391,7 +391,7 @@ func (runner *runner) run(op operation, args []string) ([]byte, error) {
 
 	fullArgs := append(runner.waitFlag, string(op))
 	fullArgs = append(fullArgs, args...)
-	glog.V(4).Infof("running iptables %s %v", string(op), args)
+	glog.V(5).Infof("running iptables %s %v", string(op), args)
 	return runner.exec.Command(iptablesCmd, fullArgs...).CombinedOutput()
 	// Don't log err here - callers might not think it is an error.
 }
@@ -515,24 +515,24 @@ func getIPTablesWaitFlag(vstring string) []string {
 		return nil
 	}
 
-	minVersion, err := utilversion.ParseGeneric(MinWaitVersion)
+	minVersion, err := utilversion.ParseGeneric(WaitMinVersion)
 	if err != nil {
-		glog.Errorf("MinWaitVersion (%s) is not a valid version string: %v", MinWaitVersion, err)
+		glog.Errorf("WaitMinVersion (%s) is not a valid version string: %v", WaitMinVersion, err)
 		return nil
 	}
 	if version.LessThan(minVersion) {
 		return nil
 	}
 
-	minVersion, err = utilversion.ParseGeneric(MinWait2Version)
+	minVersion, err = utilversion.ParseGeneric(WaitSecondsMinVersion)
 	if err != nil {
-		glog.Errorf("MinWait2Version (%s) is not a valid version string: %v", MinWait2Version, err)
+		glog.Errorf("WaitSecondsMinVersion (%s) is not a valid version string: %v", WaitSecondsMinVersion, err)
 		return nil
 	}
 	if version.LessThan(minVersion) {
-		return []string{"-w"}
+		return []string{WaitString}
 	} else {
-		return []string{"-w2"}
+		return []string{WaitSecondsString}
 	}
 }
 
@@ -567,7 +567,7 @@ func getIPTablesRestoreWaitFlag(exec utilexec.Interface) []string {
 		return nil
 	}
 
-	return []string{"--wait=2"}
+	return []string{WaitSecondsString}
 }
 
 // getIPTablesRestoreVersionString runs "iptables-restore --version" to get the version string

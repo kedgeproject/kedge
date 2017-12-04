@@ -31,7 +31,10 @@ function cleanup {
 
 start-server.sh
 
-PORT=$(docker port etcd-svc-cat 8081 | sed "s/.*://")
+# Kubectl needs to be configured with the current cluster
+# setup. Kubectl was initially configured in a different script and
+# the port mapping may have changed by the time we get here.
+PORT=$(docker port etcd-svc-cat 443 | sed "s/.*://")
 D_HOST=${DOCKER_HOST:-localhost}
 D_HOST=${D_HOST#*//}   # remove leading proto://
 D_HOST=${D_HOST%:*}    # remove trailing port #
@@ -41,16 +44,19 @@ NO_TTY=1 kubectl config set-cluster service-catalog-cluster --server=https://${D
 set -x
 NO_TTY=1 kubectl create -f contrib/examples/apiserver/broker.yaml
 NO_TTY=1 kubectl create -f contrib/examples/apiserver/serviceclass.yaml
+NO_TTY=1 kubectl create -f contrib/examples/apiserver/serviceplan.yaml
 NO_TTY=1 kubectl create -f contrib/examples/apiserver/instance.yaml
 NO_TTY=1 kubectl create -f contrib/examples/apiserver/binding.yaml
 
-NO_TTY=1 kubectl get broker test-broker -o yaml
-NO_TTY=1 kubectl get serviceclass test-serviceclass -o yaml
-NO_TTY=1 kubectl get instance test-instance --namespace test-ns -o yaml
-NO_TTY=1 kubectl get binding test-binding --namespace test-ns -o yaml
+NO_TTY=1 kubectl get clusterservicebroker test-broker -o yaml
+NO_TTY=1 kubectl get clusterserviceclass d35b55b2-b1fd-4123-8045-5b9c619cb629 -o yaml
+NO_TTY=1 kubectl get clusterserviceplan 10e03cb7-b2cf-40dd-a954-16a382b92446 -o yaml
+NO_TTY=1 kubectl get serviceinstance test-instance --namespace test-ns -o yaml
+NO_TTY=1 kubectl get servicebinding test-binding --namespace test-ns -o yaml
 
 NO_TTY=1 kubectl delete -f contrib/examples/apiserver/broker.yaml
 NO_TTY=1 kubectl delete -f contrib/examples/apiserver/serviceclass.yaml
+NO_TTY=1 kubectl delete -f contrib/examples/apiserver/serviceplan.yaml
 NO_TTY=1 kubectl delete -f contrib/examples/apiserver/instance.yaml
 NO_TTY=1 kubectl delete -f contrib/examples/apiserver/binding.yaml
 set +x

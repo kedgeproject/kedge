@@ -52,12 +52,7 @@ type BuildConfigProperties struct {
 // /etc/kubernetes/{admin,kubelet}.conf exist but not certs => certs will be generated and conflict with the kubeconfig files => error
 
 // CreateInitKubeConfigFiles is called from the main init and does the work for the default phase behaviour
-func CreateInitKubeConfigFiles(masterEndpoint, pkiDir, outDir string) error {
-
-	hostname, err := os.Hostname()
-	if err != nil {
-		return err
-	}
+func CreateInitKubeConfigFiles(masterEndpoint, pkiDir, outDir, nodeName string) error {
 
 	// Create a lightweight specification for what the files should look like
 	filesToCreateFromSpec := map[string]BuildConfigProperties{
@@ -69,7 +64,7 @@ func CreateInitKubeConfigFiles(masterEndpoint, pkiDir, outDir string) error {
 			MakeClientCerts: true,
 		},
 		kubeadmconstants.KubeletKubeConfigFileName: {
-			ClientName:      fmt.Sprintf("system:node:%s", hostname),
+			ClientName:      fmt.Sprintf("system:node:%s", nodeName),
 			APIServer:       masterEndpoint,
 			CertDir:         pkiDir,
 			Organization:    []string{kubeadmconstants.NodesGroup},

@@ -9,9 +9,8 @@ import (
 
 func addDefaultingFuncs(scheme *runtime.Scheme) error {
 	RegisterDefaults(scheme)
-	return scheme.AddDefaultingFuncs(
-		SetDefaults_SCC,
-	)
+	scheme.AddTypeDefaultingFunc(&SecurityContextConstraints{}, func(obj interface{}) { SetDefaults_SCC(obj.(*SecurityContextConstraints)) })
+	return nil
 }
 
 // Default SCCs for new fields.  FSGroup and SupplementalGroups are
@@ -22,6 +21,13 @@ func SetDefaults_SCC(scc *SecurityContextConstraints) {
 	}
 	if len(scc.SupplementalGroups.Type) == 0 {
 		scc.SupplementalGroups.Type = SupplementalGroupsStrategyRunAsAny
+	}
+
+	if scc.Users == nil {
+		scc.Users = []string{}
+	}
+	if scc.Groups == nil {
+		scc.Groups = []string{}
 	}
 
 	var defaultAllowedVolumes sets.String

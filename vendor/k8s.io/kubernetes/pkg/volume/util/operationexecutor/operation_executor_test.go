@@ -60,7 +60,7 @@ func TestOperationExecutor_MountVolume_ConcurrentMountForNonAttachablePlugins(t 
 			PluginIsAttachable: false, // this field determines whether the plugin is attachable
 			ReportedInUse:      true,
 		}
-		oe.MountVolume(0 /* waitForAttachTimeOut */, volumesToMount[i], nil /* actualStateOfWorldMounterUpdater */)
+		oe.MountVolume(0 /* waitForAttachTimeOut */, volumesToMount[i], nil /* actualStateOfWorldMounterUpdater */, false /* isRemount */)
 	}
 
 	// Assert
@@ -86,7 +86,7 @@ func TestOperationExecutor_MountVolume_ConcurrentMountForAttachablePlugins(t *te
 			PluginIsAttachable: true, // this field determines whether the plugin is attachable
 			ReportedInUse:      true,
 		}
-		oe.MountVolume(0 /* waitForAttachTimeout */, volumesToMount[i], nil /* actualStateOfWorldMounterUpdater */)
+		oe.MountVolume(0 /* waitForAttachTimeout */, volumesToMount[i], nil /* actualStateOfWorldMounterUpdater */, false /* isRemount */)
 	}
 
 	// Assert
@@ -239,29 +239,29 @@ func newFakeOperationGenerator(ch chan interface{}, quit chan interface{}) Opera
 	}
 }
 
-func (fopg *fakeOperationGenerator) GenerateMountVolumeFunc(waitForAttachTimeout time.Duration, volumeToMount VolumeToMount, actualStateOfWorldMounterUpdater ActualStateOfWorldMounterUpdater) (func() error, error) {
+func (fopg *fakeOperationGenerator) GenerateMountVolumeFunc(waitForAttachTimeout time.Duration, volumeToMount VolumeToMount, actualStateOfWorldMounterUpdater ActualStateOfWorldMounterUpdater, isRemount bool) (func() error, string, error) {
 	return func() error {
 		startOperationAndBlock(fopg.ch, fopg.quit)
 		return nil
-	}, nil
+	}, "", nil
 }
-func (fopg *fakeOperationGenerator) GenerateUnmountVolumeFunc(volumeToUnmount MountedVolume, actualStateOfWorld ActualStateOfWorldMounterUpdater) (func() error, error) {
+func (fopg *fakeOperationGenerator) GenerateUnmountVolumeFunc(volumeToUnmount MountedVolume, actualStateOfWorld ActualStateOfWorldMounterUpdater) (func() error, string, error) {
 	return func() error {
 		startOperationAndBlock(fopg.ch, fopg.quit)
 		return nil
-	}, nil
+	}, "", nil
 }
-func (fopg *fakeOperationGenerator) GenerateAttachVolumeFunc(volumeToAttach VolumeToAttach, actualStateOfWorld ActualStateOfWorldAttacherUpdater) (func() error, error) {
+func (fopg *fakeOperationGenerator) GenerateAttachVolumeFunc(volumeToAttach VolumeToAttach, actualStateOfWorld ActualStateOfWorldAttacherUpdater) (func() error, string, error) {
 	return func() error {
 		startOperationAndBlock(fopg.ch, fopg.quit)
 		return nil
-	}, nil
+	}, "", nil
 }
-func (fopg *fakeOperationGenerator) GenerateDetachVolumeFunc(volumeToDetach AttachedVolume, verifySafeToDetach bool, actualStateOfWorld ActualStateOfWorldAttacherUpdater) (func() error, error) {
+func (fopg *fakeOperationGenerator) GenerateDetachVolumeFunc(volumeToDetach AttachedVolume, verifySafeToDetach bool, actualStateOfWorld ActualStateOfWorldAttacherUpdater) (func() error, string, error) {
 	return func() error {
 		startOperationAndBlock(fopg.ch, fopg.quit)
 		return nil
-	}, nil
+	}, "", nil
 }
 func (fopg *fakeOperationGenerator) GenerateVolumesAreAttachedFunc(attachedVolumes []AttachedVolume, nodeName types.NodeName, actualStateOfWorld ActualStateOfWorldAttacherUpdater) (func() error, error) {
 	return func() error {
@@ -269,17 +269,17 @@ func (fopg *fakeOperationGenerator) GenerateVolumesAreAttachedFunc(attachedVolum
 		return nil
 	}, nil
 }
-func (fopg *fakeOperationGenerator) GenerateUnmountDeviceFunc(deviceToDetach AttachedVolume, actualStateOfWorld ActualStateOfWorldMounterUpdater, mounter mount.Interface) (func() error, error) {
+func (fopg *fakeOperationGenerator) GenerateUnmountDeviceFunc(deviceToDetach AttachedVolume, actualStateOfWorld ActualStateOfWorldMounterUpdater, mounter mount.Interface) (func() error, string, error) {
 	return func() error {
 		startOperationAndBlock(fopg.ch, fopg.quit)
 		return nil
-	}, nil
+	}, "", nil
 }
-func (fopg *fakeOperationGenerator) GenerateVerifyControllerAttachedVolumeFunc(volumeToMount VolumeToMount, nodeName types.NodeName, actualStateOfWorld ActualStateOfWorldAttacherUpdater) (func() error, error) {
+func (fopg *fakeOperationGenerator) GenerateVerifyControllerAttachedVolumeFunc(volumeToMount VolumeToMount, nodeName types.NodeName, actualStateOfWorld ActualStateOfWorldAttacherUpdater) (func() error, string, error) {
 	return func() error {
 		startOperationAndBlock(fopg.ch, fopg.quit)
 		return nil
-	}, nil
+	}, "", nil
 }
 
 func (fopg *fakeOperationGenerator) GenerateBulkVolumeVerifyFunc(

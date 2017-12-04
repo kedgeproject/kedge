@@ -18,29 +18,30 @@ package validation
 
 import (
 	apivalidation "k8s.io/apimachinery/pkg/api/validation"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	sc "github.com/kubernetes-incubator/service-catalog/pkg/apis/servicecatalog"
 )
 
-// ValidateBrokerName is the validation function for Broker names.
-var ValidateBrokerName = apivalidation.NameIsDNSSubdomain
+// ValidateClusterServiceBrokerName is the validation function for Broker names.
+var ValidateClusterServiceBrokerName = apivalidation.NameIsDNSSubdomain
 
-// ValidateBroker implements the validation rules for a BrokerResource.
-func ValidateBroker(broker *sc.Broker) field.ErrorList {
+// ValidateClusterServiceBroker implements the validation rules for a BrokerResource.
+func ValidateClusterServiceBroker(broker *sc.ClusterServiceBroker) field.ErrorList {
 	allErrs := field.ErrorList{}
 
 	allErrs = append(allErrs,
 		apivalidation.ValidateObjectMeta(&broker.ObjectMeta,
 			false, /* namespace required */
-			ValidateBrokerName,
+			ValidateClusterServiceBrokerName,
 			field.NewPath("metadata"))...)
 
-	allErrs = append(allErrs, validateBrokerSpec(&broker.Spec, field.NewPath("spec"))...)
+	allErrs = append(allErrs, validateClusterServiceBrokerSpec(&broker.Spec, field.NewPath("spec"))...)
 	return allErrs
 }
 
-func validateBrokerSpec(spec *sc.BrokerSpec, fldPath *field.Path) field.ErrorList {
+func validateClusterServiceBrokerSpec(spec *sc.ClusterServiceBrokerSpec, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 
 	if "" == spec.URL {
@@ -51,23 +52,92 @@ func validateBrokerSpec(spec *sc.BrokerSpec, fldPath *field.Path) field.ErrorLis
 
 	// if there is auth information, check it to make sure that it's properly formatted
 	if spec.AuthInfo != nil {
-		// TODO: when we start supporting additional auth schemes, this code will have to accommodate
-		// the new schemes
-		basicAuthSecret := spec.AuthInfo.BasicAuthSecret
-		if basicAuthSecret != nil {
-			for _, msg := range apivalidation.ValidateNamespaceName(basicAuthSecret.Namespace, false /* prefix */) {
-				allErrs = append(allErrs, field.Invalid(fldPath.Child("authInfo", "basicAuthSecret", "namespace"), basicAuthSecret.Namespace, msg))
+		if spec.AuthInfo.Basic != nil {
+			secretRef := spec.AuthInfo.Basic.SecretRef
+			if secretRef != nil {
+				for _, msg := range apivalidation.ValidateNamespaceName(secretRef.Namespace, false /* prefix */) {
+					allErrs = append(allErrs, field.Invalid(fldPath.Child("authInfo", "basic", "secretRef", "namespace"), secretRef.Namespace, msg))
+				}
+				for _, msg := range apivalidation.NameIsDNSSubdomain(secretRef.Name, false /* prefix */) {
+					allErrs = append(allErrs, field.Invalid(fldPath.Child("authInfo", "basic", "secretRef", "name"), secretRef.Name, msg))
+				}
+			} else {
+				allErrs = append(
+					allErrs,
+					field.Required(fldPath.Child("authInfo", "basic", "secretRef"), "a basic auth secret is required"),
+				)
 			}
-
-			for _, msg := range apivalidation.NameIsDNSSubdomain(basicAuthSecret.Name, false /* prefix */) {
-				allErrs = append(allErrs, field.Invalid(fldPath.Child("authInfo", "basicAuthSecret", "name"), basicAuthSecret.Name, msg))
+		} else if spec.AuthInfo.Bearer != nil {
+			secretRef := spec.AuthInfo.Bearer.SecretRef
+			if secretRef != nil {
+				for _, msg := range apivalidation.ValidateNamespaceName(secretRef.Namespace, false /* prefix */) {
+					allErrs = append(allErrs, field.Invalid(fldPath.Child("authInfo", "bearer", "secretRef", "namespace"), secretRef.Namespace, msg))
+				}
+				for _, msg := range apivalidation.NameIsDNSSubdomain(secretRef.Name, false /* prefix */) {
+					allErrs = append(allErrs, field.Invalid(fldPath.Child("authInfo", "bearer", "secretRef", "name"), secretRef.Name, msg))
+				}
+			} else {
+				allErrs = append(
+					allErrs,
+					field.Required(fldPath.Child("authInfo", "bearer", "secretRef"), "a basic auth secret is required"),
+				)
 			}
 		} else {
-			// if there's no BasicAuthSecret, then we need to error because there are no other auth
-			// options right now
+			// Authentication
 			allErrs = append(
 				allErrs,
-				field.Required(fldPath.Child("authInfo", "basicAuthSecret"), "a basic auth secret is required"),
+				field.Required(fldPath.Child("authInfo"), "auth config is required"),
+			)
+		}
+	}
+
+	if spec.InsecureSkipTLSVerify && len(spec.CABundle) > 0 {
+		allErrs = append(allErrs, field.Invalid(fldPath.Child("caBundle"), spec.CABundle, "caBundle cannot be used when insecureSkipTLSVerify is true"))
+	}
+
+	if "" == spec.RelistBehavior {
+		allErrs = append(allErrs,
+			field.Required(fldPath.Child("relistBehavior"),
+				"relist behavior is required"))
+	}
+
+	isValidRelistBehavior := spec.RelistBehavior == sc.ServiceBrokerRelistBehaviorDuration ||
+		spec.RelistBehavior == sc.ServiceBrokerRelistBehaviorManual
+	if !isValidRelistBehavior {
+		errMsg := "relist behavior must be \"Manual\" or \"Duration\""
+		allErrs = append(
+			allErrs,
+			field.Required(fldPath.Child("relistBehavior"), errMsg),
+		)
+	}
+
+	if spec.RelistBehavior == sc.ServiceBrokerRelistBehaviorDuration && spec.RelistDuration == nil {
+		allErrs = append(
+			allErrs,
+			field.Required(fldPath.Child("relistDuration"), "relistDuration must be set if relistBehavior is set to Duration"),
+		)
+	}
+
+	if spec.RelistBehavior == sc.ServiceBrokerRelistBehaviorManual && spec.RelistDuration != nil {
+		allErrs = append(
+			allErrs,
+			field.Required(fldPath.Child("relistDuration"), "relistDuration must not be set if relistBehavior is set to Manual"),
+		)
+	}
+
+	if spec.RelistRequests < 0 {
+		allErrs = append(
+			allErrs,
+			field.Required(fldPath.Child("relistRequests"), "relistRequests must be greater than zero"),
+		)
+	}
+
+	if spec.RelistDuration != nil {
+		zeroDuration := metav1.Duration{Duration: 0}
+		if spec.RelistDuration.Duration <= zeroDuration.Duration {
+			allErrs = append(
+				allErrs,
+				field.Required(fldPath.Child("relistDuration"), "relistDuration must be greater than zero"),
 			)
 		}
 	}
@@ -75,17 +145,20 @@ func validateBrokerSpec(spec *sc.BrokerSpec, fldPath *field.Path) field.ErrorLis
 	return allErrs
 }
 
-// ValidateBrokerUpdate checks that when changing from an older broker to a newer broker is okay ?
-func ValidateBrokerUpdate(new *sc.Broker, old *sc.Broker) field.ErrorList {
+// ValidateClusterServiceBrokerUpdate checks that when changing from an older broker to a newer broker is okay ?
+func ValidateClusterServiceBrokerUpdate(new *sc.ClusterServiceBroker, old *sc.ClusterServiceBroker) field.ErrorList {
 	allErrs := field.ErrorList{}
-	allErrs = append(allErrs, ValidateBroker(new)...)
-	allErrs = append(allErrs, ValidateBroker(old)...)
+	// RelistRequests can be increasing to relist the broker, or equal to update other fields
+	if new.Spec.RelistRequests < old.Spec.RelistRequests {
+		allErrs = append(allErrs, field.Invalid(field.NewPath("spec").Child("relistRequests"), old.Spec.RelistRequests, "RelistRequests must be strictly increasing"))
+	}
+	allErrs = append(allErrs, ValidateClusterServiceBroker(new)...)
 	return allErrs
 }
 
-// ValidateBrokerStatusUpdate checks that when changing from an older broker to a newer broker is okay.
-func ValidateBrokerStatusUpdate(new *sc.Broker, old *sc.Broker) field.ErrorList {
+// ValidateClusterServiceBrokerStatusUpdate checks that when changing from an older broker to a newer broker is okay.
+func ValidateClusterServiceBrokerStatusUpdate(new *sc.ClusterServiceBroker, old *sc.ClusterServiceBroker) field.ErrorList {
 	allErrs := field.ErrorList{}
-	allErrs = append(allErrs, ValidateBrokerUpdate(new, old)...)
+	allErrs = append(allErrs, ValidateClusterServiceBrokerUpdate(new, old)...)
 	return allErrs
 }

@@ -7,11 +7,11 @@ import (
 	unversionedvalidation "k8s.io/apimachinery/pkg/apis/meta/v1/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	kapi "k8s.io/kubernetes/pkg/api"
+	kapihelper "k8s.io/kubernetes/pkg/api/helper"
 	"k8s.io/kubernetes/pkg/api/validation"
 
-	oapi "github.com/openshift/origin/pkg/api"
+	"github.com/golang/glog"
 	templateapi "github.com/openshift/origin/pkg/template/apis/template"
-	uservalidation "github.com/openshift/origin/pkg/user/apis/user/validation"
 )
 
 var ParameterNameRegexp = regexp.MustCompile(`^[a-zA-Z0-9_]+$`)
@@ -33,9 +33,11 @@ func ValidateProcessedTemplate(template *templateapi.Template) field.ErrorList {
 	return validateTemplateBody(template)
 }
 
+var ValidateTemplateName = validation.NameIsDNSSubdomain
+
 // ValidateTemplate tests if required fields in the Template are set.
 func ValidateTemplate(template *templateapi.Template) (allErrs field.ErrorList) {
-	allErrs = validation.ValidateObjectMeta(&template.ObjectMeta, true, oapi.GetNameValidationFunc(validation.ValidatePodName), field.NewPath("metadata"))
+	allErrs = validation.ValidateObjectMeta(&template.ObjectMeta, true, ValidateTemplateName, field.NewPath("metadata"))
 	allErrs = append(allErrs, validateTemplateBody(template)...)
 	return
 }
@@ -54,16 +56,34 @@ func validateTemplateBody(template *templateapi.Template) (allErrs field.ErrorLi
 	return
 }
 
+var ValidateTemplateInstanceName = validation.NameIsDNSSubdomain
+
 // ValidateTemplateInstance tests if required fields in the TemplateInstance are set.
 func ValidateTemplateInstance(templateInstance *templateapi.TemplateInstance) (allErrs field.ErrorList) {
-	allErrs = validation.ValidateObjectMeta(&templateInstance.ObjectMeta, true, oapi.GetNameValidationFunc(validation.ValidatePodName), field.NewPath("metadata"))
-	for _, err := range ValidateTemplate(&templateInstance.Spec.Template) {
-		err.Field = "spec.template." + err.Field
-		allErrs = append(allErrs, err)
+	allErrs = validation.ValidateObjectMeta(&templateInstance.ObjectMeta, true, ValidateTemplateInstanceName, field.NewPath("metadata"))
+
+	// Allow the nested template name and namespace to be empty.  If not empty,
+	// the fields should pass validation.
+	templateCopy, err := kapi.Scheme.DeepCopy(&templateInstance.Spec.Template)
+	if err != nil {
+		glog.V(2).Infof("Error copying template for validation: %v", err)
+		allErrs = append(allErrs, field.InternalError(field.NewPath(""), fmt.Errorf("Unable to copy template validation: %v", err)))
+	} else {
+		templateCopy := templateCopy.(*templateapi.Template)
+		if templateCopy.Name == "" {
+			templateCopy.Name = "dummy"
+		}
+		if templateCopy.Namespace == "" {
+			templateCopy.Namespace = "dummy"
+		}
+		for _, err := range ValidateTemplate(templateCopy) {
+			err.Field = "spec.template." + err.Field
+			allErrs = append(allErrs, err)
+		}
 	}
 	if templateInstance.Spec.Secret != nil {
 		if templateInstance.Spec.Secret.Name != "" {
-			for _, msg := range oapi.GetNameValidationFunc(validation.ValidateSecretName)(templateInstance.Spec.Secret.Name, false) {
+			for _, msg := range validation.ValidateSecretName(templateInstance.Spec.Secret.Name, false) {
 				allErrs = append(allErrs, field.Invalid(field.NewPath("spec.secret.name"), templateInstance.Spec.Secret.Name, msg))
 			}
 		} else {
@@ -74,10 +94,6 @@ func ValidateTemplateInstance(templateInstance *templateapi.TemplateInstance) (a
 		allErrs = append(allErrs, field.Required(field.NewPath("spec.requester"), ""))
 	} else if templateInstance.Spec.Requester.Username == "" {
 		allErrs = append(allErrs, field.Required(field.NewPath("spec.requester.username"), ""))
-	} else {
-		for _, msg := range oapi.GetNameValidationFunc(uservalidation.ValidateUserName)(templateInstance.Spec.Requester.Username, false) {
-			allErrs = append(allErrs, field.Invalid(field.NewPath("spec.requester.username"), templateInstance.Spec.Requester.Username, msg))
-		}
 	}
 	return
 }
@@ -86,15 +102,17 @@ func ValidateTemplateInstance(templateInstance *templateapi.TemplateInstance) (a
 func ValidateTemplateInstanceUpdate(templateInstance, oldTemplateInstance *templateapi.TemplateInstance) (allErrs field.ErrorList) {
 	allErrs = validation.ValidateObjectMetaUpdate(&templateInstance.ObjectMeta, &oldTemplateInstance.ObjectMeta, field.NewPath("metadata"))
 
-	if !kapi.Semantic.DeepEqual(templateInstance.Spec, oldTemplateInstance.Spec) {
+	if !kapihelper.Semantic.DeepEqual(templateInstance.Spec, oldTemplateInstance.Spec) {
 		allErrs = append(allErrs, field.Forbidden(field.NewPath("spec"), "field is immutable"))
 	}
 	return
 }
 
+var ValidateBrokerTemplateInstanceName = validation.NameIsDNSSubdomain
+
 // ValidateBrokerTemplateInstance tests if required fields in the BrokerTemplateInstance are set.
 func ValidateBrokerTemplateInstance(brokerTemplateInstance *templateapi.BrokerTemplateInstance) (allErrs field.ErrorList) {
-	allErrs = validation.ValidateObjectMeta(&brokerTemplateInstance.ObjectMeta, false, oapi.GetNameValidationFunc(validation.ValidatePodName), field.NewPath("metadata"))
+	allErrs = validation.ValidateObjectMeta(&brokerTemplateInstance.ObjectMeta, false, ValidateBrokerTemplateInstanceName, field.NewPath("metadata"))
 	allErrs = append(allErrs, validateTemplateInstanceReference(&brokerTemplateInstance.Spec.TemplateInstance, field.NewPath("spec.templateInstance"), "TemplateInstance")...)
 	allErrs = append(allErrs, validateTemplateInstanceReference(&brokerTemplateInstance.Spec.Secret, field.NewPath("spec.secret"), "Secret")...)
 	for _, id := range brokerTemplateInstance.Spec.BindingIDs {
@@ -137,7 +155,7 @@ func validateTemplateInstanceReference(ref *kapi.ObjectReference, fldPath *field
 	if len(ref.Name) == 0 {
 		allErrs = append(allErrs, field.Required(fldPath.Child("name"), ""))
 	} else {
-		for _, msg := range oapi.GetNameValidationFunc(validation.ValidatePodName)(ref.Name, false) {
+		for _, msg := range ValidateTemplateName(ref.Name, false) {
 			allErrs = append(allErrs, field.Invalid(fldPath.Child("name"), ref.Name, msg))
 		}
 	}
@@ -145,7 +163,7 @@ func validateTemplateInstanceReference(ref *kapi.ObjectReference, fldPath *field
 	if len(ref.Namespace) == 0 {
 		allErrs = append(allErrs, field.Required(fldPath.Child("namespace"), ""))
 	} else {
-		for _, msg := range oapi.GetNameValidationFunc(validation.ValidateNamespaceName)(ref.Namespace, false) {
+		for _, msg := range validation.ValidateNamespaceName(ref.Namespace, false) {
 			allErrs = append(allErrs, field.Invalid(fldPath.Child("namespace"), ref.Namespace, msg))
 		}
 	}

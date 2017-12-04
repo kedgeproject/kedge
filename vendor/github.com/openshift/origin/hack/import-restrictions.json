@@ -1,0 +1,327 @@
+[
+  {
+    "checkedPackageRoots": [
+      "github.com/openshift/origin/pkg"
+    ],
+    "ignoredSubTrees": [
+      "github.com/openshift/origin/pkg/templateservicebroker",
+      "github.com/openshift/origin/pkg/cmd/server/start"
+    ],
+    "forbiddenImportPackageRoots": [
+      "github.com/openshift/origin/pkg/templateservicebroker"
+    ],
+    "allowedImportPackageRoots": [
+      "vendor",
+      ""
+    ]
+  },
+
+  {
+    "checkedPackageRoots": [
+      "github.com/openshift/origin/pkg"
+    ],
+    "ignoredSubTrees": [
+      "github.com/openshift/origin/pkg/build/builder",
+      "github.com/openshift/origin/pkg/cmd/infra/builder",
+      "github.com/openshift/origin/pkg/oc/cli/secrets",
+      "github.com/openshift/origin/pkg/build/controller/strategy"
+    ],
+    "forbiddenImportPackageRoots": [
+      "github.com/openshift/origin/pkg/build/builder"
+    ],
+    "allowedImportPackageRoots": [
+      "vendor",
+      ""
+    ]
+  },
+
+
+  {
+    "checkedPackageRoots": [
+      "github.com/openshift/origin/pkg"
+    ],
+    "ignoredSubTrees": [
+      "github.com/openshift/origin/pkg/dockerregistry",
+      "github.com/openshift/origin/pkg/cmd/dockerregistry"
+    ],
+    "forbiddenImportPackageRoots": [
+      "github.com/openshift/origin/pkg/dockerregistry"
+    ],
+    "allowedImportPackageRoots": [
+      "vendor",
+      ""
+    ]
+  },
+
+  {
+    "checkedPackages": [
+      "github.com/openshift/origin/pkg/authorization/apis/authorization",
+      "github.com/openshift/origin/pkg/authorization/apis/authorization/v1"
+    ],
+    "allowedImportPackageRoots": [
+      "vendor/k8s.io/apimachinery",
+      "vendor/github.com/gogo/protobuf",
+      "github.com/openshift/origin/pkg/api/apihelpers"
+    ],
+    "allowedImportPackages": [
+      "vendor/k8s.io/kubernetes/pkg/api",
+      "vendor/k8s.io/kubernetes/pkg/api/v1",
+      "vendor/k8s.io/kubernetes/pkg/apis/rbac",
+      "github.com/openshift/origin/pkg/authorization/apis/authorization/internal/serviceaccount"
+    ]
+  },
+
+  {
+    "checkedPackages": [
+      "github.com/openshift/origin/pkg/build/apis/build",
+      "github.com/openshift/origin/pkg/build/apis/build/v1"
+    ],
+    "allowedImportPackageRoots": [
+      "vendor/k8s.io/apimachinery",
+      "vendor/github.com/gogo/protobuf",
+      "github.com/openshift/origin/pkg/api/apihelpers"
+    ],
+    "allowedImportPackages": [
+      "vendor/k8s.io/kubernetes/pkg/api",
+      "vendor/k8s.io/kubernetes/pkg/api/v1",
+      "github.com/openshift/origin/pkg/image/apis/image",
+      "vendor/github.com/golang/glog"
+    ]
+  },
+
+  {
+    "checkedPackages": [
+      "github.com/openshift/origin/pkg/apps/apis/apps",
+      "github.com/openshift/origin/pkg/apps/apis/apps/v1"
+    ],
+    "allowedImportPackageRoots": [
+      "vendor/k8s.io/apimachinery",
+      "vendor/github.com/gogo/protobuf"
+    ],
+    "allowedImportPackages": [
+      "vendor/k8s.io/kubernetes/pkg/api",
+      "vendor/k8s.io/kubernetes/pkg/api/v1",
+      "vendor/k8s.io/kubernetes/pkg/apis/extensions",
+      "vendor/k8s.io/kubernetes/pkg/apis/extensions/v1beta1",
+      "github.com/openshift/origin/pkg/image/apis/image"
+    ]
+  },
+
+  {
+    "checkedPackages": [
+      "github.com/openshift/origin/pkg/image/apis/image",
+      "github.com/openshift/origin/pkg/image/apis/image/docker10",
+      "github.com/openshift/origin/pkg/image/apis/image/dockerpre012",
+      "github.com/openshift/origin/pkg/image/apis/image/v1"
+    ],
+    "allowedImportPackageRoots": [
+      "vendor/k8s.io/apimachinery",
+      "vendor/github.com/gogo/protobuf",
+      "github.com/openshift/origin/pkg/image/apis/image/internal",
+      "github.com/openshift/origin/pkg/api/apihelpers"
+    ],
+    "allowedImportPackages": [
+      "vendor/k8s.io/kubernetes/pkg/api",
+      "vendor/k8s.io/kubernetes/pkg/api/v1",
+      "vendor/github.com/golang/glog",
+      "vendor/github.com/blang/semver"
+    ]
+  },
+
+  {
+    "checkedPackages": [
+      "github.com/openshift/origin/pkg/oauth/apis/oauth",
+      "github.com/openshift/origin/pkg/oauth/apis/oauth/v1"
+    ],
+    "allowedImportPackageRoots": [
+      "vendor/k8s.io/apimachinery",
+      "vendor/github.com/gogo/protobuf",
+      "github.com/openshift/origin/pkg/api/apihelpers"
+    ],
+    "allowedImportPackages": []
+  },
+
+  {
+    "checkedPackages": [
+      "github.com/openshift/origin/pkg/project/apis/project",
+      "github.com/openshift/origin/pkg/project/apis/project/v1"
+    ],
+    "allowedImportPackageRoots": [
+      "vendor/k8s.io/apimachinery",
+      "vendor/github.com/gogo/protobuf",
+      "github.com/openshift/origin/pkg/api/apihelpers"
+    ],
+    "allowedImportPackages": [
+      "vendor/k8s.io/kubernetes/pkg/api",
+      "vendor/k8s.io/kubernetes/pkg/api/v1"
+    ]
+  },
+
+  {
+    "checkedPackages": [
+      "github.com/openshift/origin/pkg/quota/apis/quota",
+      "github.com/openshift/origin/pkg/quota/apis/quota/v1"
+    ],
+    "allowedImportPackageRoots": [
+      "vendor/k8s.io/apimachinery",
+      "vendor/github.com/gogo/protobuf"
+    ],
+    "allowedImportPackages": [
+      "vendor/k8s.io/kubernetes/pkg/api",
+      "vendor/k8s.io/kubernetes/pkg/api/v1"
+    ]
+  },
+
+  {
+    "checkedPackages": [
+      "github.com/openshift/origin/pkg/route/apis/route",
+      "github.com/openshift/origin/pkg/route/apis/route/v1"
+    ],
+    "allowedImportPackageRoots": [
+      "vendor/k8s.io/apimachinery",
+      "vendor/github.com/gogo/protobuf",
+      "github.com/openshift/origin/pkg/api/apihelpers"
+    ],
+    "allowedImportPackages": [
+      "vendor/k8s.io/kubernetes/pkg/api",
+      "vendor/k8s.io/kubernetes/pkg/api/v1"
+    ]
+  },
+
+  {
+    "checkedPackages": [
+      "github.com/openshift/origin/pkg/network/master",
+      "github.com/openshift/origin/pkg/network/common"
+    ],
+    "forbiddenImportPackageRoots": [
+      "vendor/github.com/vishvananda/netlink"
+    ],
+    "allowedImportPackageRoots": [
+      ""
+    ]
+  },
+
+  {
+    "checkedPackages": [
+      "github.com/openshift/origin/pkg/network/apis/network",
+      "github.com/openshift/origin/pkg/network/apis/network/v1"
+    ],
+    "allowedImportPackageRoots": [
+      "vendor/k8s.io/apimachinery",
+      "vendor/github.com/gogo/protobuf"
+    ],
+    "allowedImportPackages": []
+  },
+
+  {
+    "checkedPackages": [
+      "github.com/openshift/origin/pkg/template/apis/template",
+      "github.com/openshift/origin/pkg/template/apis/template/v1"
+    ],
+    "allowedImportPackageRoots": [
+      "vendor/k8s.io/apimachinery",
+      "vendor/github.com/gogo/protobuf",
+      "github.com/openshift/origin/pkg/api/apihelpers"
+    ],
+    "allowedImportPackages": [
+      "vendor/k8s.io/kubernetes/pkg/api",
+      "vendor/k8s.io/kubernetes/pkg/api/v1"
+    ]
+  },
+
+  {
+    "checkedPackages": [
+      "github.com/openshift/origin/pkg/user/apis/user",
+      "github.com/openshift/origin/pkg/user/apis/user/v1"
+    ],
+    "allowedImportPackageRoots": [
+      "vendor/k8s.io/apimachinery",
+      "vendor/github.com/gogo/protobuf",
+      "github.com/openshift/origin/pkg/api/apihelpers"
+    ],
+    "allowedImportPackages": [
+      "vendor/k8s.io/kubernetes/pkg/api",
+      "vendor/k8s.io/kubernetes/pkg/api/v1"
+    ]
+  },
+
+
+  {
+    "checkedPackageRoots": [
+      "github.com/openshift/origin/pkg/api/apihelpers"
+    ],
+    "allowedImportPackageRoots": [
+      "vendor/k8s.io/apimachinery"
+    ],
+    "allowedImportPackages": []
+  },
+
+  {
+    "checkedPackageRoots": [
+      "github.com/openshift/origin/pkg/templateservicebroker"
+    ],
+    "allowedImportPackageRoots": [
+      "vendor/k8s.io/apimachinery",
+      "vendor/k8s.io/apiserver",
+      "vendor/k8s.io/client-go",
+      "vendor/github.com/spf13/cobra",
+      "vendor/golang.org",
+      "github.com/openshift/origin/pkg/config/cmd",
+      "github.com/openshift/origin/pkg/template/generated",
+      "github.com/openshift/origin/pkg/template/servicebroker",
+      "github.com/openshift/origin/pkg/util/rest"
+    ],
+    "allowedImportPackages": [
+      "vendor/github.com/golang/glog",
+      "vendor/k8s.io/kubernetes/pkg/api",
+      "vendor/k8s.io/kubernetes/pkg/api/install",
+      "vendor/k8s.io/kubernetes/pkg/apis/authorization",
+      "vendor/k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset",
+      "vendor/github.com/emicklei/go-restful",
+      "vendor/github.com/lestrrat/go-jsschema",
+      "vendor/k8s.io/kubernetes/pkg/controller",
+      "vendor/k8s.io/kubernetes/pkg/kubectl/cmd/util",
+      "github.com/openshift/origin/pkg/api",
+      "github.com/openshift/origin/pkg/template/apis/template",
+      "github.com/openshift/origin/pkg/template/apis/template/v1",
+      "github.com/openshift/origin/pkg/authorization/util",
+      "github.com/openshift/origin/pkg/template/apis/template/validation",
+      "github.com/openshift/origin/pkg/route/apis/route"
+    ]
+  },
+
+  {
+    "checkedPackageRoots": [
+      "github.com/openshift/origin/pkg/dockerregistry"
+    ],
+    "allowedImportPackageRoots": [
+      "vendor/github.com/docker/distribution",
+      "vendor/github.com/docker/libtrust",
+      "vendor/github.com/prometheus",
+      "vendor/k8s.io/client-go",
+      "vendor/github.com/hashicorp/golang-lru",
+      "vendor/github.com/Sirupsen/logrus",
+      "vendor/k8s.io/kubernetes/pkg/client/clientset_generated/",
+      "vendor/k8s.io/apimachinery",
+      "vendor/github.com/gorilla/handlers",
+      "vendor/gopkg.in/yaml.v2",
+      "github.com/openshift/origin/pkg/image/generated",
+      "github.com/openshift/origin/pkg/user/generated"
+    ],
+    "allowedImportPackages": [
+      "github.com/openshift/origin/pkg/image/admission",
+      "github.com/openshift/origin/pkg/cmd/util/clientcmd",
+      "github.com/openshift/origin/pkg/image/importer",
+      "github.com/openshift/origin/pkg/quota/util",
+      "github.com/openshift/origin/pkg/util/httprequest",
+      "vendor/k8s.io/kubernetes/pkg/api",
+      "vendor/k8s.io/kubernetes/pkg/api/v1",
+      "vendor/k8s.io/kubernetes/pkg/apis/authorization/v1",
+      "github.com/openshift/origin/pkg/image/apis/image",
+      "github.com/openshift/origin/pkg/image/apis/image/v1",
+      "github.com/openshift/origin/pkg/image/util",
+      "github.com/openshift/origin/pkg/user/apis/user",
+      "github.com/openshift/origin/pkg/user/apis/user/v1"
+    ]
+  }
+]

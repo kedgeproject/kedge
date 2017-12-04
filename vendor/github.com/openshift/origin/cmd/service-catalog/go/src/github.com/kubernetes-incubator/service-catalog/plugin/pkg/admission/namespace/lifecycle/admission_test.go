@@ -21,12 +21,12 @@ import (
 	"testing"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apiserver/pkg/admission"
 	kubefake "k8s.io/client-go/kubernetes/fake"
-	"k8s.io/client-go/pkg/api/v1"
 	core "k8s.io/client-go/testing"
 
 	kubeinformers "k8s.io/client-go/informers"
@@ -56,22 +56,22 @@ func newHandlerForTest(internalClient internalclientset.Interface, kubeClient ku
 
 // newMockKubeClientForTest creates a mock client that returns a client
 // configured for the specified list of namespaces with the specified phase.
-func newMockKubeClientForTest(namespaces map[string]v1.NamespacePhase) *kubefake.Clientset {
+func newMockKubeClientForTest(namespaces map[string]corev1.NamespacePhase) *kubefake.Clientset {
 	mockClient := &kubefake.Clientset{}
 	mockClient.AddReactor("list", "namespaces", func(action core.Action) (bool, runtime.Object, error) {
-		namespaceList := &v1.NamespaceList{
+		namespaceList := &corev1.NamespaceList{
 			ListMeta: metav1.ListMeta{
 				ResourceVersion: fmt.Sprintf("%d", len(namespaces)),
 			},
 		}
 		index := 0
 		for name, phase := range namespaces {
-			namespaceList.Items = append(namespaceList.Items, v1.Namespace{
+			namespaceList.Items = append(namespaceList.Items, corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:            name,
 					ResourceVersion: fmt.Sprintf("%d", index),
 				},
-				Status: v1.NamespaceStatus{
+				Status: corev1.NamespaceStatus{
 					Phase: phase,
 				},
 			})
@@ -88,16 +88,9 @@ func newMockClientForTest() *fake.Clientset {
 	return mockClient
 }
 
-// newBroker returns a new broker for testing.
-func newBroker() servicecatalog.Broker {
-	return servicecatalog.Broker{
-		ObjectMeta: metav1.ObjectMeta{Name: "broker"},
-	}
-}
-
-// newInstance returns a new instance for the specified namespace.
-func newInstance(namespace string) servicecatalog.Instance {
-	return servicecatalog.Instance{
+// newServiceInstance returns a new instance for the specified namespace.
+func newServiceInstance(namespace string) servicecatalog.ServiceInstance {
+	return servicecatalog.ServiceInstance{
 		ObjectMeta: metav1.ObjectMeta{Name: "instance", Namespace: namespace},
 	}
 }
@@ -106,7 +99,7 @@ func newInstance(namespace string) servicecatalog.Instance {
 func TestAdmissionNamespaceDoesNotExist(t *testing.T) {
 	namespace := "test"
 	mockClient := newMockClientForTest()
-	mockKubeClient := newMockKubeClientForTest(map[string]v1.NamespacePhase{})
+	mockKubeClient := newMockKubeClientForTest(map[string]corev1.NamespacePhase{})
 	mockKubeClient.AddReactor("get", "namespaces", func(action core.Action) (bool, runtime.Object, error) {
 		return true, nil, fmt.Errorf("nope, out of luck")
 	})
@@ -117,8 +110,8 @@ func TestAdmissionNamespaceDoesNotExist(t *testing.T) {
 	informerFactory.Start(wait.NeverStop)
 	kubeInformerFactory.Start(wait.NeverStop)
 
-	instance := newInstance(namespace)
-	err = handler.Admit(admission.NewAttributesRecord(&instance, nil, servicecatalog.Kind("Instance").WithVersion("version"), instance.Namespace, instance.Name, servicecatalog.Resource("instances").WithVersion("version"), "", admission.Create, nil))
+	instance := newServiceInstance(namespace)
+	err = handler.Admit(admission.NewAttributesRecord(&instance, nil, servicecatalog.Kind("ServiceInstance").WithVersion("version"), instance.Namespace, instance.Name, servicecatalog.Resource("serviceinstances").WithVersion("version"), "", admission.Create, nil))
 	if err == nil {
 		actions := ""
 		for _, action := range mockClient.Actions() {
@@ -132,8 +125,8 @@ func TestAdmissionNamespaceDoesNotExist(t *testing.T) {
 func TestAdmissionNamespaceActive(t *testing.T) {
 	namespace := "test"
 	mockClient := newMockClientForTest()
-	mockKubeClient := newMockKubeClientForTest(map[string]v1.NamespacePhase{
-		namespace: v1.NamespaceActive,
+	mockKubeClient := newMockKubeClientForTest(map[string]corev1.NamespacePhase{
+		namespace: corev1.NamespaceActive,
 	})
 	handler, informerFactory, kubeInformerFactory, err := newHandlerForTest(mockClient, mockKubeClient)
 	if err != nil {
@@ -142,8 +135,8 @@ func TestAdmissionNamespaceActive(t *testing.T) {
 	informerFactory.Start(wait.NeverStop)
 	kubeInformerFactory.Start(wait.NeverStop)
 
-	instance := newInstance(namespace)
-	err = handler.Admit(admission.NewAttributesRecord(&instance, nil, servicecatalog.Kind("Instance").WithVersion("version"), instance.Namespace, instance.Name, servicecatalog.Resource("instances").WithVersion("version"), "", admission.Create, nil))
+	instance := newServiceInstance(namespace)
+	err = handler.Admit(admission.NewAttributesRecord(&instance, nil, servicecatalog.Kind("ServiceInstance").WithVersion("version"), instance.Namespace, instance.Name, servicecatalog.Resource("serviceinstances").WithVersion("version"), "", admission.Create, nil))
 	if err != nil {
 		t.Errorf("unexpected error returned from admission handler")
 	}
@@ -153,8 +146,8 @@ func TestAdmissionNamespaceActive(t *testing.T) {
 func TestAdmissionNamespaceTerminating(t *testing.T) {
 	namespace := "test"
 	mockClient := newMockClientForTest()
-	mockKubeClient := newMockKubeClientForTest(map[string]v1.NamespacePhase{
-		namespace: v1.NamespaceTerminating,
+	mockKubeClient := newMockKubeClientForTest(map[string]corev1.NamespacePhase{
+		namespace: corev1.NamespaceTerminating,
 	})
 	handler, informerFactory, kubeInformerFactory, err := newHandlerForTest(mockClient, mockKubeClient)
 	if err != nil {
@@ -163,20 +156,20 @@ func TestAdmissionNamespaceTerminating(t *testing.T) {
 	informerFactory.Start(wait.NeverStop)
 	kubeInformerFactory.Start(wait.NeverStop)
 
-	instance := newInstance(namespace)
-	err = handler.Admit(admission.NewAttributesRecord(&instance, nil, servicecatalog.Kind("Instance").WithVersion("version"), instance.Namespace, instance.Name, servicecatalog.Resource("instances").WithVersion("version"), "", admission.Create, nil))
+	instance := newServiceInstance(namespace)
+	err = handler.Admit(admission.NewAttributesRecord(&instance, nil, servicecatalog.Kind("ServiceInstance").WithVersion("version"), instance.Namespace, instance.Name, servicecatalog.Resource("serviceinstances").WithVersion("version"), "", admission.Create, nil))
 	if err == nil {
 		t.Errorf("Expected error rejecting creates in a namespace when it is terminating")
 	}
 
 	// verify update operations in the namespace can proceed
-	err = handler.Admit(admission.NewAttributesRecord(&instance, nil, servicecatalog.Kind("Instance").WithVersion("version"), instance.Namespace, instance.Name, servicecatalog.Resource("instances").WithVersion("version"), "", admission.Update, nil))
+	err = handler.Admit(admission.NewAttributesRecord(&instance, nil, servicecatalog.Kind("ServiceInstance").WithVersion("version"), instance.Namespace, instance.Name, servicecatalog.Resource("serviceinstances").WithVersion("version"), "", admission.Update, nil))
 	if err != nil {
 		t.Errorf("Unexpected error returned from admission handler: %v", err)
 	}
 
 	// verify delete operations in the namespace can proceed
-	err = handler.Admit(admission.NewAttributesRecord(nil, nil, servicecatalog.Kind("Instance").WithVersion("version"), instance.Namespace, instance.Name, servicecatalog.Resource("instances").WithVersion("version"), "", admission.Delete, nil))
+	err = handler.Admit(admission.NewAttributesRecord(nil, nil, servicecatalog.Kind("ServiceInstance").WithVersion("version"), instance.Namespace, instance.Name, servicecatalog.Resource("serviceinstances").WithVersion("version"), "", admission.Delete, nil))
 	if err != nil {
 		t.Errorf("Unexpected error returned from admission handler: %v", err)
 	}

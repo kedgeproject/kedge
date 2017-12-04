@@ -5,6 +5,8 @@ import (
 	kapi "k8s.io/kubernetes/pkg/api"
 )
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 // ProjectList is a list of Project objects.
 type ProjectList struct {
 	metav1.TypeMeta
@@ -28,8 +30,9 @@ type ProjectStatus struct {
 	Phase kapi.NamespacePhase
 }
 
-// +genclient=true
-// +nonNamespaced=true
+// +genclient
+// +genclient:nonNamespaced
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // Project is a logical top-level container for a set of origin resources
 type Project struct {
@@ -39,6 +42,12 @@ type Project struct {
 	Spec   ProjectSpec
 	Status ProjectStatus
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +genclient
+// +genclient:nonNamespaced
+// +genclient:skipVerbs=get,list,create,update,patch,delete,deleteCollection,watch
+// +genclient:method=Create,verb=create,result=Project
 
 type ProjectRequest struct {
 	metav1.TypeMeta

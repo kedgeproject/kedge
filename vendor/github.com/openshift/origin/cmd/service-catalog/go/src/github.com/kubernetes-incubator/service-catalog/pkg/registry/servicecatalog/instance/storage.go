@@ -23,28 +23,27 @@ import (
 	scmeta "github.com/kubernetes-incubator/service-catalog/pkg/api/meta"
 	"github.com/kubernetes-incubator/service-catalog/pkg/apis/servicecatalog"
 	"github.com/kubernetes-incubator/service-catalog/pkg/registry/servicecatalog/server"
-	"github.com/kubernetes-incubator/service-catalog/pkg/storage/tpr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	genericapirequest "k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/registry/generic"
 	"k8s.io/apiserver/pkg/registry/generic/registry"
 	"k8s.io/apiserver/pkg/registry/rest"
 	"k8s.io/apiserver/pkg/storage"
-	"k8s.io/client-go/pkg/api"
 )
 
 var (
-	errNotAnInstance = errors.New("not an instance")
+	errNotAnServiceInstance = errors.New("not an instance")
 )
 
 // NewSingular returns a new shell of a service instance, according to the given namespace and
 // name
 func NewSingular(ns, name string) runtime.Object {
-	return &servicecatalog.Instance{
+	return &servicecatalog.ServiceInstance{
 		TypeMeta: metav1.TypeMeta{
-			Kind: tpr.ServiceInstanceKind.String(),
+			Kind: "ServiceInstance",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: ns,
@@ -55,29 +54,29 @@ func NewSingular(ns, name string) runtime.Object {
 
 // EmptyObject returns an empty instance
 func EmptyObject() runtime.Object {
-	return &servicecatalog.Instance{}
+	return &servicecatalog.ServiceInstance{}
 }
 
 // NewList returns a new shell of an instance list
 func NewList() runtime.Object {
-	return &servicecatalog.InstanceList{
+	return &servicecatalog.ServiceInstanceList{
 		TypeMeta: metav1.TypeMeta{
-			Kind: tpr.ServiceInstanceListKind.String(),
+			Kind: "ServiceInstanceList",
 		},
-		Items: []servicecatalog.Instance{},
+		Items: []servicecatalog.ServiceInstance{},
 	}
 }
 
 // CheckObject returns a non-nil error if obj is not an instance object
 func CheckObject(obj runtime.Object) error {
-	_, ok := obj.(*servicecatalog.Instance)
+	_, ok := obj.(*servicecatalog.ServiceInstance)
 	if !ok {
-		return errNotAnInstance
+		return errNotAnServiceInstance
 	}
 	return nil
 }
 
-// Match determines whether an Instance matches a field and label
+// Match determines whether an ServiceInstance matches a field and label
 // selector.
 func Match(label labels.Selector, field fields.Selector) storage.SelectionPredicate {
 	return storage.SelectionPredicate{
@@ -88,28 +87,40 @@ func Match(label labels.Selector, field fields.Selector) storage.SelectionPredic
 }
 
 // toSelectableFields returns a field set that represents the object for matching purposes.
-func toSelectableFields(instance *servicecatalog.Instance) fields.Set {
+func toSelectableFields(instance *servicecatalog.ServiceInstance) fields.Set {
+	// If you add a new selectable field, you also need to modify
+	// pkg/apis/servicecatalog/v1beta1/conversion[_test].go
 	objectMetaFieldsSet := generic.ObjectMetaFieldsSet(&instance.ObjectMeta, true)
-	return generic.MergeFieldsSets(objectMetaFieldsSet, nil)
+
+	specFieldSet := make(fields.Set, 2)
+
+	if instance.Spec.ClusterServiceClassRef != nil {
+		specFieldSet["spec.clusterServiceClassRef.name"] = instance.Spec.ClusterServiceClassRef.Name
+	}
+
+	if instance.Spec.ClusterServicePlanRef != nil {
+		specFieldSet["spec.clusterServicePlanRef.name"] = instance.Spec.ClusterServicePlanRef.Name
+	}
+
+	return generic.MergeFieldsSets(objectMetaFieldsSet, specFieldSet)
 }
 
 // GetAttrs returns labels and fields of a given object for filtering purposes.
-func GetAttrs(obj runtime.Object) (labels.Set, fields.Set, error) {
-	instance, ok := obj.(*servicecatalog.Instance)
+func GetAttrs(obj runtime.Object) (labels.Set, fields.Set, bool, error) {
+	instance, ok := obj.(*servicecatalog.ServiceInstance)
 	if !ok {
-		return nil, nil, fmt.Errorf("given object is not an Instance")
+		return nil, nil, false, fmt.Errorf("given object is not an ServiceInstance")
 	}
-	return labels.Set(instance.ObjectMeta.Labels), toSelectableFields(instance), nil
+	return labels.Set(instance.ObjectMeta.Labels), toSelectableFields(instance), instance.Initializers != nil, nil
 }
 
-// NewStorage creates a new rest.Storage responsible for accessing Instance
+// NewStorage creates a new rest.Storage responsible for accessing ServiceInstance
 // resources
-func NewStorage(opts server.Options) (rest.Storage, rest.Storage) {
+func NewStorage(opts server.Options) (rest.Storage, rest.Storage, rest.Storage) {
 	prefix := "/" + opts.ResourcePrefix()
 
 	storageInterface, dFunc := opts.GetStorage(
-		1000,
-		&servicecatalog.Instance{},
+		&servicecatalog.ServiceInstance{},
 		prefix,
 		instanceRESTStrategies,
 		NewList,
@@ -128,8 +139,8 @@ func NewStorage(opts server.Options) (rest.Storage, rest.Storage) {
 		},
 		// Used to match objects based on labels/fields for list.
 		PredicateFunc: Match,
-		// QualifiedResource should always be plural
-		QualifiedResource: api.Resource("instances"),
+		// DefaultQualifiedResource should always be plural
+		DefaultQualifiedResource: servicecatalog.Resource("serviceinstances"),
 
 		CreateStrategy:          instanceRESTStrategies,
 		UpdateStrategy:          instanceRESTStrategies,
@@ -139,9 +150,63 @@ func NewStorage(opts server.Options) (rest.Storage, rest.Storage) {
 		Storage:     storageInterface,
 		DestroyFunc: dFunc,
 	}
+	options := &generic.StoreOptions{RESTOptions: opts.EtcdOptions.RESTOptions, AttrFunc: GetAttrs}
+	if err := store.CompleteWithOptions(options); err != nil {
+		panic(err) // TODO: Propagate error up
+	}
 
 	statusStore := store
 	statusStore.UpdateStrategy = instanceStatusUpdateStrategy
 
-	return &store, &statusStore
+	referenceStore := store
+	referenceStore.UpdateStrategy = instanceReferenceUpdateStrategy
+
+	return &store, &StatusREST{&statusStore}, &ReferenceREST{&referenceStore}
+
+}
+
+// StatusREST defines the REST operations for the status subresource via
+// implementation of various rest interfaces.  It supports the http verbs GET,
+// PATCH, and PUT.
+type StatusREST struct {
+	store *registry.Store
+}
+
+// New returns a new ServiceInstance
+func (r *StatusREST) New() runtime.Object {
+	return &servicecatalog.ServiceInstance{}
+}
+
+// Get retrieves the object from the storage. It is required to support Patch
+// and to implement the rest.Getter interface.
+func (r *StatusREST) Get(ctx genericapirequest.Context, name string, options *metav1.GetOptions) (runtime.Object, error) {
+	return r.store.Get(ctx, name, options)
+}
+
+// Update alters the status subset of an object and it
+// implements rest.Updater interface
+func (r *StatusREST) Update(ctx genericapirequest.Context, name string, objInfo rest.UpdatedObjectInfo) (runtime.Object, bool, error) {
+	return r.store.Update(ctx, name, objInfo)
+}
+
+// ReferenceREST defines the REST operations for the reference subresource.
+type ReferenceREST struct {
+	store *registry.Store
+}
+
+// New returns a new ServiceInstance
+func (r *ReferenceREST) New() runtime.Object {
+	return &servicecatalog.ServiceInstance{}
+}
+
+// Get retrieves the object from the storage. It is required to support Patch
+// and to implement the rest.Getter interface.
+func (r *ReferenceREST) Get(ctx genericapirequest.Context, name string, options *metav1.GetOptions) (runtime.Object, error) {
+	return r.store.Get(ctx, name, options)
+}
+
+// Update alters the reference subset of an object and it
+// implements rest.Updater interface
+func (r *ReferenceREST) Update(ctx genericapirequest.Context, name string, objInfo rest.UpdatedObjectInfo) (runtime.Object, bool, error) {
+	return r.store.Update(ctx, name, objInfo)
 }

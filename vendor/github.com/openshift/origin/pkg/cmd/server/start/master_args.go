@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/url"
 	"path"
+	"regexp"
 	"strconv"
 
 	"github.com/spf13/pflag"
@@ -14,11 +15,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/apiserver/pkg/util/flag"
-	kapi "k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/master/ports"
 	"k8s.io/kubernetes/pkg/registry/core/service/ipallocator"
 
-	"github.com/openshift/origin/pkg/bootstrap"
 	"github.com/openshift/origin/pkg/cmd/flagtypes"
 	"github.com/openshift/origin/pkg/cmd/server/admin"
 	configapi "github.com/openshift/origin/pkg/cmd/server/api"
@@ -26,6 +25,7 @@ import (
 	"github.com/openshift/origin/pkg/cmd/server/bootstrappolicy"
 	cmdutil "github.com/openshift/origin/pkg/cmd/util"
 	imagepolicyapi "github.com/openshift/origin/pkg/image/admission/imagepolicy/api"
+	"github.com/openshift/origin/pkg/oc/bootstrap"
 	"github.com/spf13/cobra"
 )
 
@@ -128,6 +128,19 @@ func (args MasterArgs) GetConfigFileToWrite() string {
 	return path.Join(args.ConfigDir.Value(), "master-config.yaml")
 }
 
+// makeHostMatchRegex returns a regex that matches this host exactly.
+// If host contains a port, the returned regex matches the port exactly.
+// If host does not contain a port, the returned regex matches any port or no port.
+func makeHostMatchRegex(host string) string {
+	if _, _, err := net.SplitHostPort(host); err == nil {
+		// we have a port, match the end exactly
+		return "//" + regexp.QuoteMeta(host) + "$"
+	} else {
+		// we don't have a port, match a port separator or the end
+		return "//" + regexp.QuoteMeta(host) + "(:|$)"
+	}
+}
+
 // BuildSerializeableMasterConfig takes the MasterArgs (partially complete config) and uses them along with defaulting behavior to create the fully specified
 // config object for starting the master
 func (args MasterArgs) BuildSerializeableMasterConfig() (*configapi.MasterConfig, error) {
@@ -150,7 +163,12 @@ func (args MasterArgs) BuildSerializeableMasterConfig() (*configapi.MasterConfig
 	// always include localhost as an allowed CORS origin
 	// always include master public address as an allowed CORS origin
 	corsAllowedOrigins := sets.NewString(args.CORSAllowedOrigins...)
-	corsAllowedOrigins.Insert(assetPublicAddr.Host, masterPublicAddr.Host, "localhost", "127.0.0.1")
+	corsAllowedOrigins.Insert(
+		makeHostMatchRegex(assetPublicAddr.Host),
+		makeHostMatchRegex(masterPublicAddr.Host),
+		makeHostMatchRegex("localhost"),
+		makeHostMatchRegex("127.0.0.1"),
+	)
 
 	etcdAddress, err := args.GetEtcdAddress()
 	if err != nil {
@@ -197,6 +215,19 @@ func (args MasterArgs) BuildSerializeableMasterConfig() (*configapi.MasterConfig
 
 		KubernetesMasterConfig: kubernetesMasterConfig,
 		EtcdConfig:             etcdConfig,
+
+		AuthConfig: configapi.MasterAuthConfig{
+			RequestHeader: &configapi.RequestHeaderAuthenticationOptions{
+				ClientCA:            admin.DefaultCertFilename(args.ConfigDir.Value(), admin.FrontProxyCAFilePrefix),
+				ClientCommonNames:   []string{bootstrappolicy.AggregatorUsername},
+				UsernameHeaders:     []string{"X-Remote-User"},
+				GroupHeaders:        []string{"X-Remote-Group"},
+				ExtraHeaderPrefixes: []string{"X-Remote-Extra-"}},
+		},
+
+		AggregatorConfig: configapi.AggregatorConfig{
+			ProxyClientInfo: admin.DefaultAggregatorClientCertInfo(args.ConfigDir.Value()).CertLocation,
+		},
 
 		OAuthConfig: oauthConfig,
 
@@ -263,9 +294,13 @@ func (args MasterArgs) BuildSerializeableMasterConfig() (*configapi.MasterConfig
 		},
 
 		NetworkConfig: configapi.MasterNetworkConfig{
-			NetworkPluginName:  args.NetworkArgs.NetworkPluginName,
-			ClusterNetworkCIDR: args.NetworkArgs.ClusterNetworkCIDR,
-			HostSubnetLength:   args.NetworkArgs.HostSubnetLength,
+			NetworkPluginName: args.NetworkArgs.NetworkPluginName,
+			ClusterNetworks: []configapi.ClusterNetworkEntry{
+				{
+					CIDR:             args.NetworkArgs.ClusterNetworkCIDR,
+					HostSubnetLength: args.NetworkArgs.HostSubnetLength,
+				},
+			},
 			ServiceNetworkCIDR: args.NetworkArgs.ServiceNetworkCIDR,
 		},
 
@@ -280,29 +315,27 @@ func (args MasterArgs) BuildSerializeableMasterConfig() (*configapi.MasterConfig
 		},
 	}
 
-	if args.ListenArg.UseTLS() {
-		config.ServingInfo.ServerCert = admin.DefaultMasterServingCertInfo(args.ConfigDir.Value())
-		config.ServingInfo.ClientCA = admin.DefaultAPIClientCAFile(args.ConfigDir.Value())
+	config.ServingInfo.ServerCert = admin.DefaultMasterServingCertInfo(args.ConfigDir.Value())
+	config.ServingInfo.ClientCA = admin.DefaultAPIClientCAFile(args.ConfigDir.Value())
 
-		config.AssetConfig.ServingInfo.ServerCert = admin.DefaultAssetServingCertInfo(args.ConfigDir.Value())
+	config.AssetConfig.ServingInfo.ServerCert = admin.DefaultAssetServingCertInfo(args.ConfigDir.Value())
 
-		if oauthConfig != nil {
-			s := admin.DefaultCABundleFile(args.ConfigDir.Value())
-			oauthConfig.MasterCA = &s
-		}
+	if oauthConfig != nil {
+		s := admin.DefaultCABundleFile(args.ConfigDir.Value())
+		oauthConfig.MasterCA = &s
+	}
 
-		// Only set up ca/cert info for kubelet connections if we're self-hosting Kubernetes
-		if builtInKubernetes {
-			config.KubeletClientInfo.CA = admin.DefaultRootCAFile(args.ConfigDir.Value())
-			config.KubeletClientInfo.ClientCert = kubeletClientInfo.CertLocation
-			config.ServiceAccountConfig.MasterCA = admin.DefaultCABundleFile(args.ConfigDir.Value())
-		}
+	// Only set up ca/cert info for kubelet connections if we're self-hosting Kubernetes
+	if builtInKubernetes {
+		config.KubeletClientInfo.CA = admin.DefaultRootCAFile(args.ConfigDir.Value())
+		config.KubeletClientInfo.ClientCert = kubeletClientInfo.CertLocation
+		config.ServiceAccountConfig.MasterCA = admin.DefaultCABundleFile(args.ConfigDir.Value())
+	}
 
-		// Only set up ca/cert info for etcd connections if we're self-hosting etcd
-		if builtInEtcd {
-			config.EtcdClientInfo.CA = admin.DefaultRootCAFile(args.ConfigDir.Value())
-			config.EtcdClientInfo.ClientCert = etcdClientInfo.CertLocation
-		}
+	// Only set up ca/cert info for etcd connections if we're self-hosting etcd
+	if builtInEtcd {
+		config.EtcdClientInfo.CA = admin.DefaultRootCAFile(args.ConfigDir.Value())
+		config.EtcdClientInfo.ClientCert = etcdClientInfo.CertLocation
 	}
 
 	if builtInKubernetes {
@@ -681,23 +714,13 @@ func getHost(theURL url.URL) string {
 	return host
 }
 
-func getPort(theURL url.URL) int {
-	_, port, err := net.SplitHostPort(theURL.Host)
-	if err != nil {
-		return 0
-	}
-
-	intport, _ := strconv.Atoi(port)
-	return intport
-}
-
 // applyDefaults roundtrips the config to v1 and back to ensure proper defaults are set.
 func applyDefaults(config runtime.Object, version schema.GroupVersion) (runtime.Object, error) {
 	ext, err := configapi.Scheme.ConvertToVersion(config, version)
 	if err != nil {
 		return nil, err
 	}
-	kapi.Scheme.Default(ext)
+	configapi.Scheme.Default(ext)
 	return configapi.Scheme.ConvertToVersion(ext, configapi.SchemeGroupVersion)
 }
 

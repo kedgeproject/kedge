@@ -14,7 +14,7 @@ import (
 	exutil "github.com/openshift/origin/test/extended/util"
 )
 
-var _ = g.Describe("[Conformance][networking][router]", func() {
+var _ = g.Describe("[Conformance][Area:Networking][Feature:Router]", func() {
 	defer g.GinkgoRecover()
 	var (
 		configPath = exutil.FixturePath("testdata", "reencrypt-serving-cert.yaml")
@@ -46,7 +46,7 @@ var _ = g.Describe("[Conformance][networking][router]", func() {
 
 			var hostname string
 			err = wait.Poll(time.Second, changeTimeoutSeconds*time.Second, func() (bool, error) {
-				route, err := oc.Client().Routes(ns).Get("serving-cert", metav1.GetOptions{})
+				route, err := oc.RouteClient().Route().Routes(ns).Get("serving-cert", metav1.GetOptions{})
 				if err != nil {
 					return false, err
 				}

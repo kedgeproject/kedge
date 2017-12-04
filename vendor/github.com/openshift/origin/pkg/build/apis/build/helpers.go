@@ -88,7 +88,7 @@ func RecordStageAndStepInfo(stages []StageInfo, stageName StageName, stepName St
 		if stageVal.Name == stageName {
 			for _, step := range stages[stageKey].Steps {
 				if step.Name == stepName {
-					glog.Warningf("error recording build timing information, step %v already exists in stage %v", stepName, stageName)
+					glog.V(4).Infof("error recording build timing information, step %v already exists in stage %v", stepName, stageName)
 				}
 			}
 			stages[stageKey].DurationMilliseconds = endTime.Time.Sub(stages[stageKey].StartTime.Time).Nanoseconds() / int64(time.Millisecond)
@@ -128,4 +128,19 @@ func AppendStageAndStepInfo(stages []StageInfo, stagesToMerge []StageInfo) []Sta
 		}
 	}
 	return stages
+}
+
+// GetInputReference returns the From ObjectReference associated with the
+// BuildStrategy.
+func GetInputReference(strategy BuildStrategy) *kapi.ObjectReference {
+	switch {
+	case strategy.SourceStrategy != nil:
+		return &strategy.SourceStrategy.From
+	case strategy.DockerStrategy != nil:
+		return strategy.DockerStrategy.From
+	case strategy.CustomStrategy != nil:
+		return &strategy.CustomStrategy.From
+	default:
+		return nil
+	}
 }

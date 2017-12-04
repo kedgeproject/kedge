@@ -15,16 +15,16 @@ import (
 	kapi "k8s.io/kubernetes/pkg/api"
 	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 
-	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
-	osclient "github.com/openshift/origin/pkg/client"
-	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
+	deployapi "github.com/openshift/origin/pkg/apps/apis/apps"
+	appstypedclient "github.com/openshift/origin/pkg/apps/generated/internalclientset/typed/apps/internalversion"
 	"github.com/openshift/origin/pkg/diagnostics/types"
+	"k8s.io/kubernetes/pkg/apis/authorization"
 )
 
 // ClusterRouter is a Diagnostic to check that there is a working router.
 type ClusterRouter struct {
 	KubeClient kclientset.Interface
-	OsClient   *osclient.Client
+	DCClient   appstypedclient.DeploymentConfigsGetter
 }
 
 const (
@@ -47,7 +47,7 @@ A router is not strictly required; however it is needed for accessing
 pods from external networks and its absence likely indicates an incomplete
 installation of the cluster.
 
-Use the 'oadm router' command to create a router.
+Use the 'oc adm router' command to create a router.
 `
 	clGetRtFailed = `
 Client error while retrieving "%s" DC. Client retrieved records
@@ -92,15 +92,15 @@ func (d *ClusterRouter) Description() string {
 }
 
 func (d *ClusterRouter) CanRun() (bool, error) {
-	if d.KubeClient == nil || d.OsClient == nil {
+	if d.KubeClient == nil || d.DCClient == nil {
 		return false, errors.New("must have kube and os client")
 	}
-	can, err := userCan(d.OsClient, authorizationapi.Action{
-		Namespace:    metav1.NamespaceDefault,
-		Verb:         "get",
-		Group:        deployapi.GroupName,
-		Resource:     "deploymentconfigs",
-		ResourceName: routerName,
+	can, err := userCan(d.KubeClient.Authorization(), &authorization.ResourceAttributes{
+		Namespace: metav1.NamespaceDefault,
+		Verb:      "get",
+		Group:     deployapi.GroupName,
+		Resource:  "deploymentconfigs",
+		Name:      routerName,
 	})
 	if err != nil {
 		return false, types.DiagnosticError{ID: "DClu2010", LogMessage: fmt.Sprintf(clientAccessError, err), Cause: err}
@@ -125,7 +125,7 @@ func (d *ClusterRouter) Check() types.DiagnosticResult {
 }
 
 func (d *ClusterRouter) getRouterDC(r types.DiagnosticResult) *deployapi.DeploymentConfig {
-	dc, err := d.OsClient.DeploymentConfigs(metav1.NamespaceDefault).Get(routerName, metav1.GetOptions{})
+	dc, err := d.DCClient.DeploymentConfigs(metav1.NamespaceDefault).Get(routerName, metav1.GetOptions{})
 	if err != nil && reflect.TypeOf(err) == reflect.TypeOf(&kerrs.StatusError{}) {
 		r.Warn("DClu2001", err, fmt.Sprintf(clGetRtNone, routerName))
 		return nil

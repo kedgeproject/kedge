@@ -1,30 +1,28 @@
-package v1_test
+package v1
 
 import (
 	"testing"
 
-	userapi "github.com/openshift/origin/pkg/user/apis/user"
-	testutil "github.com/openshift/origin/test/util/api"
+	"k8s.io/apimachinery/pkg/runtime"
 
-	// install all APIs
-	_ "github.com/openshift/origin/pkg/api/install"
+	"github.com/openshift/origin/pkg/api/apihelpers/apitesting"
+	userapi "github.com/openshift/origin/pkg/user/apis/user"
 )
 
 func TestFieldSelectorConversions(t *testing.T) {
-	testutil.CheckFieldLabelConversions(t, "v1", "Group",
-		// Ensure all currently returned labels are supported
-		userapi.GroupToSelectableFields(&userapi.Group{}),
-	)
-
-	testutil.CheckFieldLabelConversions(t, "v1", "Identity",
-		// Ensure all currently returned labels are supported
-		userapi.IdentityToSelectableFields(&userapi.Identity{}),
+	apitesting.FieldKeyCheck{
+		SchemeBuilder: []func(*runtime.Scheme) error{LegacySchemeBuilder.AddToScheme, userapi.LegacySchemeBuilder.AddToScheme},
+		Kind:          LegacySchemeGroupVersion.WithKind("Identity"),
 		// Ensure previously supported labels have conversions. DO NOT REMOVE THINGS FROM THIS LIST
-		"providerName", "providerUserName", "user.name", "user.uid",
-	)
+		AllowedExternalFieldKeys: []string{"providerName", "providerUserName", "user.name", "user.uid"},
+		FieldKeyEvaluatorFn:      userapi.IdentityFieldSelector,
+	}.Check(t)
 
-	testutil.CheckFieldLabelConversions(t, "v1", "User",
-		// Ensure all currently returned labels are supported
-		userapi.UserToSelectableFields(&userapi.User{}),
-	)
+	apitesting.FieldKeyCheck{
+		SchemeBuilder: []func(*runtime.Scheme) error{SchemeBuilder.AddToScheme, userapi.SchemeBuilder.AddToScheme},
+		Kind:          SchemeGroupVersion.WithKind("Identity"),
+		// Ensure previously supported labels have conversions. DO NOT REMOVE THINGS FROM THIS LIST
+		AllowedExternalFieldKeys: []string{"providerName", "providerUserName", "user.name", "user.uid"},
+		FieldKeyEvaluatorFn:      userapi.IdentityFieldSelector,
+	}.Check(t)
 }

@@ -23,28 +23,27 @@ import (
 	scmeta "github.com/kubernetes-incubator/service-catalog/pkg/api/meta"
 	"github.com/kubernetes-incubator/service-catalog/pkg/apis/servicecatalog"
 	"github.com/kubernetes-incubator/service-catalog/pkg/registry/servicecatalog/server"
-	"github.com/kubernetes-incubator/service-catalog/pkg/storage/tpr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	genericapirequest "k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/registry/generic"
 	"k8s.io/apiserver/pkg/registry/generic/registry"
 	"k8s.io/apiserver/pkg/registry/rest"
 	"k8s.io/apiserver/pkg/storage"
-	"k8s.io/client-go/pkg/api"
 )
 
 var (
-	errNotABinding = errors.New("not a binding")
+	errNotAServiceBinding = errors.New("not a binding")
 )
 
 // NewSingular returns a new shell of a service binding, according to the given namespace and
 // name
 func NewSingular(ns, name string) runtime.Object {
-	return &servicecatalog.Binding{
+	return &servicecatalog.ServiceBinding{
 		TypeMeta: metav1.TypeMeta{
-			Kind: tpr.ServiceBindingKind.String(),
+			Kind: "ServiceBinding",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: ns,
@@ -55,29 +54,29 @@ func NewSingular(ns, name string) runtime.Object {
 
 // EmptyObject returns an empty binding
 func EmptyObject() runtime.Object {
-	return &servicecatalog.Binding{}
+	return &servicecatalog.ServiceBinding{}
 }
 
 // NewList returns a new shell of a binding list
 func NewList() runtime.Object {
-	return &servicecatalog.BindingList{
+	return &servicecatalog.ServiceBindingList{
 		TypeMeta: metav1.TypeMeta{
-			Kind: tpr.ServiceBindingListKind.String(),
+			Kind: "ServiceBindingList",
 		},
-		Items: []servicecatalog.Binding{},
+		Items: []servicecatalog.ServiceBinding{},
 	}
 }
 
 // CheckObject returns a non-nil error if obj is not a binding object
 func CheckObject(obj runtime.Object) error {
-	_, ok := obj.(*servicecatalog.Binding)
+	_, ok := obj.(*servicecatalog.ServiceBinding)
 	if !ok {
-		return errNotABinding
+		return errNotAServiceBinding
 	}
 	return nil
 }
 
-// Match determines whether an Instance matches a field and label
+// Match determines whether an ServiceInstance matches a field and label
 // selector.
 func Match(label labels.Selector, field fields.Selector) storage.SelectionPredicate {
 	return storage.SelectionPredicate{
@@ -88,28 +87,27 @@ func Match(label labels.Selector, field fields.Selector) storage.SelectionPredic
 }
 
 // toSelectableFields returns a field set that represents the object for matching purposes.
-func toSelectableFields(binding *servicecatalog.Binding) fields.Set {
+func toSelectableFields(binding *servicecatalog.ServiceBinding) fields.Set {
 	objectMetaFieldsSet := generic.ObjectMetaFieldsSet(&binding.ObjectMeta, true)
 	return generic.MergeFieldsSets(objectMetaFieldsSet, nil)
 }
 
 // GetAttrs returns labels and fields of a given object for filtering purposes.
-func GetAttrs(obj runtime.Object) (labels.Set, fields.Set, error) {
-	binding, ok := obj.(*servicecatalog.Binding)
+func GetAttrs(obj runtime.Object) (labels.Set, fields.Set, bool, error) {
+	binding, ok := obj.(*servicecatalog.ServiceBinding)
 	if !ok {
-		return nil, nil, fmt.Errorf("given object is not a Binding")
+		return nil, nil, false, fmt.Errorf("given object is not a ServiceBinding")
 	}
-	return labels.Set(binding.ObjectMeta.Labels), toSelectableFields(binding), nil
+	return labels.Set(binding.ObjectMeta.Labels), toSelectableFields(binding), binding.Initializers != nil, nil
 }
 
-// NewStorage creates a new rest.Storage responsible for accessing Instance
+// NewStorage creates a new rest.Storage responsible for accessing ServiceBinding
 // resources
 func NewStorage(opts server.Options) (rest.Storage, rest.Storage, error) {
 	prefix := "/" + opts.ResourcePrefix()
 
 	storageInterface, dFunc := opts.GetStorage(
-		1000,
-		&servicecatalog.Binding{},
+		&servicecatalog.ServiceBinding{},
 		prefix,
 		bindingRESTStrategies,
 		NewList,
@@ -129,8 +127,8 @@ func NewStorage(opts server.Options) (rest.Storage, rest.Storage, error) {
 		},
 		// Used to match objects based on labels/fields for list.
 		PredicateFunc: Match,
-		// QualifiedResource should always be plural
-		QualifiedResource: api.Resource("bindings"),
+		// DefaultQualifiedResource should always be plural
+		DefaultQualifiedResource: servicecatalog.Resource("servicebindings"),
 
 		CreateStrategy:          bindingRESTStrategies,
 		UpdateStrategy:          bindingRESTStrategies,
@@ -141,8 +139,37 @@ func NewStorage(opts server.Options) (rest.Storage, rest.Storage, error) {
 		DestroyFunc: dFunc,
 	}
 
+	options := &generic.StoreOptions{RESTOptions: opts.EtcdOptions.RESTOptions, AttrFunc: GetAttrs}
+	if err := store.CompleteWithOptions(options); err != nil {
+		panic(err) // TODO: Propagate error up
+	}
+
 	statusStore := store
 	statusStore.UpdateStrategy = bindingStatusUpdateStrategy
 
-	return &store, &statusStore, nil
+	return &store, &StatusREST{&statusStore}, nil
+}
+
+// StatusREST defines the REST operations for the status subresource via
+// implementation of various rest interfaces.  It supports the http verbs GET,
+// PATCH, and PUT.
+type StatusREST struct {
+	store *registry.Store
+}
+
+// New returns a new ServiceBinding.
+func (r *StatusREST) New() runtime.Object {
+	return EmptyObject()
+}
+
+// Get retrieves the object from the storage. It is required to support Patch
+// and to implement the rest.Getter interface.
+func (r *StatusREST) Get(ctx genericapirequest.Context, name string, options *metav1.GetOptions) (runtime.Object, error) {
+	return r.store.Get(ctx, name, options)
+}
+
+// Update alters the status subset of an object and implements the rest.Updater
+// interface.
+func (r *StatusREST) Update(ctx genericapirequest.Context, name string, objInfo rest.UpdatedObjectInfo) (runtime.Object, bool, error) {
+	return r.store.Update(ctx, name, objInfo)
 }

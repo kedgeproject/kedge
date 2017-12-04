@@ -88,19 +88,19 @@ echo "patchAnonFields: ok"
 os::test::junit::declare_suite_end
 
 os::test::junit::declare_suite_start "cmd/builds/config"
-os::cmd::expect_success_and_text 'oc describe buildConfigs ruby-sample-build' "${url}/oapi/v1/namespaces/${project}/buildconfigs/ruby-sample-build/webhooks/secret101/github"
+os::cmd::expect_success_and_text 'oc describe buildConfigs ruby-sample-build' "${url}/apis/build.openshift.io/v1/namespaces/${project}/buildconfigs/ruby-sample-build/webhooks/secret101/github"
 os::cmd::expect_success_and_text 'oc describe buildConfigs ruby-sample-build' "Webhook GitHub"
-os::cmd::expect_success_and_text 'oc describe buildConfigs ruby-sample-build' "${url}/oapi/v1/namespaces/${project}/buildconfigs/ruby-sample-build/webhooks/secret101/generic"
+os::cmd::expect_success_and_text 'oc describe buildConfigs ruby-sample-build' "${url}/apis/build.openshift.io/v1/namespaces/${project}/buildconfigs/ruby-sample-build/webhooks/secret101/generic"
 os::cmd::expect_success_and_text 'oc describe buildConfigs ruby-sample-build' "Webhook Generic"
 os::cmd::expect_success 'oc start-build --list-webhooks=all ruby-sample-build'
 os::cmd::expect_success_and_text 'oc start-build --list-webhooks=all bc/ruby-sample-build' 'generic'
 os::cmd::expect_success_and_text 'oc start-build --list-webhooks=all ruby-sample-build' 'github'
 os::cmd::expect_success_and_text 'oc start-build --list-webhooks=github ruby-sample-build' 'secret101'
 os::cmd::expect_failure 'oc start-build --list-webhooks=blah'
-os::cmd::expect_success_and_text "oc start-build --from-webhook='$(oc start-build --list-webhooks='generic' ruby-sample-build --api-version=v1 | head -n 1)'" "build \"ruby-sample-build-[0-9]\" started"
-os::cmd::expect_failure_and_text "oc start-build --from-webhook='$(oc start-build --list-webhooks='generic' ruby-sample-build --api-version=v1 | head -n 1)/foo'" "error: server rejected our request"
+os::cmd::expect_success_and_text "oc start-build --from-webhook='$(oc start-build --list-webhooks='generic' ruby-sample-build | head -n 1)'" "build \"ruby-sample-build-[0-9]\" started"
+os::cmd::expect_failure_and_text "oc start-build --from-webhook='$(oc start-build --list-webhooks='generic' ruby-sample-build | head -n 1)/foo'" "error: server rejected our request"
 os::cmd::expect_success "oc patch bc/ruby-sample-build -p '{\"spec\":{\"strategy\":{\"dockerStrategy\":{\"from\":{\"name\":\"asdf:7\"}}}}}'"
-os::cmd::expect_failure_and_text "oc start-build --from-webhook='$(oc start-build --list-webhooks='generic' ruby-sample-build --api-version=v1 | head -n 1)'" "Error resolving ImageStreamTag asdf:7"
+os::cmd::expect_failure_and_text "oc start-build --from-webhook='$(oc start-build --list-webhooks='generic' ruby-sample-build | head -n 1)'" "Error resolving ImageStreamTag asdf:7"
 os::cmd::expect_success 'oc get builds'
 os::cmd::expect_success 'oc delete all -l build=docker'
 echo "buildConfig: ok"
@@ -118,6 +118,40 @@ os::cmd::expect_success_and_text "oc describe build ${frombuild}" 'centos/ruby-2
 os::cmd::expect_failure_and_text "oc start-build ruby-sample-build-invalid-tag --from-dir=. --from-build=${started}" "Cannot use '--from-build' flag with binary builds"
 os::cmd::expect_failure_and_text "oc start-build ruby-sample-build-invalid-tag --from-file=. --from-build=${started}" "Cannot use '--from-build' flag with binary builds"
 os::cmd::expect_failure_and_text "oc start-build ruby-sample-build-invalid-tag --from-repo=. --from-build=${started}" "Cannot use '--from-build' flag with binary builds"
+# --incremental flag should override Spec.Strategy.SourceStrategy.Incremental
+os::cmd::expect_success 'oc create -f test/extended/testdata/builds/test-s2i-build.json'
+build_name="$(oc start-build -o=name test)"
+os::cmd::expect_success_and_not_text "oc describe ${build_name}" 'Incremental Build'
+build_name="$(oc start-build -o=name --incremental test)"
+os::cmd::expect_success_and_text "oc describe ${build_name}" 'Incremental Build'
+os::cmd::expect_success "oc patch bc/test -p '{\"spec\":{\"strategy\":{\"sourceStrategy\":{\"incremental\": true}}}}'"
+build_name="$(oc start-build -o=name test)"
+os::cmd::expect_success_and_text "oc describe ${build_name}" 'Incremental Build'
+build_name="$(oc start-build -o=name --incremental=false test)"
+os::cmd::expect_success_and_not_text "oc describe ${build_name}" 'Incremental Build'
+os::cmd::expect_success "oc patch bc/test -p '{\"spec\":{\"strategy\":{\"sourceStrategy\":{\"incremental\": false}}}}'"
+build_name="$(oc start-build -o=name test)"
+os::cmd::expect_success_and_not_text "oc describe ${build_name}" 'Incremental Build'
+build_name="$(oc start-build -o=name --incremental test)"
+os::cmd::expect_success_and_text "oc describe ${build_name}" 'Incremental Build'
+os::cmd::expect_success 'oc delete all --selector="name=test"'
+# --no-cache flag should override Spec.Strategy.SourceStrategy.NoCache
+os::cmd::expect_success 'oc create -f test/extended/testdata/builds/test-docker-build.json'
+build_name="$(oc start-build -o=name test)"
+os::cmd::expect_success_and_not_text "oc describe ${build_name}" 'No Cache'
+build_name="$(oc start-build -o=name --no-cache test)"
+os::cmd::expect_success_and_text "oc describe ${build_name}" 'No Cache'
+os::cmd::expect_success "oc patch bc/test -p '{\"spec\":{\"strategy\":{\"dockerStrategy\":{\"noCache\": true}}}}'"
+build_name="$(oc start-build -o=name test)"
+os::cmd::expect_success_and_text "oc describe ${build_name}" 'No Cache'
+build_name="$(oc start-build -o=name --no-cache=false test)"
+os::cmd::expect_success_and_not_text "oc describe ${build_name}" 'No Cache'
+os::cmd::expect_success "oc patch bc/test -p '{\"spec\":{\"strategy\":{\"dockerStrategy\":{\"noCache\": false}}}}'"
+build_name="$(oc start-build -o=name test)"
+os::cmd::expect_success_and_not_text "oc describe ${build_name}" 'No Cache'
+build_name="$(oc start-build -o=name --no-cache test)"
+os::cmd::expect_success_and_text "oc describe ${build_name}" 'No Cache'
+os::cmd::expect_success 'oc delete all --selector="name=test"'
 echo "start-build: ok"
 os::test::junit::declare_suite_end
 

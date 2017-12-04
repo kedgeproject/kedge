@@ -23,7 +23,7 @@ package componentconfig
 import (
 	"time"
 
-	"k8s.io/kubernetes/pkg/apis/componentconfig"
+	"github.com/kubernetes-incubator/service-catalog/pkg/kubernetes/pkg/apis/componentconfig"
 )
 
 // ControllerManagerConfiguration encapsulates configuration for the
@@ -54,18 +54,26 @@ type ControllerManagerConfiguration struct {
 	// ServiceCatalogKubeconfigPath is the path to the kubeconfig file with
 	// information about the service catalog API server.
 	ServiceCatalogKubeconfigPath string
+	// InsecureSkipVerify controls whether a client verifies the
+	// server's certificate chain and host name.
+	// If InsecureSkipVerify is true, TLS accepts any certificate
+	// presented by the server and any host name in that certificate.
+	// In this mode, TLS is susceptible to man-in-the-middle attacks.
+	// This should be used only for testing.
+	ServiceCatalogInsecureSkipVerify bool
 
 	// ResyncInterval is the interval on which the controller should re-sync
 	// all informers.
 	ResyncInterval time.Duration
 
-	// BrokerRelistInterval is the interval on which Broker's catalogs are re-
+	// ServiceBrokerRelistInterval is the interval on which Broker's catalogs are re-
 	// listed.
-	BrokerRelistInterval time.Duration
+	ServiceBrokerRelistInterval time.Duration
 
 	// Whether or not to send the proposed optional
 	// OpenServiceBroker API Context Profile field
-	OSBAPIContextProfile bool
+	OSBAPIContextProfile   bool
+	OSBAPIPreferredVersion string
 
 	// ConcurrentSyncs is the number of resources, per resource type,
 	// that are allowed to sync concurrently. Larger number = more responsive
@@ -84,4 +92,8 @@ type ControllerManagerConfiguration struct {
 
 	// enableContentionProfiling enables lock contention profiling, if enableProfiling is true.
 	EnableContentionProfiling bool
+
+	// ReconciliationRetryDuration is the longest time to attempt reconciliation
+	// on a given resource before failing the reconciliation
+	ReconciliationRetryDuration time.Duration
 }

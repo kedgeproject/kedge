@@ -27,58 +27,63 @@ import (
 
 	"github.com/golang/glog"
 
+	apiextensionsinformers "k8s.io/apiextensions-apiserver/pkg/client/informers/internalversion"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	utilnet "k8s.io/apimachinery/pkg/util/net"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/apiserver/pkg/server/healthz"
-	kubeclientset "k8s.io/client-go/kubernetes"
 	"k8s.io/kube-aggregator/pkg/apis/apiregistration"
 	aggregatorapiserver "k8s.io/kube-aggregator/pkg/apiserver"
 	apiregistrationclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/internalclientset/typed/apiregistration/internalversion"
 	"k8s.io/kube-aggregator/pkg/controllers/autoregister"
 	informers "k8s.io/kubernetes/pkg/client/informers/informers_generated/internalversion"
+	"k8s.io/kubernetes/pkg/master/thirdparty"
 )
 
-func (c *MasterConfig) createAggregatorConfig(kubeAPIServerConfig genericapiserver.Config) (*aggregatorapiserver.Config, error) {
-	// make a shallow copy to let us twiddle a few things
-	// most of the config actually remains the same.  We only need to mess with a couple items related to the particulars of the aggregator
-	genericConfig := kubeAPIServerConfig
-
+func (c *MasterConfig) createAggregatorConfig(genericConfig genericapiserver.Config) (*aggregatorapiserver.Config, error) {
+	// this is a shallow copy so let's twiddle a few things
 	// the aggregator doesn't wire these up.  It just delegates them to the kubeapiserver
 	genericConfig.EnableSwaggerUI = false
-	genericConfig.OpenAPIConfig = nil
 	genericConfig.SwaggerConfig = nil
+	genericConfig.OpenAPIConfig = nil
 
 	// This depends on aggregator types being registered into the kapi.Scheme, which is currently done in Start() to avoid concurrent scheme modification
-	//
 	// install our types into the scheme so that "normal" RESTOptionsGetters can work for us
 	// install.Install(kapi.GroupFactoryRegistry, kapi.Registry, kapi.Scheme)
 
-	client, err := kubeclientset.NewForConfig(genericConfig.LoopbackClientConfig)
-	if err != nil {
-		return nil, err
+	serviceResolver := aggregatorapiserver.NewClusterIPServiceResolver(
+		c.ClientGoKubeInformers.Core().V1().Services().Lister(),
+	)
+
+	var certBytes []byte
+	var keyBytes []byte
+	var err error
+	if len(c.Options.AggregatorConfig.ProxyClientInfo.CertFile) > 0 {
+		certBytes, err = ioutil.ReadFile(c.Options.AggregatorConfig.ProxyClientInfo.CertFile)
+		if err != nil {
+			return nil, err
+		}
+		keyBytes, err = ioutil.ReadFile(c.Options.AggregatorConfig.ProxyClientInfo.KeyFile)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	certBytes, err := ioutil.ReadFile(c.Options.AggregatorConfig.ProxyClientInfo.CertFile)
-	if err != nil {
-		return nil, err
+	aggregatorConfig := &aggregatorapiserver.Config{
+		GenericConfig:     &genericConfig,
+		CoreKubeInformers: c.ClientGoKubeInformers,
+		ProxyClientCert:   certBytes,
+		ProxyClientKey:    keyBytes,
+		ServiceResolver:   serviceResolver,
+		ProxyTransport:    utilnet.SetTransportDefaults(&http.Transport{}),
 	}
-	keyBytes, err := ioutil.ReadFile(c.Options.AggregatorConfig.ProxyClientInfo.KeyFile)
-	if err != nil {
-		return nil, err
-	}
-	return &aggregatorapiserver.Config{
-		GenericConfig:         &genericConfig,
-		CoreAPIServerClient:   client,
-		ProxyClientCert:       certBytes,
-		ProxyClientKey:        keyBytes,
-		KubeInternalInformers: c.InternalKubeInformers,
-	}, nil
+	return aggregatorConfig, nil
 }
 
-func createAggregatorServer(aggregatorConfig *aggregatorapiserver.Config, delegateAPIServer genericapiserver.DelegationTarget, sharedInformers informers.SharedInformerFactory, stopCh <-chan struct{}) (*aggregatorapiserver.APIAggregator, error) {
-	aggregatorServer, err := aggregatorConfig.Complete().NewWithDelegate(delegateAPIServer, stopCh)
+func createAggregatorServer(aggregatorConfig *aggregatorapiserver.Config, delegateAPIServer genericapiserver.DelegationTarget, kubeInformers informers.SharedInformerFactory, apiExtensionInformers apiextensionsinformers.SharedInformerFactory) (*aggregatorapiserver.APIAggregator, error) {
+	aggregatorServer, err := aggregatorConfig.Complete().NewWithDelegate(delegateAPIServer)
 	if err != nil {
 		return nil, err
 	}
@@ -90,12 +95,19 @@ func createAggregatorServer(aggregatorConfig *aggregatorapiserver.Config, delega
 	}
 	autoRegistrationController := autoregister.NewAutoRegisterController(aggregatorServer.APIRegistrationInformers.Apiregistration().InternalVersion().APIServices(), apiRegistrationClient)
 	apiServices := apiServicesToRegister(delegateAPIServer, autoRegistrationController)
+	tprRegistrationController := thirdparty.NewAutoRegistrationController(
+		kubeInformers.Extensions().InternalVersion().ThirdPartyResources(),
+		apiExtensionInformers.Apiextensions().InternalVersion().CustomResourceDefinitions(),
+		autoRegistrationController)
 
-	aggregatorServer.GenericAPIServer.AddPostStartHook("kube-apiserver-autoregistration", func(context genericapiserver.PostStartHookContext) error {
-		go autoRegistrationController.Run(5, stopCh)
+	if err := aggregatorServer.GenericAPIServer.AddPostStartHook("kube-apiserver-autoregistration", func(context genericapiserver.PostStartHookContext) error {
+		go autoRegistrationController.Run(5, context.StopCh)
+		go tprRegistrationController.Run(5, context.StopCh)
 		return nil
-	})
-	aggregatorServer.GenericAPIServer.AddHealthzChecks(healthz.NamedCheck("autoregister-completion", func(r *http.Request) error {
+	}); err != nil {
+		return nil, err
+	}
+	if err := aggregatorServer.GenericAPIServer.AddHealthzChecks(healthz.NamedCheck("autoregister-completion", func(r *http.Request) error {
 		items, err := aggregatorServer.APIRegistrationInformers.Apiregistration().InternalVersion().APIServices().Lister().List(labels.Everything())
 		if err != nil {
 			return err
@@ -105,7 +117,10 @@ func createAggregatorServer(aggregatorConfig *aggregatorapiserver.Config, delega
 		for _, apiService := range apiServices {
 			found := false
 			for _, item := range items {
-				if item.Name == apiService.Name {
+				if item.Name != apiService.Name {
+					continue
+				}
+				if apiregistration.IsAPIServiceConditionTrue(item, apiregistration.Available) {
 					found = true
 					break
 				}
@@ -120,7 +135,9 @@ func createAggregatorServer(aggregatorConfig *aggregatorapiserver.Config, delega
 			return fmt.Errorf("missing APIService: %v", missing)
 		}
 		return nil
-	}))
+	})); err != nil {
+		return nil, err
+	}
 
 	return aggregatorServer, nil
 }
@@ -159,24 +176,25 @@ var apiVersionPriorities = map[schema.GroupVersion]priority{
 	// can reasonably expect seems questionable.
 	{Group: "extensions", Version: "v1beta1"}: {group: 17900, version: 1},
 	// to my knowledge, nothing below here collides
-	{Group: "apps", Version: "v1beta1"}:                       {group: 17800, version: 1},
-	{Group: "authentication.k8s.io", Version: "v1"}:           {group: 17700, version: 15},
-	{Group: "authentication.k8s.io", Version: "v1beta1"}:      {group: 17700, version: 9},
-	{Group: "authorization.k8s.io", Version: "v1"}:            {group: 17600, version: 15},
-	{Group: "authorization.k8s.io", Version: "v1beta1"}:       {group: 17600, version: 9},
-	{Group: "autoscaling", Version: "v1"}:                     {group: 17500, version: 15},
-	{Group: "autoscaling", Version: "v2alpha1"}:               {group: 17500, version: 9},
-	{Group: "batch", Version: "v1"}:                           {group: 17400, version: 15},
-	{Group: "batch", Version: "v2alpha1"}:                     {group: 17400, version: 9},
-	{Group: "certificates.k8s.io", Version: "v1beta1"}:        {group: 17300, version: 9},
-	{Group: "networking.k8s.io", Version: "v1"}:               {group: 17200, version: 15},
-	{Group: "policy", Version: "v1beta1"}:                     {group: 17100, version: 9},
-	{Group: "rbac.authorization.k8s.io", Version: "v1beta1"}:  {group: 17000, version: 12},
-	{Group: "rbac.authorization.k8s.io", Version: "v1alpha1"}: {group: 17000, version: 9},
-	{Group: "settings.k8s.io", Version: "v1alpha1"}:           {group: 16900, version: 9},
-	{Group: "storage.k8s.io", Version: "v1"}:                  {group: 16800, version: 15},
-	{Group: "storage.k8s.io", Version: "v1beta1"}:             {group: 16800, version: 9},
-	{Group: "apiextensions.k8s.io", Version: "v1beta1"}:       {group: 16700, version: 9},
+	{Group: "apps", Version: "v1beta1"}:                          {group: 17800, version: 1},
+	{Group: "authentication.k8s.io", Version: "v1"}:              {group: 17700, version: 15},
+	{Group: "authentication.k8s.io", Version: "v1beta1"}:         {group: 17700, version: 9},
+	{Group: "authorization.k8s.io", Version: "v1"}:               {group: 17600, version: 15},
+	{Group: "authorization.k8s.io", Version: "v1beta1"}:          {group: 17600, version: 9},
+	{Group: "autoscaling", Version: "v1"}:                        {group: 17500, version: 15},
+	{Group: "autoscaling", Version: "v2alpha1"}:                  {group: 17500, version: 9},
+	{Group: "batch", Version: "v1"}:                              {group: 17400, version: 15},
+	{Group: "batch", Version: "v2alpha1"}:                        {group: 17400, version: 9},
+	{Group: "certificates.k8s.io", Version: "v1beta1"}:           {group: 17300, version: 9},
+	{Group: "networking.k8s.io", Version: "v1"}:                  {group: 17200, version: 15},
+	{Group: "policy", Version: "v1beta1"}:                        {group: 17100, version: 9},
+	{Group: "rbac.authorization.k8s.io", Version: "v1beta1"}:     {group: 17000, version: 12},
+	{Group: "rbac.authorization.k8s.io", Version: "v1alpha1"}:    {group: 17000, version: 9},
+	{Group: "settings.k8s.io", Version: "v1alpha1"}:              {group: 16900, version: 9},
+	{Group: "storage.k8s.io", Version: "v1"}:                     {group: 16800, version: 15},
+	{Group: "storage.k8s.io", Version: "v1beta1"}:                {group: 16800, version: 9},
+	{Group: "apiextensions.k8s.io", Version: "v1beta1"}:          {group: 16700, version: 9},
+	{Group: "admissionregistration.k8s.io", Version: "v1alpha1"}: {group: 16700, version: 9},
 
 	// arbitrarily starting openshift around 10000.
 	// bump authorization above RBAC

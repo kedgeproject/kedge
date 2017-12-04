@@ -9,7 +9,7 @@ import (
 	kapi "k8s.io/kubernetes/pkg/api"
 
 	buildapi "github.com/openshift/origin/pkg/build/apis/build"
-	"github.com/openshift/origin/pkg/client/testclient"
+	buildfake "github.com/openshift/origin/pkg/build/generated/internalclientset/fake"
 	"github.com/openshift/origin/pkg/generate/git"
 	s2iapi "github.com/openshift/source-to-image/pkg/api"
 	s2ibuild "github.com/openshift/source-to-image/pkg/build"
@@ -52,14 +52,14 @@ type testS2IBuilderConfig struct {
 // newTestS2IBuilder creates a mock implementation of S2IBuilder, instrumenting
 // different parts to return specific errors according to config.
 func newTestS2IBuilder(config testS2IBuilderConfig) *S2IBuilder {
+	client := &buildfake.Clientset{}
 	return newS2IBuilder(
 		&FakeDocker{
 			errPushImage: config.errPushImage,
 		},
 		"unix:///var/run/docker.sock",
-		testclient.NewSimpleFake().Builds(""),
+		client.Build().Builds(""),
 		makeBuild(),
-		git.NewRepository(),
 		testStiBuilderFactory{
 			getStrategyErr: config.getStrategyErr,
 			buildError:     config.buildError,
@@ -180,7 +180,8 @@ func TestBuildEnvVars(t *testing.T) {
 			Value: "http://test/insecure:8080",
 		},
 	}
-	expectedLabelList := map[string]string{
+	expectedLabelMap := map[string]string{
+		"io.openshift.build.commit.id": "1575a90c569a7cc0eea84fbd3304d9df37c9f5ee",
 		"io.openshift.build.name":      "openshift-test-1-build",
 		"io.openshift.build.namespace": "openshift-demo",
 	}
@@ -193,12 +194,16 @@ func TestBuildEnvVars(t *testing.T) {
 	sourceInfo.CommitID = "1575a90c569a7cc0eea84fbd3304d9df37c9f5ee"
 	resultedEnvList := buildEnvVars(mockBuild, sourceInfo)
 	if !reflect.DeepEqual(expectedEnvList, resultedEnvList) {
-		t.Errorf("Expected EnvironmentList to match: %#v, got %#v", expectedEnvList, resultedEnvList)
+		t.Errorf("Expected EnvironmentList to match:\n%#v\ngot:\n%#v", expectedEnvList, resultedEnvList)
 	}
 
-	resultedLabelList := buildLabels(mockBuild)
-	if !reflect.DeepEqual(expectedLabelList, resultedLabelList) {
-		t.Errorf("Expected LabelList to match: %#v, got %#v", expectedLabelList, resultedLabelList)
+	resultedLabelList := buildLabels(mockBuild, sourceInfo)
+	resultedLabelMap := map[string]string{}
+	for _, label := range resultedLabelList {
+		resultedLabelMap[label.Key] = label.Value
+	}
+	if !reflect.DeepEqual(expectedLabelMap, resultedLabelMap) {
+		t.Errorf("Expected LabelList to match:\n%#v\ngot:\n%#v", expectedLabelMap, resultedLabelMap)
 	}
 
 }

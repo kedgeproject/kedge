@@ -3,15 +3,18 @@ package buildconfigs
 import (
 	"fmt"
 	"reflect"
-	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
+	clientv1 "k8s.io/client-go/pkg/api/v1"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/record"
 	kapi "k8s.io/kubernetes/pkg/api"
 
 	"github.com/golang/glog"
 	buildapi "github.com/openshift/origin/pkg/build/apis/build"
-	buildutil "github.com/openshift/origin/pkg/build/util"
 	triggerapi "github.com/openshift/origin/pkg/image/apis/image/v1/trigger"
 	"github.com/openshift/origin/pkg/image/trigger"
 )
@@ -32,7 +35,7 @@ func calculateBuildConfigTriggers(bc *buildapi.BuildConfig) []triggerapi.ObjectF
 			from = t.ImageChange.From
 			fieldPath = "spec.triggers"
 		} else {
-			from = buildutil.GetInputReference(bc.Spec.Strategy)
+			from = buildapi.GetInputReference(bc.Spec.Strategy)
 			fieldPath = "spec.strategy.*.from"
 		}
 		if from == nil || from.Kind != "ImageStreamTag" || len(from.Name) == 0 {
@@ -110,15 +113,25 @@ type BuildConfigInstantiator interface {
 	Instantiate(namespace string, request *buildapi.BuildRequest) (*buildapi.Build, error)
 }
 
-// BuildConfigReactor converts trigger changes into new builds. It will request a build if
+// buildConfigReactor converts trigger changes into new builds. It will request a build if
 // at least one image is out of date.
-type BuildConfigReactor struct {
-	Instantiator BuildConfigInstantiator
+type buildConfigReactor struct {
+	instantiator  BuildConfigInstantiator
+	eventRecorder record.EventRecorder
+}
+
+// NewBuildConfigReactor creates a new buildConfigReactor
+func NewBuildConfigReactor(instantiator BuildConfigInstantiator, restclient rest.Interface) trigger.ImageReactor {
+	eventBroadcaster := record.NewBroadcaster()
+	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: v1core.New(restclient).Events("")})
+	eventRecorder := eventBroadcaster.NewRecorder(kapi.Scheme, clientv1.EventSource{Component: "buildconfig-controller"})
+
+	return &buildConfigReactor{instantiator: instantiator, eventRecorder: eventRecorder}
 }
 
 // ImageChanged is passed a build config and a set of changes and updates the object if
 // necessary.
-func (r *BuildConfigReactor) ImageChanged(obj interface{}, tagRetriever trigger.TagRetriever) error {
+func (r *buildConfigReactor) ImageChanged(obj interface{}, tagRetriever trigger.TagRetriever) error {
 	bc := obj.(*buildapi.BuildConfig)
 
 	var request *buildapi.BuildRequest
@@ -132,7 +145,7 @@ func (r *BuildConfigReactor) ImageChanged(obj interface{}, tagRetriever trigger.
 		if p.From != nil {
 			from = p.From
 		} else {
-			from = buildutil.GetInputReference(bc.Spec.Strategy)
+			from = buildapi.GetInputReference(bc.Spec.Strategy)
 		}
 		namespace := from.Namespace
 		if len(namespace) == 0 {
@@ -196,18 +209,11 @@ func (r *BuildConfigReactor) ImageChanged(obj interface{}, tagRetriever trigger.
 
 	// instantiate new build
 	glog.V(4).Infof("Requesting build for BuildConfig based on image triggers %s/%s: %#v", bc.Namespace, bc.Name, request)
-	_, err := r.Instantiator.Instantiate(bc.Namespace, request)
-	return err
-}
-
-func printTriggers(triggers []buildapi.BuildTriggerPolicy) string {
-	var values []string
-	for _, t := range triggers {
-		if t.ImageChange.From != nil {
-			values = append(values, fmt.Sprintf("[from=%s last=%s]", t.ImageChange.From.Name, t.ImageChange.LastTriggeredImageID))
-		} else {
-			values = append(values, fmt.Sprintf("[from=* last=%s]", t.ImageChange.LastTriggeredImageID))
-		}
+	_, err := r.instantiator.Instantiate(bc.Namespace, request)
+	if err != nil {
+		instantiateErr := fmt.Errorf("error triggering Build for BuildConfig %s/%s: %v", bc.Namespace, bc.Name, err)
+		utilruntime.HandleError(instantiateErr)
+		r.eventRecorder.Event(bc, kapi.EventTypeWarning, "BuildConfigTriggerFailed", instantiateErr.Error())
 	}
-	return strings.Join(values, ", ")
+	return err
 }

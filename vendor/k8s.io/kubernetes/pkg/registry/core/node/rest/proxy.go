@@ -20,9 +20,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"path"
 
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/net"
 	genericapirequest "k8s.io/apiserver/pkg/endpoints/request"
 	genericregistry "k8s.io/apiserver/pkg/registry/generic/registry"
 	genericrest "k8s.io/apiserver/pkg/registry/generic/rest"
@@ -43,7 +43,7 @@ type ProxyREST struct {
 // Implement Connecter
 var _ = rest.Connecter(&ProxyREST{})
 
-var proxyMethods = []string{"GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"}
+var proxyMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
 
 // New returns an empty service resource
 func (r *ProxyREST) New() runtime.Object {
@@ -70,7 +70,7 @@ func (r *ProxyREST) Connect(ctx genericapirequest.Context, id string, opts runti
 	if err != nil {
 		return nil, err
 	}
-	location.Path = path.Join(location.Path, proxyOpts.Path)
+	location.Path = net.JoinPreservingTrailingSlash(location.Path, proxyOpts.Path)
 	// Return a proxy handler that uses the desired transport, wrapped with additional proxy handling (to get URL rewriting, X-Forwarded-* headers, etc)
 	return newThrottledUpgradeAwareProxyHandler(location, transport, true, false, responder), nil
 }

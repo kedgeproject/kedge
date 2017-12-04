@@ -86,22 +86,22 @@ func setupRegistries(identity *userapi.Identity, users ...*userapi.User) (*[]tes
 	actions := &[]test.Action{}
 
 	userRegistry := &test.UserRegistry{
-		Get:       map[string]*userapi.User{},
+		GetUsers:  map[string]*userapi.User{},
 		GetErr:    map[string]error{},
 		UpdateErr: map[string]error{},
 		Actions:   actions,
 	}
 	for _, user := range users {
-		userRegistry.Get[user.Name] = user
+		userRegistry.GetUsers[user.Name] = user
 	}
 
 	identityRegistry := &test.IdentityRegistry{
-		Get:     map[string]*userapi.Identity{},
-		GetErr:  map[string]error{},
-		Actions: actions,
+		GetIdentities: map[string]*userapi.Identity{},
+		GetErr:        map[string]error{},
+		Actions:       actions,
 	}
 	if identity != nil {
-		identityRegistry.Get[identity.Name] = identity
+		identityRegistry.GetIdentities[identity.Name] = identity
 	}
 
 	rest := NewREST(userRegistry, identityRegistry)
@@ -247,7 +247,7 @@ func TestCreate(t *testing.T) {
 	}
 
 	actions, _, _, rest := setupRegistries(unassociatedIdentity, unassociatedUser)
-	createdMapping, err := rest.Create(apirequest.NewContext(), mapping)
+	createdMapping, err := rest.Create(apirequest.NewContext(), mapping, false)
 
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
@@ -269,7 +269,7 @@ func TestCreateExists(t *testing.T) {
 	}
 
 	actions, _, _, rest := setupRegistries(identity, user)
-	_, err := rest.Create(apirequest.NewContext(), mapping)
+	_, err := rest.Create(apirequest.NewContext(), mapping, false)
 
 	if err == nil {
 		t.Errorf("Expected error, got none")
@@ -292,7 +292,7 @@ func TestCreateMissingIdentity(t *testing.T) {
 	}
 
 	actions, _, _, rest := setupRegistries(nil, user)
-	_, err := rest.Create(apirequest.NewContext(), mapping)
+	_, err := rest.Create(apirequest.NewContext(), mapping, false)
 
 	if err == nil {
 		t.Errorf("Expected error, got none")
@@ -316,7 +316,7 @@ func TestCreateMissingUser(t *testing.T) {
 	}
 
 	actions, _, _, rest := setupRegistries(identity)
-	_, err := rest.Create(apirequest.NewContext(), mapping)
+	_, err := rest.Create(apirequest.NewContext(), mapping, false)
 
 	if err == nil {
 		t.Errorf("Expected error, got none")
@@ -335,7 +335,7 @@ func TestCreateUserUpdateError(t *testing.T) {
 		{Name: "GetUser", Object: unassociatedUser.Name},
 		{Name: "UpdateUser", Object: associatedUser},
 	}
-	expectedErr := errors.New("Update error")
+	expectedErr := errors.New("UpdateUser error")
 
 	mapping := &userapi.UserIdentityMapping{
 		Identity: kapi.ObjectReference{Name: unassociatedIdentity.Name},
@@ -344,7 +344,7 @@ func TestCreateUserUpdateError(t *testing.T) {
 
 	actions, userRegistry, _, rest := setupRegistries(unassociatedIdentity, unassociatedUser)
 	userRegistry.UpdateErr[associatedUser.Name] = expectedErr
-	_, err := rest.Create(apirequest.NewContext(), mapping)
+	_, err := rest.Create(apirequest.NewContext(), mapping, false)
 
 	if err == nil {
 		t.Errorf("Expected error, got none")
@@ -371,8 +371,8 @@ func TestCreateIdentityUpdateError(t *testing.T) {
 	}
 
 	actions, _, identityRegistry, rest := setupRegistries(unassociatedIdentity, unassociatedUser)
-	identityRegistry.UpdateErr = errors.New("Update error")
-	_, err := rest.Create(apirequest.NewContext(), mapping)
+	identityRegistry.UpdateErr = errors.New("UpdateUser error")
+	_, err := rest.Create(apirequest.NewContext(), mapping, false)
 
 	if err == nil {
 		t.Errorf("Expected error, got none")

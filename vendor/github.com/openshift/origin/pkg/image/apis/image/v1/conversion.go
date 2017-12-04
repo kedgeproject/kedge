@@ -7,11 +7,29 @@ import (
 	"k8s.io/apimachinery/pkg/conversion"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/kubernetes/pkg/api"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
 
-	oapi "github.com/openshift/origin/pkg/api"
+	"github.com/openshift/origin/pkg/api/apihelpers"
 	newer "github.com/openshift/origin/pkg/image/apis/image"
+	"github.com/openshift/origin/pkg/image/apis/image/docker10"
+	"github.com/openshift/origin/pkg/image/apis/image/dockerpre012"
 )
+
+var (
+	dockerImageScheme = runtime.NewScheme()
+	dockerImageCodecs = serializer.NewCodecFactory(dockerImageScheme)
+)
+
+func init() {
+	docker10.AddToSchemeInCoreGroup(dockerImageScheme)
+	dockerpre012.AddToSchemeInCoreGroup(dockerImageScheme)
+	newer.AddToSchemeInCoreGroup(dockerImageScheme)
+	AddToSchemeInCoreGroup(dockerImageScheme)
+	docker10.AddToScheme(dockerImageScheme)
+	dockerpre012.AddToScheme(dockerImageScheme)
+	newer.AddToScheme(dockerImageScheme)
+	AddToScheme(dockerImageScheme)
+}
 
 // The docker metadata must be cast to a version
 func Convert_image_Image_To_v1_Image(in *newer.Image, out *Image, s conversion.Scope) error {
@@ -36,7 +54,7 @@ func Convert_image_Image_To_v1_Image(in *newer.Image, out *Image, s conversion.S
 	if err != nil {
 		return err
 	}
-	data, err := runtime.Encode(api.Codecs.LegacyCodec(version), &in.DockerImageMetadata)
+	data, err := runtime.Encode(dockerImageCodecs.LegacyCodec(version), &in.DockerImageMetadata)
 	if err != nil {
 		return err
 	}
@@ -93,11 +111,11 @@ func Convert_v1_Image_To_image_Image(in *Image, out *newer.Image, s conversion.S
 	}
 	if len(in.DockerImageMetadata.Raw) > 0 {
 		// TODO: add a way to default the expected kind and version of an object if not set
-		obj, err := api.Scheme.New(schema.GroupVersionKind{Version: version, Kind: "DockerImage"})
+		obj, err := dockerImageScheme.New(schema.GroupVersionKind{Version: version, Kind: "DockerImage"})
 		if err != nil {
 			return err
 		}
-		if err := runtime.DecodeInto(api.Codecs.UniversalDecoder(), in.DockerImageMetadata.Raw, obj); err != nil {
+		if err := runtime.DecodeInto(dockerImageCodecs.UniversalDecoder(), in.DockerImageMetadata.Raw, obj); err != nil {
 			return err
 		}
 		if err := s.Convert(obj, &out.DockerImageMetadata, 0); err != nil {
@@ -165,12 +183,14 @@ func Convert_image_ImageStreamSpec_To_v1_ImageStreamSpec(in *newer.ImageStreamSp
 
 func Convert_v1_ImageStreamStatus_To_image_ImageStreamStatus(in *ImageStreamStatus, out *newer.ImageStreamStatus, s conversion.Scope) error {
 	out.DockerImageRepository = in.DockerImageRepository
+	out.PublicDockerImageRepository = in.PublicDockerImageRepository
 	out.Tags = make(map[string]newer.TagEventList)
 	return s.Convert(&in.Tags, &out.Tags, 0)
 }
 
 func Convert_image_ImageStreamStatus_To_v1_ImageStreamStatus(in *newer.ImageStreamStatus, out *ImageStreamStatus, s conversion.Scope) error {
 	out.DockerImageRepository = in.DockerImageRepository
+	out.PublicDockerImageRepository = in.PublicDockerImageRepository
 	if len(in.DockerImageRepository) > 0 {
 		// ensure that stored image references have no tag or ID, which was possible from 1.0.0 until 1.0.7
 		if ref, err := newer.ParseDockerImageReference(in.DockerImageRepository); err == nil {
@@ -278,26 +298,42 @@ func addConversionFuncs(scheme *runtime.Scheme) error {
 		return err
 	}
 
-	if err := scheme.AddFieldLabelConversionFunc("v1", "Image",
-		oapi.GetFieldLabelConversionFunc(newer.ImageToSelectableFields(&newer.Image{}), nil),
-	); err != nil {
-		return err
-	}
-	if err := scheme.AddFieldLabelConversionFunc(SchemeGroupVersion.String(), "Image",
-		oapi.GetFieldLabelConversionFunc(newer.ImageToSelectableFields(&newer.Image{}), nil),
-	); err != nil {
-		return err
-	}
+	return nil
+}
 
-	if err := scheme.AddFieldLabelConversionFunc("v1", "ImageStream",
-		oapi.GetFieldLabelConversionFunc(newer.ImageStreamToSelectableFields(&newer.ImageStream{}), map[string]string{"name": "metadata.name"}),
-	); err != nil {
-		return err
-	}
-	if err := scheme.AddFieldLabelConversionFunc(SchemeGroupVersion.String(), "ImageStream",
-		oapi.GetFieldLabelConversionFunc(newer.ImageStreamToSelectableFields(&newer.ImageStream{}), nil),
-	); err != nil {
+func addLegacyFieldSelectorKeyConversions(scheme *runtime.Scheme) error {
+	if err := scheme.AddFieldLabelConversionFunc(LegacySchemeGroupVersion.String(), "ImageStream", legacyImageStreamFieldSelectorKeyConversionFunc); err != nil {
 		return err
 	}
 	return nil
+}
+
+func addFieldSelectorKeyConversions(scheme *runtime.Scheme) error {
+	if err := scheme.AddFieldLabelConversionFunc(SchemeGroupVersion.String(), "ImageStream", imageStreamFieldSelectorKeyConversionFunc); err != nil {
+		return err
+	}
+	return nil
+}
+
+// because field selectors can vary in support by version they are exposed under, we have one function for each
+// groupVersion we're registering for
+
+func legacyImageStreamFieldSelectorKeyConversionFunc(label, value string) (internalLabel, internalValue string, err error) {
+	switch label {
+	case "spec.dockerImageRepository",
+		"status.dockerImageRepository":
+		return label, value, nil
+	default:
+		return apihelpers.LegacyMetaV1FieldSelectorConversionWithName(label, value)
+	}
+}
+
+func imageStreamFieldSelectorKeyConversionFunc(label, value string) (internalLabel, internalValue string, err error) {
+	switch label {
+	case "spec.dockerImageRepository",
+		"status.dockerImageRepository":
+		return label, value, nil
+	default:
+		return runtime.DefaultMetaV1FieldSelectorConversion(label, value)
+	}
 }

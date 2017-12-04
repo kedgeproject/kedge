@@ -10,7 +10,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/diff"
+	"k8s.io/client-go/util/jsonpath"
 	kapi "k8s.io/kubernetes/pkg/api"
+	kapihelper "k8s.io/kubernetes/pkg/api/helper"
 	kapiv1 "k8s.io/kubernetes/pkg/api/v1"
 	kapps "k8s.io/kubernetes/pkg/apis/apps/v1beta1"
 
@@ -74,6 +76,13 @@ func testStatefulSet(params []triggerapi.ObjectFieldTrigger, containers map[stri
 	return obj
 }
 
+func TestAnnotationJSONPath(t *testing.T) {
+	_, err := jsonpath.Parse("field_path", "spec.template.spec.containers[?(@.name==\"test\")].image")
+	if err != nil {
+		t.Error(err)
+	}
+}
+
 func TestAnnotationsReactor(t *testing.T) {
 	testCases := []struct {
 		tags        []fakeTagResponse
@@ -94,7 +103,7 @@ func TestAnnotationsReactor(t *testing.T) {
 			obj: testStatefulSet([]triggerapi.ObjectFieldTrigger{
 				{
 					From:      triggerapi.ObjectReference{Name: "stream-1:1", Namespace: "other", Kind: "ImageStreamTag"},
-					FieldPath: "spec.template.spec.containers[?(@.name='test')].image",
+					FieldPath: "spec.template.spec.containers[?(@.name==\"test\")].image",
 				},
 			}, nil),
 			expectedErr: true,
@@ -106,7 +115,7 @@ func TestAnnotationsReactor(t *testing.T) {
 			obj: testStatefulSet([]triggerapi.ObjectFieldTrigger{
 				{
 					From:      triggerapi.ObjectReference{Name: "stream-1:1", Namespace: "other", Kind: "ImageStreamTag"},
-					FieldPath: "spec.template.spec.containers[?(@.name='test')]",
+					FieldPath: "spec.template.spec.containers[?(@.name==\"test\")]",
 				},
 			}, map[string]string{"test": ""}),
 			expectedErr: true,
@@ -117,7 +126,7 @@ func TestAnnotationsReactor(t *testing.T) {
 			obj: testStatefulSet([]triggerapi.ObjectFieldTrigger{
 				{
 					From:      triggerapi.ObjectReference{Name: "stream-1:1", Namespace: "other", Kind: "ImageStreamTag"},
-					FieldPath: "spec.template.spec.containers[?(@.name='test').image",
+					FieldPath: "spec.template.spec.containers[?(@.name==\"test\").image",
 				},
 			}, map[string]string{"test": ""}),
 			expectedErr: true,
@@ -139,7 +148,7 @@ func TestAnnotationsReactor(t *testing.T) {
 			obj: testStatefulSet([]triggerapi.ObjectFieldTrigger{
 				{
 					From:      triggerapi.ObjectReference{Name: "stream-1:1", Namespace: "other", Kind: "ImageStreamTag"},
-					FieldPath: "spec.template.spec.containers[?(@.name='test')].image",
+					FieldPath: "spec.template.spec.containers[?(@.name==\"test\")].image",
 				},
 			}, map[string]string{"test": ""}),
 		},
@@ -150,14 +159,14 @@ func TestAnnotationsReactor(t *testing.T) {
 			obj: testStatefulSet([]triggerapi.ObjectFieldTrigger{
 				{
 					From:      triggerapi.ObjectReference{Name: "stream-1:1", Namespace: "other", Kind: "ImageStreamTag"},
-					FieldPath: "spec.template.spec.containers[?(@.name='test')].image",
+					FieldPath: "spec.template.spec.containers[?(@.name==\"test\")].image",
 				},
 			}, map[string]string{"test": ""}),
 			response: &kapps.StatefulSet{},
 			expected: testStatefulSet([]triggerapi.ObjectFieldTrigger{
 				{
 					From:      triggerapi.ObjectReference{Name: "stream-1:1", Namespace: "other", Kind: "ImageStreamTag"},
-					FieldPath: "spec.template.spec.containers[?(@.name='test')].image",
+					FieldPath: "spec.template.spec.containers[?(@.name==\"test\")].image",
 				},
 			}, map[string]string{"test": "image-lookup-1"}),
 		},
@@ -168,14 +177,14 @@ func TestAnnotationsReactor(t *testing.T) {
 			obj: testStatefulSet([]triggerapi.ObjectFieldTrigger{
 				{
 					From:      triggerapi.ObjectReference{Name: "stream-1:1", Namespace: "other", Kind: "ImageStreamTag"},
-					FieldPath: "spec.template.spec.initContainers[?(@.name='test')].image",
+					FieldPath: "spec.template.spec.initContainers[?(@.name==\"test\")].image",
 				},
 			}, map[string]string{"-test": ""}),
 			response: &kapps.StatefulSet{},
 			expected: testStatefulSet([]triggerapi.ObjectFieldTrigger{
 				{
 					From:      triggerapi.ObjectReference{Name: "stream-1:1", Namespace: "other", Kind: "ImageStreamTag"},
-					FieldPath: "spec.template.spec.initContainers[?(@.name='test')].image",
+					FieldPath: "spec.template.spec.initContainers[?(@.name==\"test\")].image",
 				},
 			}, map[string]string{"-test": "image-lookup-1"}),
 		},
@@ -187,7 +196,7 @@ func TestAnnotationsReactor(t *testing.T) {
 				{
 					Paused:    true,
 					From:      triggerapi.ObjectReference{Name: "stream-1:1", Namespace: "other", Kind: "ImageStreamTag"},
-					FieldPath: "spec.template.spec.containers[?(@.name='test')].image",
+					FieldPath: "spec.template.spec.containers[?(@.name==\"test\")].image",
 				},
 			}, map[string]string{"test": ""}),
 			response: &kapps.StatefulSet{},
@@ -199,22 +208,22 @@ func TestAnnotationsReactor(t *testing.T) {
 			obj: testStatefulSet([]triggerapi.ObjectFieldTrigger{
 				{
 					From:      triggerapi.ObjectReference{Name: "stream-1:1", Namespace: "other", Kind: "ImageStreamTag"},
-					FieldPath: "spec.template.spec.containers[?(@.name='test')].image",
+					FieldPath: "spec.template.spec.containers[?(@.name==\"test\")].image",
 				},
 				{
 					From:      triggerapi.ObjectReference{Name: "stream-2:1", Namespace: "other", Kind: "ImageStreamTag"},
-					FieldPath: "spec.template.spec.containers[?(@.name='test2')].image",
+					FieldPath: "spec.template.spec.containers[?(@.name==\"test2\")].image",
 				},
 			}, map[string]string{"test": "", "test2": ""}),
 			response: &kapps.StatefulSet{},
 			expected: testStatefulSet([]triggerapi.ObjectFieldTrigger{
 				{
 					From:      triggerapi.ObjectReference{Name: "stream-1:1", Namespace: "other", Kind: "ImageStreamTag"},
-					FieldPath: "spec.template.spec.containers[?(@.name='test')].image",
+					FieldPath: "spec.template.spec.containers[?(@.name==\"test\")].image",
 				},
 				{
 					From:      triggerapi.ObjectReference{Name: "stream-2:1", Namespace: "other", Kind: "ImageStreamTag"},
-					FieldPath: "spec.template.spec.containers[?(@.name='test2')].image",
+					FieldPath: "spec.template.spec.containers[?(@.name==\"test2\")].image",
 				},
 			}, map[string]string{"test": "image-lookup-1", "test2": ""}),
 		},
@@ -225,22 +234,22 @@ func TestAnnotationsReactor(t *testing.T) {
 			obj: testStatefulSet([]triggerapi.ObjectFieldTrigger{
 				{
 					From:      triggerapi.ObjectReference{Name: "stream-1:1", Namespace: "other", Kind: "ImageStreamTag"},
-					FieldPath: "spec.template.spec.containers[?(@.name='test')].image",
+					FieldPath: "spec.template.spec.containers[?(@.name==\"test\")].image",
 				},
 				{
 					From:      triggerapi.ObjectReference{Name: "stream-2:1", Namespace: "other", Kind: "ImageStreamTag"},
-					FieldPath: "spec.template.spec.containers[?(@.name='test2')].image",
+					FieldPath: "spec.template.spec.containers[?(@.name==\"test2\")].image",
 				},
 			}, map[string]string{"test": "", "test2": "old-image"}),
 			response: &kapps.StatefulSet{},
 			expected: testStatefulSet([]triggerapi.ObjectFieldTrigger{
 				{
 					From:      triggerapi.ObjectReference{Name: "stream-1:1", Namespace: "other", Kind: "ImageStreamTag"},
-					FieldPath: "spec.template.spec.containers[?(@.name='test')].image",
+					FieldPath: "spec.template.spec.containers[?(@.name==\"test\")].image",
 				},
 				{
 					From:      triggerapi.ObjectReference{Name: "stream-2:1", Namespace: "other", Kind: "ImageStreamTag"},
-					FieldPath: "spec.template.spec.containers[?(@.name='test2')].image",
+					FieldPath: "spec.template.spec.containers[?(@.name==\"test2\")].image",
 				},
 			}, map[string]string{"test": "image-lookup-1", "test2": "old-image"}),
 		},
@@ -251,22 +260,22 @@ func TestAnnotationsReactor(t *testing.T) {
 			obj: testStatefulSet([]triggerapi.ObjectFieldTrigger{
 				{
 					From:      triggerapi.ObjectReference{Name: "stream-1:1", Namespace: "other", Kind: "ImageStreamTag"},
-					FieldPath: "spec.template.spec.containers[?(@.name='test')].image",
+					FieldPath: "spec.template.spec.containers[?(@.name==\"test\")].image",
 				},
 				{
 					From:      triggerapi.ObjectReference{Name: "stream-1:1", Namespace: "other", Kind: "ImageStreamTag"},
-					FieldPath: "spec.template.spec.containers[?(@.name='test2')].image",
+					FieldPath: "spec.template.spec.containers[?(@.name==\"test2\")].image",
 				},
 			}, map[string]string{"test": "", "test2": ""}),
 			response: &kapps.StatefulSet{},
 			expected: testStatefulSet([]triggerapi.ObjectFieldTrigger{
 				{
 					From:      triggerapi.ObjectReference{Name: "stream-1:1", Namespace: "other", Kind: "ImageStreamTag"},
-					FieldPath: "spec.template.spec.containers[?(@.name='test')].image",
+					FieldPath: "spec.template.spec.containers[?(@.name==\"test\")].image",
 				},
 				{
 					From:      triggerapi.ObjectReference{Name: "stream-1:1", Namespace: "other", Kind: "ImageStreamTag"},
-					FieldPath: "spec.template.spec.containers[?(@.name='test2')].image",
+					FieldPath: "spec.template.spec.containers[?(@.name==\"test2\")].image",
 				},
 			}, map[string]string{"test": "image-lookup-1", "test2": "image-lookup-1"}),
 		},
@@ -280,7 +289,7 @@ func TestAnnotationsReactor(t *testing.T) {
 			t.Fatal(err)
 		}
 		err = r.ImageChanged(test.obj, fakeTagRetriever(test.tags))
-		if !kapi.Semantic.DeepEqual(initial, test.obj) {
+		if !kapihelper.Semantic.DeepEqual(initial, test.obj) {
 			t.Errorf("%d: should not have mutated: %s", i, diff.ObjectReflectDiff(initial, test.obj))
 		}
 		switch {

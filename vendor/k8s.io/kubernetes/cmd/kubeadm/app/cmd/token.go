@@ -31,7 +31,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	clientset "k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/pkg/api"
 	"k8s.io/client-go/pkg/api/v1"
 	kubeadmapi "k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm"
 	kubeadmconstants "k8s.io/kubernetes/cmd/kubeadm/app/constants"
@@ -39,6 +38,7 @@ import (
 	kubeadmutil "k8s.io/kubernetes/cmd/kubeadm/app/util"
 	kubeconfigutil "k8s.io/kubernetes/cmd/kubeadm/app/util/kubeconfig"
 	tokenutil "k8s.io/kubernetes/cmd/kubeadm/app/util/token"
+	"k8s.io/kubernetes/pkg/api"
 	bootstrapapi "k8s.io/kubernetes/pkg/bootstrap/api"
 	"k8s.io/kubernetes/pkg/printers"
 )
@@ -67,7 +67,7 @@ func NewCmdToken(out io.Writer, errW io.Writer) *cobra.Command {
 
 			You can read more about Bootstrap Tokens in this proposal:
 
-			  https://github.com/kubernetes/community/blob/master/contributors/design-proposals/bootstrap-discovery.md
+			  https://git.k8s.io/community/contributors/design-proposals/bootstrap-discovery.md
 		`),
 
 		// Without this callback, if a user runs just the "token"
@@ -109,12 +109,18 @@ func NewCmdToken(out io.Writer, errW io.Writer) *cobra.Command {
 			client, err := kubeconfigutil.ClientSetFromFile(kubeConfigFile)
 			kubeadmutil.CheckErr(err)
 
+			// TODO: remove this warning in 1.9
+			if !tokenCmd.Flags().Lookup("ttl").Changed {
+				// sending this output to stderr s
+				fmt.Fprintln(errW, "[kubeadm] WARNING: starting in 1.8, tokens expire after 24 hours by default (if you require a non-expiring token use --ttl 0)")
+			}
+
 			err = RunCreateToken(out, client, token, tokenDuration, usages, description)
 			kubeadmutil.CheckErr(err)
 		},
 	}
 	createCmd.Flags().DurationVar(&tokenDuration,
-		"ttl", kubeadmconstants.DefaultTokenDuration, "The duration before the token is automatically deleted. 0 means 'never expires'.")
+		"ttl", kubeadmconstants.DefaultTokenDuration, "The duration before the token is automatically deleted (e.g. 1s, 2m, 3h). 0 means 'never expires'.")
 	createCmd.Flags().StringSliceVar(&usages,
 		"usages", kubeadmconstants.DefaultTokenUsages, "The ways in which this token can be used. Valid options: [signing,authentication].")
 	createCmd.Flags().StringVar(&description,

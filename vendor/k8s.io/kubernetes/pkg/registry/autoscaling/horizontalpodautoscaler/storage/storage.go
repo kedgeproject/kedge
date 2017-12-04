@@ -26,7 +26,6 @@ import (
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/apis/autoscaling"
 	"k8s.io/kubernetes/pkg/registry/autoscaling/horizontalpodautoscaler"
-	"k8s.io/kubernetes/pkg/registry/cachesize"
 )
 
 type REST struct {
@@ -36,15 +35,11 @@ type REST struct {
 // NewREST returns a RESTStorage object that will work against horizontal pod autoscalers.
 func NewREST(optsGetter generic.RESTOptionsGetter) (*REST, *StatusREST) {
 	store := &genericregistry.Store{
-		Copier:      api.Scheme,
-		NewFunc:     func() runtime.Object { return &autoscaling.HorizontalPodAutoscaler{} },
-		NewListFunc: func() runtime.Object { return &autoscaling.HorizontalPodAutoscalerList{} },
-		ObjectNameFunc: func(obj runtime.Object) (string, error) {
-			return obj.(*autoscaling.HorizontalPodAutoscaler).Name, nil
-		},
-		PredicateFunc:     horizontalpodautoscaler.MatchAutoscaler,
-		QualifiedResource: autoscaling.Resource("horizontalpodautoscalers"),
-		WatchCacheSize:    cachesize.GetWatchCacheSizeByResource("horizontalpodautoscalers"),
+		Copier:                   api.Scheme,
+		NewFunc:                  func() runtime.Object { return &autoscaling.HorizontalPodAutoscaler{} },
+		NewListFunc:              func() runtime.Object { return &autoscaling.HorizontalPodAutoscalerList{} },
+		PredicateFunc:            horizontalpodautoscaler.MatchAutoscaler,
+		DefaultQualifiedResource: autoscaling.Resource("horizontalpodautoscalers"),
 
 		CreateStrategy: horizontalpodautoscaler.Strategy,
 		UpdateStrategy: horizontalpodautoscaler.Strategy,
@@ -68,7 +63,15 @@ func (r *REST) ShortNames() []string {
 	return []string{"hpa"}
 }
 
-// StatusREST implements the REST endpoint for changing the status of a daemonset
+// Implement CategoriesProvider
+var _ rest.CategoriesProvider = &REST{}
+
+// Categories implements the CategoriesProvider interface. Returns a list of categories a resource is part of.
+func (r *REST) Categories() []string {
+	return []string{"all"}
+}
+
+/// StatusREST implements the REST endpoint for changing the status of a daemonset
 type StatusREST struct {
 	store *genericregistry.Store
 }

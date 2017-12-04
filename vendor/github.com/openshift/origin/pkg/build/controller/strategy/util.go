@@ -4,29 +4,41 @@ import (
 	"fmt"
 	"path/filepath"
 	"strconv"
+	"strings"
+
+	"github.com/golang/glog"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kvalidation "k8s.io/apimachinery/pkg/util/validation"
 	kapi "k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/api/v1"
 
-	"github.com/golang/glog"
+	"github.com/openshift/origin/pkg/api/apihelpers"
 	buildapi "github.com/openshift/origin/pkg/build/apis/build"
 	buildapiv1 "github.com/openshift/origin/pkg/build/apis/build/v1"
 	"github.com/openshift/origin/pkg/build/builder/cmd/dockercfg"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
-	"github.com/openshift/origin/pkg/util/namer"
 	"github.com/openshift/origin/pkg/version"
 )
 
 const (
 	// dockerSocketPath is the default path for the Docker socket inside the builder container
-	dockerSocketPath               = "/var/run/docker.sock"
+	dockerSocketPath      = "/var/run/docker.sock"
+	crioSocketPath        = "/var/run/crio.sock"
+	sourceSecretMountPath = "/var/run/secrets/openshift.io/source"
+
 	DockerPushSecretMountPath      = "/var/run/secrets/openshift.io/push"
 	DockerPullSecretMountPath      = "/var/run/secrets/openshift.io/pull"
 	SecretBuildSourceBaseMountPath = "/var/run/secrets/openshift.io/build"
 	SourceImagePullSecretMountPath = "/var/run/secrets/openshift.io/source-image"
-	sourceSecretMountPath          = "/var/run/secrets/openshift.io/source"
+
+	// ExtractImageContentContainer is the name of the container that will
+	// pull down input images and extract their content for input to the build.
+	ExtractImageContentContainer = "extract-image-content"
+
+	// GitCloneContainer is the name of the container that will clone the
+	// build source repository and also handle binary input content.
+	GitCloneContainer = "git-clone"
 )
 
 var (
@@ -53,7 +65,7 @@ func IsFatal(err error) bool {
 }
 
 // setupDockerSocket configures the pod to support the host's Docker socket
-func setupDockerSocket(podSpec *v1.Pod) {
+func setupDockerSocket(pod *v1.Pod) {
 	dockerSocketVolume := v1.Volume{
 		Name: "docker-socket",
 		VolumeSource: v1.VolumeSource{
@@ -68,48 +80,93 @@ func setupDockerSocket(podSpec *v1.Pod) {
 		MountPath: dockerSocketPath,
 	}
 
-	podSpec.Spec.Volumes = append(podSpec.Spec.Volumes,
+	pod.Spec.Volumes = append(pod.Spec.Volumes,
 		dockerSocketVolume)
-	podSpec.Spec.Containers[0].VolumeMounts =
-		append(podSpec.Spec.Containers[0].VolumeMounts,
+	pod.Spec.Containers[0].VolumeMounts =
+		append(pod.Spec.Containers[0].VolumeMounts,
 			dockerSocketVolumeMount)
+	for i, initContainer := range pod.Spec.InitContainers {
+		if initContainer.Name == ExtractImageContentContainer {
+			pod.Spec.InitContainers[i].VolumeMounts = append(pod.Spec.InitContainers[i].VolumeMounts, dockerSocketVolumeMount)
+			break
+		}
+	}
+}
+
+// setupCrioSocket configures the pod to support the host's Crio socket
+func setupCrioSocket(pod *v1.Pod) {
+	crioSocketVolume := v1.Volume{
+		Name: "crio-socket",
+		VolumeSource: v1.VolumeSource{
+			HostPath: &v1.HostPathVolumeSource{
+				Path: crioSocketPath,
+			},
+		},
+	}
+
+	crioSocketVolumeMount := v1.VolumeMount{
+		Name:      "crio-socket",
+		MountPath: crioSocketPath,
+	}
+
+	pod.Spec.Volumes = append(pod.Spec.Volumes,
+		crioSocketVolume)
+	pod.Spec.Containers[0].VolumeMounts =
+		append(pod.Spec.Containers[0].VolumeMounts,
+			crioSocketVolumeMount)
 }
 
 // mountSecretVolume is a helper method responsible for actual mounting secret
 // volumes into a pod.
-func mountSecretVolume(pod *v1.Pod, secretName, mountPath, volumeSuffix string) {
-	volumeName := namer.GetName(secretName, volumeSuffix, kvalidation.DNS1123SubdomainMaxLength)
-	volume := v1.Volume{
-		Name: volumeName,
-		VolumeSource: v1.VolumeSource{
-			Secret: &v1.SecretVolumeSource{
-				SecretName: secretName,
-			},
-		},
+func mountSecretVolume(pod *v1.Pod, container *v1.Container, secretName, mountPath, volumeSuffix string) {
+	volumeName := apihelpers.GetName(secretName, volumeSuffix, kvalidation.DNS1123LabelMaxLength)
+
+	// coerce from RFC1123 subdomain to RFC1123 label.
+	volumeName = strings.Replace(volumeName, ".", "-", -1)
+
+	volumeExists := false
+	for _, v := range pod.Spec.Volumes {
+		if v.Name == volumeName {
+			volumeExists = true
+			break
+		}
 	}
+	mode := int32(0600)
+	if !volumeExists {
+		volume := v1.Volume{
+			Name: volumeName,
+			VolumeSource: v1.VolumeSource{
+				Secret: &v1.SecretVolumeSource{
+					SecretName:  secretName,
+					DefaultMode: &mode,
+				},
+			},
+		}
+		pod.Spec.Volumes = append(pod.Spec.Volumes, volume)
+	}
+
 	volumeMount := v1.VolumeMount{
 		Name:      volumeName,
 		MountPath: mountPath,
 		ReadOnly:  true,
 	}
-	pod.Spec.Volumes = append(pod.Spec.Volumes, volume)
-	pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, volumeMount)
+	container.VolumeMounts = append(container.VolumeMounts, volumeMount)
 }
 
 // setupDockerSecrets mounts Docker Registry secrets into Pod running the build,
 // allowing Docker to authenticate against private registries or Docker Hub.
-func setupDockerSecrets(pod *v1.Pod, pushSecret, pullSecret *kapi.LocalObjectReference, imageSources []buildapi.ImageSource) {
+func setupDockerSecrets(pod *v1.Pod, container *v1.Container, pushSecret, pullSecret *kapi.LocalObjectReference, imageSources []buildapi.ImageSource) {
 	if pushSecret != nil {
-		mountSecretVolume(pod, pushSecret.Name, DockerPushSecretMountPath, "push")
-		pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, []v1.EnvVar{
+		mountSecretVolume(pod, container, pushSecret.Name, DockerPushSecretMountPath, "push")
+		container.Env = append(container.Env, []v1.EnvVar{
 			{Name: dockercfg.PushAuthType, Value: DockerPushSecretMountPath},
 		}...)
 		glog.V(3).Infof("%s will be used for docker push in %s", DockerPushSecretMountPath, pod.Name)
 	}
 
 	if pullSecret != nil {
-		mountSecretVolume(pod, pullSecret.Name, DockerPullSecretMountPath, "pull")
-		pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, []v1.EnvVar{
+		mountSecretVolume(pod, container, pullSecret.Name, DockerPullSecretMountPath, "pull")
+		container.Env = append(container.Env, []v1.EnvVar{
 			{Name: dockercfg.PullAuthType, Value: DockerPullSecretMountPath},
 		}...)
 		glog.V(3).Infof("%s will be used for docker pull in %s", DockerPullSecretMountPath, pod.Name)
@@ -120,35 +177,33 @@ func setupDockerSecrets(pod *v1.Pod, pushSecret, pullSecret *kapi.LocalObjectRef
 			continue
 		}
 		mountPath := filepath.Join(SourceImagePullSecretMountPath, strconv.Itoa(i))
-		mountSecretVolume(pod, imageSource.PullSecret.Name, mountPath, fmt.Sprintf("%s%d", "source-image", i))
-		pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, []v1.EnvVar{
+		mountSecretVolume(pod, container, imageSource.PullSecret.Name, mountPath, fmt.Sprintf("%s%d", "source-image", i))
+		container.Env = append(container.Env, []v1.EnvVar{
 			{Name: fmt.Sprintf("%s%d", dockercfg.PullSourceAuthType, i), Value: mountPath},
 		}...)
 		glog.V(3).Infof("%s will be used for docker pull in %s", mountPath, pod.Name)
-
 	}
 }
 
 // setupSourceSecrets mounts SSH key used for accessing private SCM to clone
 // application source code during build.
-func setupSourceSecrets(pod *v1.Pod, sourceSecret *kapi.LocalObjectReference) {
+func setupSourceSecrets(pod *v1.Pod, container *v1.Container, sourceSecret *kapi.LocalObjectReference) {
 	if sourceSecret == nil {
 		return
 	}
 
-	mountSecretVolume(pod, sourceSecret.Name, sourceSecretMountPath, "source")
+	mountSecretVolume(pod, container, sourceSecret.Name, sourceSecretMountPath, "source")
 	glog.V(3).Infof("Installed source secrets in %s, in Pod %s/%s", sourceSecretMountPath, pod.Namespace, pod.Name)
-	pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, []v1.EnvVar{
+	container.Env = append(container.Env, []v1.EnvVar{
 		{Name: "SOURCE_SECRET_PATH", Value: sourceSecretMountPath},
 	}...)
 }
 
-// setupSecrets mounts the secrets referenced by the SecretBuildSource
-// into a builder container. It also sets an environment variable that contains
-// a name of the secret and the destination directory.
-func setupSecrets(pod *v1.Pod, secrets []buildapi.SecretBuildSource) {
+// setupInputSecrets mounts the secrets referenced by the SecretBuildSource
+// into a builder container.
+func setupInputSecrets(pod *v1.Pod, container *v1.Container, secrets []buildapi.SecretBuildSource) {
 	for _, s := range secrets {
-		mountSecretVolume(pod, s.Secret.Name, filepath.Join(SecretBuildSourceBaseMountPath, s.Secret.Name), "build")
+		mountSecretVolume(pod, container, s.Secret.Name, filepath.Join(SecretBuildSourceBaseMountPath, s.Secret.Name), "build")
 		glog.V(3).Infof("%s will be used as a build secret in %s", s.Secret.Name, SecretBuildSourceBaseMountPath)
 	}
 }
@@ -204,22 +259,11 @@ func addOutputEnvVars(buildOutput *kapi.ObjectReference, output *[]v1.EnvVar) er
 }
 
 // setupAdditionalSecrets creates secret volume mounts in the given pod for the given list of secrets
-func setupAdditionalSecrets(pod *v1.Pod, secrets []buildapi.SecretSpec) {
+func setupAdditionalSecrets(pod *v1.Pod, container *v1.Container, secrets []buildapi.SecretSpec) {
 	for _, secretSpec := range secrets {
-		mountSecretVolume(pod, secretSpec.SecretSource.Name, secretSpec.MountPath, "secret")
+		mountSecretVolume(pod, container, secretSpec.SecretSource.Name, secretSpec.MountPath, "secret")
 		glog.V(3).Infof("Installed additional secret in %s, in Pod %s/%s", secretSpec.MountPath, pod.Namespace, pod.Name)
 	}
-}
-
-// getContainerVerbosity returns the defined BUILD_LOGLEVEL value
-func getContainerVerbosity(containerEnv []v1.EnvVar) (verbosity string) {
-	for _, env := range containerEnv {
-		if env.Name == "BUILD_LOGLEVEL" {
-			verbosity = env.Value
-			break
-		}
-	}
-	return
 }
 
 // getPodLabels creates labels for the Build Pod
@@ -238,4 +282,11 @@ func setOwnerReference(pod *v1.Pod, build *buildapi.Build) {
 			Controller: &t,
 		},
 	}
+}
+
+// copyEnvVarSlice returns a copy of an []v1.EnvVar
+func copyEnvVarSlice(in []v1.EnvVar) []v1.EnvVar {
+	out := make([]v1.EnvVar, len(in))
+	copy(out, in)
+	return out
 }

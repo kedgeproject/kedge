@@ -12,7 +12,7 @@ import (
 	admissionttesting "github.com/openshift/origin/pkg/security/admission/testing"
 	securityapi "github.com/openshift/origin/pkg/security/apis/security"
 	securitylisters "github.com/openshift/origin/pkg/security/generated/listers/security/internalversion"
-	oscc "github.com/openshift/origin/pkg/security/scc"
+	oscc "github.com/openshift/origin/pkg/security/securitycontextconstraints"
 
 	_ "github.com/openshift/origin/pkg/api/install"
 )
@@ -136,7 +136,7 @@ func TestAllowed(t *testing.T) {
 		csf := clientsetfake.NewSimpleClientset(namespace, serviceAccount)
 		storage := REST{oscc.NewDefaultSCCMatcher(sccCache), csf}
 		ctx := apirequest.WithNamespace(apirequest.NewContext(), metav1.NamespaceAll)
-		obj, err := storage.Create(ctx, reviewRequest)
+		obj, err := storage.Create(ctx, reviewRequest, false)
 		if err != nil {
 			t.Errorf("%s - Unexpected error: %v", testName, err)
 			continue
@@ -263,7 +263,7 @@ func TestRequests(t *testing.T) {
 		csf := clientsetfake.NewSimpleClientset(namespace, serviceAccount)
 		storage := REST{oscc.NewDefaultSCCMatcher(sccCache), csf}
 		ctx := apirequest.WithNamespace(apirequest.NewContext(), metav1.NamespaceAll)
-		_, err := storage.Create(ctx, testcase.request)
+		_, err := storage.Create(ctx, testcase.request, false)
 		switch {
 		case err == nil && len(testcase.errorMessage) == 0:
 			continue

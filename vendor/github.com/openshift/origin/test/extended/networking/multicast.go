@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"regexp"
 
-	osapi "github.com/openshift/origin/pkg/sdn/apis/network"
+	networkapi "github.com/openshift/origin/pkg/network/apis/network"
+	networkclient "github.com/openshift/origin/pkg/network/generated/internalclientset"
 	testexutil "github.com/openshift/origin/test/extended/util"
 	testutil "github.com/openshift/origin/test/util"
 
@@ -16,7 +17,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("[networking] multicast", func() {
+var _ = Describe("[Area:Networking] multicast", func() {
 	InSingleTenantContext(func() {
 		oc := testexutil.NewCLI("multicast", testexutil.KubeConfigPath())
 		f := oc.KubeFramework()
@@ -41,15 +42,16 @@ var _ = Describe("[networking] multicast", func() {
 })
 
 func makeNamespaceMulticastEnabled(ns *kapiv1.Namespace) {
-	client, err := testutil.GetClusterAdminClient(testexutil.KubeConfigPath())
+	clientConfig, err := testutil.GetClusterAdminClientConfig(testexutil.KubeConfigPath())
+	networkClient := networkclient.NewForConfigOrDie(clientConfig)
 	expectNoError(err)
-	netns, err := client.NetNamespaces().Get(ns.Name, metav1.GetOptions{})
+	netns, err := networkClient.NetNamespaces().Get(ns.Name, metav1.GetOptions{})
 	expectNoError(err)
 	if netns.Annotations == nil {
 		netns.Annotations = make(map[string]string, 1)
 	}
-	netns.Annotations[osapi.MulticastEnabledAnnotation] = "true"
-	_, err = client.NetNamespaces().Update(netns)
+	netns.Annotations[networkapi.MulticastEnabledAnnotation] = "true"
+	_, err = networkClient.NetNamespaces().Update(netns)
 	expectNoError(err)
 }
 

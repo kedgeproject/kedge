@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/openshift/source-to-image/pkg/util/fs"
 	utilglog "github.com/openshift/source-to-image/pkg/util/glog"
 
 	s2ierr "github.com/openshift/source-to-image/pkg/errors"
@@ -132,7 +133,7 @@ func (a RenameAdapter) WriteHeader(hdr *tar.Header) error {
 }
 
 // New creates a new Tar
-func New(fs util.FileSystem) Tar {
+func New(fs fs.FileSystem) Tar {
 	return &stiTar{
 		FileSystem: fs,
 		exclude:    DefaultExclusionPattern,
@@ -142,7 +143,7 @@ func New(fs util.FileSystem) Tar {
 
 // stiTar is an implementation of the Tar interface
 type stiTar struct {
-	util.FileSystem
+	fs.FileSystem
 	timeout          time.Duration
 	exclude          *regexp.Regexp
 	includeDirInPath bool
@@ -293,11 +294,7 @@ func (t *stiTar) writeTarHeader(tarWriter Writer, dir string, path string, info 
 	header.Linkname = filepath.ToSlash(header.Linkname)
 	logFile(logger, header.Name)
 	glog.V(5).Infof("Adding to tar: %s as %s", path, header.Name)
-	if err = tarWriter.WriteHeader(header); err != nil {
-		return err
-	}
-
-	return nil
+	return tarWriter.WriteHeader(header)
 }
 
 // ExtractTarStream calls ExtractTarStreamFromTarReader with a default reader and nil logger
@@ -337,6 +334,7 @@ func (t *stiTar) ExtractTarStreamFromTarReader(dir string, tarReader Reader, log
 					glog.Errorf("Error creating dir %q: %v", dirPath, err)
 					return err
 				}
+				t.Chmod(dirPath, header.FileInfo().Mode())
 			} else {
 				fileDir := filepath.Dir(header.Name)
 				dirPath := filepath.Join(dir, fileDir)

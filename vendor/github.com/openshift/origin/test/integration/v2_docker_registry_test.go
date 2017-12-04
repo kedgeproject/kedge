@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/docker/distribution/context"
 	"github.com/docker/distribution/digest"
 	"github.com/docker/distribution/manifest"
 	"github.com/docker/distribution/manifest/schema1"
@@ -25,6 +26,7 @@ import (
 	"github.com/openshift/origin/pkg/cmd/util/tokencmd"
 	registryutil "github.com/openshift/origin/pkg/dockerregistry/testutil"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
+	imageclient "github.com/openshift/origin/pkg/image/generated/internalclientset"
 	testutil "github.com/openshift/origin/test/util"
 	testserver "github.com/openshift/origin/test/util/server"
 )
@@ -77,25 +79,21 @@ func signedManifest(name string, blobs []digest.Digest) ([]byte, digest.Digest, 
 }
 
 func TestV2RegistryGetTags(t *testing.T) {
-	testutil.RequireEtcd(t)
-	defer testutil.DumpEtcdOnFailure(t)
-	_, clusterAdminKubeConfig, err := testserver.StartTestMasterAPI()
+	masterConfig, clusterAdminKubeConfig, err := testserver.StartTestMasterAPI()
 	if err != nil {
 		t.Fatalf("error starting master: %v", err)
 	}
-	clusterAdminClient, err := testutil.GetClusterAdminClient(clusterAdminKubeConfig)
-	if err != nil {
-		t.Fatalf("error getting cluster admin client: %v", err)
-	}
+	defer testserver.CleanupMasterEtcd(t, masterConfig)
 	clusterAdminClientConfig, err := testutil.GetClusterAdminClientConfig(clusterAdminKubeConfig)
 	if err != nil {
 		t.Fatalf("error getting cluster admin client config: %v", err)
 	}
 	user := "admin"
-	adminClient, err := testserver.CreateNewProject(clusterAdminClient, *clusterAdminClientConfig, testutil.Namespace(), user)
+	_, adminConfig, err := testserver.CreateNewProject(clusterAdminClientConfig, testutil.Namespace(), user)
 	if err != nil {
 		t.Fatalf("error creating project: %v", err)
 	}
+	adminImageClient := imageclient.NewForConfigOrDie(adminConfig)
 	token, err := tokencmd.RequestToken(clusterAdminClientConfig, nil, user, "password")
 	if err != nil {
 		t.Fatalf("error requesting token: %v", err)
@@ -137,7 +135,7 @@ middleware:
 			Name:      "test",
 		},
 	}
-	if _, err := adminClient.ImageStreams(testutil.Namespace()).Create(&stream); err != nil {
+	if _, err := adminImageClient.ImageStreams(testutil.Namespace()).Create(&stream); err != nil {
 		t.Fatalf("error creating image stream: %s", err)
 	}
 
@@ -223,7 +221,7 @@ middleware:
 		t.Fatalf("unexpected manifest tag: %s", retrievedManifest.Tag)
 	}
 
-	image, err := adminClient.ImageStreamImages(testutil.Namespace()).Get(stream.Name, dgst.String())
+	image, err := adminImageClient.ImageStreamImages(testutil.Namespace()).Get(imageapi.JoinImageStreamImage(stream.Name, dgst.String()), metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("error getting imageStreamImage: %s", err)
 	}
@@ -241,7 +239,7 @@ middleware:
 	}
 
 	// test auto provisioning
-	otherStream, err := adminClient.ImageStreams(testutil.Namespace()).Get("otherrepo", metav1.GetOptions{})
+	otherStream, err := adminImageClient.ImageStreams(testutil.Namespace()).Get("otherrepo", metav1.GetOptions{})
 	t.Logf("otherStream=%#v, err=%v", otherStream, err)
 	if err == nil {
 		t.Fatalf("expected error getting otherrepo")
@@ -257,7 +255,7 @@ middleware:
 		t.Fatal(err)
 	}
 
-	otherStream, err = adminClient.ImageStreams(testutil.Namespace()).Get("otherrepo", metav1.GetOptions{})
+	otherStream, err = adminImageClient.ImageStreams(testutil.Namespace()).Get("otherrepo", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error getting otherrepo: %s", err)
 	}
@@ -281,7 +279,7 @@ middleware:
 
 func putManifest(name, user, token string) (digest.Digest, error) {
 	creds := registryutil.NewBasicCredentialStore(user, token)
-	desc, _, err := registryutil.UploadRandomTestBlob(&url.URL{Host: "127.0.0.1:5000", Scheme: "http"}, creds, testutil.Namespace()+"/"+name)
+	desc, _, err := registryutil.UploadRandomTestBlob(context.Background(), &url.URL{Host: "127.0.0.1:5000", Scheme: "http"}, creds, testutil.Namespace()+"/"+name)
 	if err != nil {
 		return "", err
 	}

@@ -14,10 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/sets"
 	kauthorizer "k8s.io/apiserver/pkg/authorization/authorizer"
-	apirequest "k8s.io/apiserver/pkg/endpoints/request"
 	kapi "k8s.io/kubernetes/pkg/api"
-
-	"github.com/openshift/origin/pkg/authorization/authorizer"
 )
 
 type bypassAuthorizer struct {
@@ -38,36 +35,8 @@ func (a bypassAuthorizer) Authorize(attributes kauthorizer.Attributes) (allowed 
 	return a.authorizer.Authorize(attributes)
 }
 
-// AuthorizationFilter imposes normal authorization rules
-func AuthorizationFilter(handler http.Handler, authorizer kauthorizer.Authorizer, authorizationAttributeBuilder authorizer.AuthorizationAttributeBuilder, contextMapper apirequest.RequestContextMapper) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		attributes, err := authorizationAttributeBuilder.GetAttributes(req)
-		if err != nil {
-			Forbidden(err.Error(), attributes, w, req)
-			return
-		}
-		if attributes == nil {
-			Forbidden("No attributes", attributes, w, req)
-			return
-		}
-
-		allowed, reason, err := authorizer.Authorize(attributes)
-		if err != nil {
-			Forbidden(err.Error(), attributes, w, req)
-			return
-		}
-		if !allowed {
-			Forbidden(reason, attributes, w, req)
-			return
-		}
-
-		handler.ServeHTTP(w, req)
-	})
-}
-
 // Forbidden renders a simple forbidden error to the response
 func Forbidden(reason string, attributes kauthorizer.Attributes, w http.ResponseWriter, req *http.Request) {
-	kind := ""
 	resource := ""
 	group := ""
 	name := ""
@@ -78,10 +47,6 @@ func Forbidden(reason string, attributes kauthorizer.Attributes, w http.Response
 	if attributes != nil {
 		group = attributes.GetAPIGroup()
 		resource = attributes.GetResource()
-		kind = attributes.GetResource()
-		if len(attributes.GetAPIGroup()) > 0 {
-			kind = attributes.GetAPIGroup() + "." + kind
-		}
 		name = attributes.GetName()
 	}
 

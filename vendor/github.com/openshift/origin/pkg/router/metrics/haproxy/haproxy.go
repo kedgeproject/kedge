@@ -121,7 +121,7 @@ type Exporter struct {
 
 	up, nextScrapeInterval                         prometheus.Gauge
 	totalScrapes, csvParseFailures                 prometheus.Counter
-	serverThresholdCurrent, serverThresholdLimit   prometheus.Counter
+	serverThresholdCurrent, serverThresholdLimit   prometheus.Gauge
 	frontendMetrics, backendMetrics, serverMetrics map[int]*prometheus.GaugeVec
 }
 
@@ -156,13 +156,13 @@ func NewExporter(opts PrometheusOptions) (*Exporter, error) {
 			Name:      "exporter_total_scrapes",
 			Help:      "Current total HAProxy scrapes.",
 		}),
-		serverThresholdCurrent: prometheus.NewCounter(prometheus.CounterOpts{
+		serverThresholdCurrent: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace:   namespace,
 			Name:        "exporter_server_threshold",
 			Help:        "Number of servers tracked and the current threshold value.",
 			ConstLabels: prometheus.Labels{"type": "current"},
 		}),
-		serverThresholdLimit: prometheus.NewCounter(prometheus.CounterOpts{
+		serverThresholdLimit: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace:   namespace,
 			Name:        "exporter_server_threshold",
 			Help:        "Number of servers tracked and the current threshold value.",

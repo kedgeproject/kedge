@@ -26,7 +26,6 @@ import (
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/apis/batch"
 	"k8s.io/kubernetes/pkg/registry/batch/cronjob"
-	"k8s.io/kubernetes/pkg/registry/cachesize"
 )
 
 // REST implements a RESTStorage for scheduled jobs against etcd
@@ -37,15 +36,11 @@ type REST struct {
 // NewREST returns a RESTStorage object that will work against CronJobs.
 func NewREST(optsGetter generic.RESTOptionsGetter) (*REST, *StatusREST) {
 	store := &genericregistry.Store{
-		Copier:      api.Scheme,
-		NewFunc:     func() runtime.Object { return &batch.CronJob{} },
-		NewListFunc: func() runtime.Object { return &batch.CronJobList{} },
-		ObjectNameFunc: func(obj runtime.Object) (string, error) {
-			return obj.(*batch.CronJob).Name, nil
-		},
-		PredicateFunc:     cronjob.MatchCronJob,
-		QualifiedResource: batch.Resource("cronjobs"),
-		WatchCacheSize:    cachesize.GetWatchCacheSizeByResource("cronjobs"),
+		Copier:                   api.Scheme,
+		NewFunc:                  func() runtime.Object { return &batch.CronJob{} },
+		NewListFunc:              func() runtime.Object { return &batch.CronJobList{} },
+		PredicateFunc:            cronjob.MatchCronJob,
+		DefaultQualifiedResource: batch.Resource("cronjobs"),
 
 		CreateStrategy: cronjob.Strategy,
 		UpdateStrategy: cronjob.Strategy,
@@ -60,6 +55,13 @@ func NewREST(optsGetter generic.RESTOptionsGetter) (*REST, *StatusREST) {
 	statusStore.UpdateStrategy = cronjob.StatusStrategy
 
 	return &REST{store}, &StatusREST{store: &statusStore}
+}
+
+var _ rest.CategoriesProvider = &REST{}
+
+// Categories implements the CategoriesProvider interface. Returns a list of categories a resource is part of.
+func (r *REST) Categories() []string {
+	return []string{"all"}
 }
 
 // StatusREST implements the REST endpoint for changing the status of a resourcequota.

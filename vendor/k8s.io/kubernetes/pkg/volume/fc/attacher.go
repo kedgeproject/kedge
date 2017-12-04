@@ -24,6 +24,7 @@ import (
 
 	"github.com/golang/glog"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/kubernetes/pkg/api/v1"
 	"k8s.io/kubernetes/pkg/util/exec"
 	"k8s.io/kubernetes/pkg/util/mount"
 	"k8s.io/kubernetes/pkg/volume"
@@ -66,7 +67,7 @@ func (attacher *fcAttacher) VolumesAreAttached(specs []*volume.Spec, nodeName ty
 	return volumesAttachedCheck, nil
 }
 
-func (attacher *fcAttacher) WaitForAttach(spec *volume.Spec, devicePath string, timeout time.Duration) (string, error) {
+func (attacher *fcAttacher) WaitForAttach(spec *volume.Spec, devicePath string, _ *v1.Pod, timeout time.Duration) (string, error) {
 	mounter, err := volumeSpecToMounter(spec, attacher.host)
 	if err != nil {
 		glog.Warningf("failed to get fc mounter: %v", err)
@@ -142,7 +143,24 @@ func (detacher *fcDetacher) Detach(deviceMountPath string, nodeName types.NodeNa
 }
 
 func (detacher *fcDetacher) UnmountDevice(deviceMountPath string) error {
-	return volumeutil.UnmountPath(deviceMountPath, detacher.mounter)
+	// Specify device name for DetachDisk later
+	devName, _, err := mount.GetDeviceNameFromMount(detacher.mounter, deviceMountPath)
+	if err != nil {
+		glog.Errorf("fc: failed to get device from mnt: %s\nError: %v", deviceMountPath, err)
+		return err
+	}
+	// Unmount for deviceMountPath(=globalPDPath)
+	err = volumeutil.UnmountPath(deviceMountPath, detacher.mounter)
+	if err != nil {
+		return fmt.Errorf("fc: failed to unmount: %s\nError: %v", deviceMountPath, err)
+	}
+	unMounter := volumeSpecToUnmounter(detacher.mounter)
+	err = detacher.manager.DetachDisk(*unMounter, devName)
+	if err != nil {
+		return fmt.Errorf("fc: failed to detach disk: %s\nError: %v", devName, err)
+	}
+	glog.V(4).Infof("fc: successfully detached disk: %s", devName)
+	return nil
 }
 
 func volumeSpecToMounter(spec *volume.Spec, host volume.VolumeHost) (*fcDiskMounter, error) {
@@ -167,4 +185,13 @@ func volumeSpecToMounter(spec *volume.Spec, host volume.VolumeHost) (*fcDiskMoun
 		readOnly: readOnly,
 		mounter:  &mount.SafeFormatAndMount{Interface: host.GetMounter(), Runner: exec.New()},
 	}, nil
+}
+
+func volumeSpecToUnmounter(mounter mount.Interface) *fcDiskUnmounter {
+	return &fcDiskUnmounter{
+		fcDisk: &fcDisk{
+			io: &osIOHandler{},
+		},
+		mounter: mounter,
+	}
 }

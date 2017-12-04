@@ -5,6 +5,14 @@
 # be running `hack/build-cross.sh` under the covers, so we transitively
 # consume all of the relevant envars.
 source "$(dirname "${BASH_SOURCE}")/lib/init.sh"
+
+function cleanup() {
+	return_code=$?
+	os::util::describe_return_code "${return_code}"
+	exit "${return_code}"
+}
+trap "cleanup" EXIT
+
 os::util::ensure::system_binary_exists tito
 os::util::ensure::system_binary_exists createrepo
 os::build::setup_env
@@ -52,7 +60,6 @@ if [[ -z "${tito_output_directory}" ]]; then
         os::log::fatal 'No _output artifact directory found in tito rpmbuild artifacts!'
 fi
 
-# clean up our local state so we can unpack the tito artifacts cleanly
 make clean
 
 # migrate the tito artifacts to the Origin directory
@@ -70,9 +77,12 @@ else
   cp -R "${tito_output_directory}"/* "${OS_OUTPUT}"
   rm -rf "${tito_output_directory}"/*
 fi
+
 mkdir -p "${OS_OUTPUT_RPMPATH}"
-mv "${tito_tmp_dir}"/*src.rpm "${OS_OUTPUT_RPMPATH}"
-mv "${tito_tmp_dir}"/*/*.rpm "${OS_OUTPUT_RPMPATH}"
+mv -f "${tito_tmp_dir}"/*src.rpm "${OS_OUTPUT_RPMPATH}"
+mv -f "${tito_tmp_dir}"/*/*.rpm "${OS_OUTPUT_RPMPATH}"
+mkdir -p "${OS_OUTPUT_RELEASEPATH}"
+echo "${OS_GIT_COMMIT}" > "${OS_OUTPUT_RELEASEPATH}/.commit"
 
 repo_path="$( os::util::absolute_path "${OS_OUTPUT_RPMPATH}" )"
 createrepo "${repo_path}"

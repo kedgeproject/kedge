@@ -13,15 +13,13 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
+	logrus_logstash "github.com/bshuster-repo/logrus-logstash-hook"
 	"github.com/docker/go-units"
 	gorillahandlers "github.com/gorilla/handlers"
 
-	"github.com/Sirupsen/logrus/formatters/logstash"
 	"github.com/docker/distribution/configuration"
 	"github.com/docker/distribution/context"
 	"github.com/docker/distribution/health"
-	"github.com/docker/distribution/registry/auth"
-	"github.com/docker/distribution/registry/handlers"
 	"github.com/docker/distribution/registry/storage"
 	"github.com/docker/distribution/registry/storage/driver/factory"
 	"github.com/docker/distribution/uuid"
@@ -45,9 +43,10 @@ import (
 	"github.com/openshift/origin/pkg/cmd/server/crypto"
 	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
 	"github.com/openshift/origin/pkg/dockerregistry/server"
-	"github.com/openshift/origin/pkg/dockerregistry/server/api"
 	"github.com/openshift/origin/pkg/dockerregistry/server/audit"
+	"github.com/openshift/origin/pkg/dockerregistry/server/client"
 	registryconfig "github.com/openshift/origin/pkg/dockerregistry/server/configuration"
+	"github.com/openshift/origin/pkg/dockerregistry/server/maxconnections"
 	"github.com/openshift/origin/pkg/dockerregistry/server/prune"
 	"github.com/openshift/origin/pkg/version"
 )
@@ -93,7 +92,7 @@ func ExecutePruner(configFile io.Reader, dryRun bool) {
 	}
 	log.WithFields(versionFields()).Info(startPrune)
 
-	registryClient := server.NewRegistryClient(clientcmd.NewConfig().BindToFile())
+	registryClient := client.NewRegistryClient(clientcmd.NewConfig().BindToFile())
 
 	storageDriver, err := factory.Create(config.Storage.Type(), config.Storage.Parameters())
 	if err != nil {
@@ -105,7 +104,15 @@ func ExecutePruner(configFile io.Reader, dryRun bool) {
 		log.Fatalf("error creating registry: %s", err)
 	}
 
-	stats, err := prune.Prune(ctx, storageDriver, registry, registryClient, dryRun)
+	var pruner prune.Pruner
+
+	if dryRun {
+		pruner = &prune.DryRunPruner{}
+	} else {
+		pruner = &prune.RegistryPruner{storageDriver}
+	}
+
+	stats, err := prune.Prune(ctx, registry, registryClient, pruner)
 	if err != nil {
 		log.Error(err)
 	}
@@ -142,94 +149,37 @@ func Execute(configFile io.Reader) {
 	if err != nil {
 		log.Fatalf("error parsing configuration file: %s", err)
 	}
+
+	err = Start(dockerConfig, extraConfig)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+// Start runs the Docker registry. Start always returns a non-nil error.
+func Start(dockerConfig *configuration.Configuration, extraConfig *registryconfig.Configuration) error {
 	setDefaultMiddleware(dockerConfig)
 	setDefaultLogParameters(dockerConfig)
 
 	ctx := context.Background()
-	ctx = server.WithConfiguration(ctx, extraConfig)
-	ctx, err = configureLogging(ctx, dockerConfig)
+	ctx, err := configureLogging(ctx, dockerConfig)
 	if err != nil {
-		log.Fatalf("error configuring logger: %v", err)
+		return fmt.Errorf("error configuring logger: %v", err)
 	}
-
-	registryClient := server.NewRegistryClient(clientcmd.NewConfig().BindToFile())
-	ctx = server.WithRegistryClient(ctx, registryClient)
 
 	log.WithFields(versionFields()).Info("start registry")
 	// inject a logger into the uuid library. warns us if there is a problem
 	// with uuid generation under low entropy.
 	uuid.Loggerf = context.GetLogger(ctx).Warnf
 
-	// add parameters for the auth middleware
-	if dockerConfig.Auth.Type() == server.OpenShiftAuth {
-		if dockerConfig.Auth[server.OpenShiftAuth] == nil {
-			dockerConfig.Auth[server.OpenShiftAuth] = make(configuration.Parameters)
-		}
-		dockerConfig.Auth[server.OpenShiftAuth][server.AccessControllerOptionParams] = server.AccessControllerParams{
-			Logger:           context.GetLogger(ctx),
-			SafeClientConfig: registryClient.SafeClientConfig(),
-		}
-	}
+	registryClient := client.NewRegistryClient(clientcmd.NewConfig().BindToFile())
 
-	app := handlers.NewApp(ctx, dockerConfig)
+	readLimiter := newLimiter(extraConfig.Requests.Read)
+	writeLimiter := newLimiter(extraConfig.Requests.Write)
 
-	// Add a token handling endpoint
-	if options, usingOpenShiftAuth := dockerConfig.Auth[server.OpenShiftAuth]; usingOpenShiftAuth {
-		tokenRealm, err := server.TokenRealm(options)
-		if err != nil {
-			context.GetLogger(app).Fatalf("error setting up token auth: %s", err)
-		}
-		err = app.NewRoute().Methods("GET").PathPrefix(tokenRealm.Path).Handler(server.NewTokenHandler(ctx, registryClient)).GetError()
-		if err != nil {
-			context.GetLogger(app).Fatalf("error setting up token endpoint at %q: %v", tokenRealm.Path, err)
-		}
-		context.GetLogger(app).Debugf("configured token endpoint at %q", tokenRealm.String())
-	}
-
-	// TODO add https scheme
-	adminRouter := app.NewRoute().PathPrefix(api.AdminPrefix).Subrouter()
-	pruneAccessRecords := func(*http.Request) []auth.Access {
-		return []auth.Access{
-			{
-				Resource: auth.Resource{
-					Type: "admin",
-				},
-				Action: "prune",
-			},
-		}
-	}
-
-	app.RegisterRoute(
-		// DELETE /admin/blobs/<digest>
-		adminRouter.Path(api.AdminPath).Methods("DELETE"),
-		// handler
-		server.BlobDispatcher,
-		// repo name not required in url
-		handlers.NameNotRequired,
-		// custom access records
-		pruneAccessRecords,
-	)
-
-	// Registry extensions endpoint provides extra functionality to handle the image
-	// signatures.
-	server.RegisterSignatureHandler(app)
-
-	// Registry extensions endpoint provides prometheus metrics.
-	if extraConfig.Metrics.Enabled {
-		if len(extraConfig.Metrics.Secret) == 0 {
-			context.GetLogger(app).Fatalf("openshift.metrics.secret field cannot be empty when metrics are enabled")
-		}
-		server.RegisterMetricHandler(app)
-	}
-
-	// Advertise features supported by OpenShift
-	if app.Config.HTTP.Headers == nil {
-		app.Config.HTTP.Headers = http.Header{}
-	}
-	app.Config.HTTP.Headers.Set("X-Registry-Supports-Signatures", "1")
-
-	app.RegisterHealthChecks()
-	handler := alive("/", app)
+	handler := server.NewApp(ctx, registryClient, dockerConfig, extraConfig, writeLimiter)
+	handler = limit(readLimiter, writeLimiter, handler)
+	handler = alive("/", handler)
 	// TODO: temporarily keep for backwards compatibility; remove in the future
 	handler = alive("/healthz", handler)
 	handler = health.Handler(handler)
@@ -237,70 +187,65 @@ func Execute(configFile io.Reader) {
 	handler = gorillahandlers.CombinedLoggingHandler(os.Stdout, handler)
 
 	if dockerConfig.HTTP.TLS.Certificate == "" {
-		context.GetLogger(app).Infof("listening on %v", dockerConfig.HTTP.Addr)
-		if err := http.ListenAndServe(dockerConfig.HTTP.Addr, handler); err != nil {
-			context.GetLogger(app).Fatalln(err)
-		}
-	} else {
-		var (
-			minVersion   uint16
-			cipherSuites []uint16
-		)
-		if s := os.Getenv("REGISTRY_HTTP_TLS_MINVERSION"); len(s) > 0 {
-			minVersion, err = crypto.TLSVersion(s)
-			if err != nil {
-				context.GetLogger(app).Fatalln(fmt.Errorf("invalid TLS version %q specified in REGISTRY_HTTP_TLS_MINVERSION: %v (valid values are %q)", s, err, crypto.ValidTLSVersions()))
-			}
-		}
-		if s := os.Getenv("REGISTRY_HTTP_TLS_CIPHERSUITES"); len(s) > 0 {
-			for _, cipher := range strings.Split(s, ",") {
-				cipherSuite, err := crypto.CipherSuite(cipher)
-				if err != nil {
-					context.GetLogger(app).Fatalln(fmt.Errorf("invalid cipher suite %q specified in REGISTRY_HTTP_TLS_CIPHERSUITES: %v (valid suites are %q)", s, err, crypto.ValidCipherSuites()))
-				}
-				cipherSuites = append(cipherSuites, cipherSuite)
-			}
-		}
+		context.GetLogger(ctx).Infof("listening on %v", dockerConfig.HTTP.Addr)
+		return http.ListenAndServe(dockerConfig.HTTP.Addr, handler)
+	}
 
-		tlsConf := crypto.SecureTLSConfig(&tls.Config{
-			ClientAuth:   tls.NoClientCert,
-			MinVersion:   minVersion,
-			CipherSuites: cipherSuites,
-		})
-
-		if len(dockerConfig.HTTP.TLS.ClientCAs) != 0 {
-			pool := x509.NewCertPool()
-
-			for _, ca := range dockerConfig.HTTP.TLS.ClientCAs {
-				caPem, err := ioutil.ReadFile(ca)
-				if err != nil {
-					context.GetLogger(app).Fatalln(err)
-				}
-
-				if ok := pool.AppendCertsFromPEM(caPem); !ok {
-					context.GetLogger(app).Fatalln(fmt.Errorf("Could not add CA to pool"))
-				}
-			}
-
-			for _, subj := range pool.Subjects() {
-				context.GetLogger(app).Debugf("CA Subject: %s", string(subj))
-			}
-
-			tlsConf.ClientAuth = tls.RequireAndVerifyClientCert
-			tlsConf.ClientCAs = pool
-		}
-
-		context.GetLogger(app).Infof("listening on %v, tls", dockerConfig.HTTP.Addr)
-		server := &http.Server{
-			Addr:      dockerConfig.HTTP.Addr,
-			Handler:   handler,
-			TLSConfig: tlsConf,
-		}
-
-		if err := server.ListenAndServeTLS(dockerConfig.HTTP.TLS.Certificate, dockerConfig.HTTP.TLS.Key); err != nil {
-			context.GetLogger(app).Fatalln(err)
+	var (
+		minVersion   uint16
+		cipherSuites []uint16
+	)
+	if s := os.Getenv("REGISTRY_HTTP_TLS_MINVERSION"); len(s) > 0 {
+		minVersion, err = crypto.TLSVersion(s)
+		if err != nil {
+			return fmt.Errorf("invalid TLS version %q specified in REGISTRY_HTTP_TLS_MINVERSION: %v (valid values are %q)", s, err, crypto.ValidTLSVersions())
 		}
 	}
+	if s := os.Getenv("REGISTRY_HTTP_TLS_CIPHERSUITES"); len(s) > 0 {
+		for _, cipher := range strings.Split(s, ",") {
+			cipherSuite, err := crypto.CipherSuite(cipher)
+			if err != nil {
+				return fmt.Errorf("invalid cipher suite %q specified in REGISTRY_HTTP_TLS_CIPHERSUITES: %v (valid suites are %q)", s, err, crypto.ValidCipherSuites())
+			}
+			cipherSuites = append(cipherSuites, cipherSuite)
+		}
+	}
+
+	tlsConf := crypto.SecureTLSConfig(&tls.Config{
+		ClientAuth:   tls.NoClientCert,
+		MinVersion:   minVersion,
+		CipherSuites: cipherSuites,
+	})
+
+	if len(dockerConfig.HTTP.TLS.ClientCAs) != 0 {
+		pool := x509.NewCertPool()
+
+		for _, ca := range dockerConfig.HTTP.TLS.ClientCAs {
+			caPem, err := ioutil.ReadFile(ca)
+			if err != nil {
+				return err
+			}
+
+			if ok := pool.AppendCertsFromPEM(caPem); !ok {
+				return fmt.Errorf("could not add CA to pool")
+			}
+		}
+
+		for _, subj := range pool.Subjects() {
+			context.GetLogger(ctx).Debugf("CA Subject: %s", string(subj))
+		}
+
+		tlsConf.ClientAuth = tls.RequireAndVerifyClientCert
+		tlsConf.ClientCAs = pool
+	}
+
+	context.GetLogger(ctx).Infof("listening on %v, tls", dockerConfig.HTTP.Addr)
+	server := &http.Server{
+		Addr:      dockerConfig.HTTP.Addr,
+		Handler:   handler,
+		TLSConfig: tlsConf,
+	}
+	return server.ListenAndServeTLS(dockerConfig.HTTP.TLS.Certificate, dockerConfig.HTTP.TLS.Key)
 }
 
 // configureLogging prepares the context with a logger using the
@@ -330,7 +275,7 @@ func configureLogging(ctx context.Context, config *configuration.Configuration) 
 			TimestampFormat: time.RFC3339Nano,
 		})
 	case "logstash":
-		log.SetFormatter(&logstash.LogstashFormatter{
+		log.SetFormatter(&logrus_logstash.LogstashFormatter{
 			TimestampFormat: time.RFC3339Nano,
 		})
 	default:
@@ -366,6 +311,34 @@ func logLevel(level configuration.Loglevel) log.Level {
 	}
 
 	return l
+}
+
+func newLimiter(c registryconfig.RequestsLimits) maxconnections.Limiter {
+	if c.MaxRunning <= 0 {
+		return nil
+	}
+	return maxconnections.NewLimiter(c.MaxRunning, c.MaxInQueue, c.MaxWaitInQueue)
+}
+
+func limit(readLimiter, writeLimiter maxconnections.Limiter, handler http.Handler) http.Handler {
+	readHandler := handler
+	if readLimiter != nil {
+		readHandler = maxconnections.New(readLimiter, readHandler)
+	}
+
+	writeHandler := handler
+	if writeLimiter != nil {
+		writeHandler = maxconnections.New(writeLimiter, writeHandler)
+	}
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch strings.ToUpper(r.Method) {
+		case "GET", "HEAD", "OPTIONS":
+			readHandler.ServeHTTP(w, r)
+		default:
+			writeHandler.ServeHTTP(w, r)
+		}
+	})
 }
 
 // alive simply wraps the handler with a route that always returns an http 200
@@ -421,7 +394,6 @@ func setDefaultMiddleware(config *configuration.Configuration) {
 		})
 		log.Errorf("obsolete configuration detected, please add openshift %s middleware into registry config file", middlewareType)
 	}
-	return
 }
 
 func setDefaultLogParameters(config *configuration.Configuration) {

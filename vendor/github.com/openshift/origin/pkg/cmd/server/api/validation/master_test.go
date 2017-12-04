@@ -6,7 +6,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation/field"
-	kapi "k8s.io/kubernetes/pkg/api"
+	kapihelper "k8s.io/kubernetes/pkg/api/helper"
 
 	"github.com/openshift/origin/pkg/cmd/server/api"
 	configapi "github.com/openshift/origin/pkg/cmd/server/api"
@@ -194,7 +194,7 @@ func TestValidate_ValidateEtcdStorageConfig(t *testing.T) {
 			KubernetesStorageVersion: test.kubeStorageVersion,
 		}
 		results := ValidateEtcdStorageConfig(config, nil)
-		if !kapi.Semantic.DeepEqual(test.expected, results) {
+		if !kapihelper.Semantic.DeepEqual(test.expected, results) {
 			t.Errorf("unexpected validation results; diff:\n%v", diff.ObjectDiff(test.expected, results))
 			return
 		}
@@ -274,6 +274,7 @@ func TestValidateAdmissionPluginConfigConflicts(t *testing.T) {
 		options configapi.MasterConfig
 
 		warningFields []string
+		errorFields   []string
 	}{
 		{
 			name: "stock everything",
@@ -287,7 +288,7 @@ func TestValidateAdmissionPluginConfigConflicts(t *testing.T) {
 					},
 				},
 			},
-			warningFields: []string{"kubernetesMasterConfig.admissionConfig.pluginOrderOverride"},
+			errorFields: []string{"kubernetesMasterConfig.admissionConfig.pluginOrderOverride"},
 		},
 		{
 			name: "specified kube admission order 02",
@@ -393,14 +394,14 @@ func TestValidateAdmissionPluginConfigConflicts(t *testing.T) {
 					},
 				},
 			},
-			warningFields: []string{"kubernetesMasterConfig.admissionConfig.pluginConfig[foo]"},
+			errorFields: []string{"kubernetesMasterConfig.admissionConfig.pluginConfig"},
 		},
 	}
 
 	// these fields have warnings in the empty case
 	defaultWarningFields := sets.NewString(
 		"serviceAccountConfig.managedNames", "serviceAccountConfig.publicKeyFiles", "serviceAccountConfig.privateKeyFile", "serviceAccountConfig.masterCA",
-		"projectConfig.securityAllocator", "kubernetesMasterConfig.proxyClientInfo", "auditConfig.auditFilePath")
+		"projectConfig.securityAllocator", "kubernetesMasterConfig.proxyClientInfo", "auditConfig.auditFilePath", "aggregatorConfig.proxyClientInfo", "controllerConfig.serviceServingCert.signer")
 
 	for _, tc := range testCases {
 		results := ValidateMasterConfig(&tc.options, nil)
@@ -436,6 +437,21 @@ func TestValidateAdmissionPluginConfigConflicts(t *testing.T) {
 				t.Errorf("%s: didn't find %q", tc.name, expectedField)
 			}
 		}
+
+		for _, expectedField := range tc.errorFields {
+			found := false
+			for _, result := range results.Errors {
+				if result.Field == expectedField {
+					found = true
+					break
+				}
+			}
+
+			if !found {
+				t.Errorf("%s: didn't find %q", tc.name, expectedField)
+			}
+		}
+
 	}
 }
 
@@ -495,7 +511,11 @@ func TestValidateIngressIPNetworkCIDR(t *testing.T) {
 			NetworkConfig: configapi.MasterNetworkConfig{
 				IngressIPNetworkCIDR: test.cidr,
 				ServiceNetworkCIDR:   test.serviceCIDR,
-				ClusterNetworkCIDR:   test.clusterCIDR,
+				ClusterNetworks: []configapi.ClusterNetworkEntry{
+					{
+						CIDR: test.clusterCIDR,
+					},
+				},
 			},
 		}
 		errors := ValidateIngressIPNetworkCIDR(config, nil)

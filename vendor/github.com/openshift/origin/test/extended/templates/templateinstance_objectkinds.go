@@ -16,7 +16,7 @@ import (
 
 // ensure that we can instantiate Kubernetes and OpenShift objects, legacy and
 // non-legacy, from a range of API groups.
-var _ = g.Describe("[templates] templateinstance object kinds test", func() {
+var _ = g.Describe("[Conformance][templates] templateinstance object kinds test", func() {
 	defer g.GinkgoRecover()
 
 	var (
@@ -55,10 +55,10 @@ var _ = g.Describe("[templates] templateinstance object kinds test", func() {
 		_, err = cli.KubeClient().AppsV1beta1().Deployments(cli.Namespace()).Get("deployment", metav1.GetOptions{})
 		o.Expect(err).NotTo(o.HaveOccurred())
 
-		_, err = cli.Client().Routes(cli.Namespace()).Get("route", metav1.GetOptions{})
+		_, err = cli.RouteClient().Route().Routes(cli.Namespace()).Get("route", metav1.GetOptions{})
 		o.Expect(err).NotTo(o.HaveOccurred())
 
-		_, err = cli.Client().Routes(cli.Namespace()).Get("newroute", metav1.GetOptions{})
+		_, err = cli.RouteClient().Route().Routes(cli.Namespace()).Get("newroute", metav1.GetOptions{})
 		o.Expect(err).NotTo(o.HaveOccurred())
 	})
 })
