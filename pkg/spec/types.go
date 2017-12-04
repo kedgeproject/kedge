@@ -17,8 +17,8 @@ limitations under the License.
 package spec
 
 import (
+	os_deploy_v1 "github.com/openshift/origin/pkg/apps/apis/apps/v1"
 	build_v1 "github.com/openshift/origin/pkg/build/apis/build/v1"
-	os_deploy_v1 "github.com/openshift/origin/pkg/deploy/apis/apps/v1"
 	image_v1 "github.com/openshift/origin/pkg/image/apis/image/v1"
 	os_route_v1 "github.com/openshift/origin/pkg/route/apis/route/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
