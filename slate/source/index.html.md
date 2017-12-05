@@ -182,15 +182,19 @@ controller: deployment
 ```yaml
 controller: deploymentconfig
 name: httpd
-replicas: 2
+
 containers:
 - image: bitnami/nginx
+
 services:
 - name: httpd
   type: NodePort
   ports:
   - port: 8080
     targetPort: 8080
+
+# DeploymentConfig related definitions
+replicas: 2
 ```
 
 > Example using Job
@@ -222,12 +226,13 @@ Supported controllers:
 
 __Note on conflicting fields:__
 
-`activeDeadlineSeconds` is a conflicting field which exists in both, v1.PodSpec and batch/v1.JobSpec, and both of these fields exist at the top level of the Kedge spec.
+A conflicting field may exist both within the "root" of the file as well as within the specification.
 
-So, whenever `activeDeadlineSeconds` field is set, only JobSpec is populated, which means that `activeDeadlineSeconds` is set only for the job and not for the pod.
+For example, `activeDeadlineSeconds` is a conflicting field which exists in both, PodSpec and as well as JobSpec, and both of these fields may be defined at the top level of the Kedge file specification
 
+So, whenever `activeDeadlineSeconds` field is set, only JobSpec is populated, which means that `activeDeadlineSeconds` is set only for the Job and not for the Pod.
 
-To populate a pod's `activeDeadlineSeconds`, the user will have to pass this field the long way by defining the pod exclusively under `job.spec.template.spec.activeDeadlineSeconds`.
+To populate a Pod's `activeDeadlineSeconds`, the user will have to pass this field the long way by defining the pod exclusively under `job.spec.template.spec.activeDeadlineSeconds`.
 
 
 ## labels

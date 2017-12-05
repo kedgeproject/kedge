@@ -6,7 +6,7 @@
     <meta content="IE=edge,chrome=1" http-equiv="X-UA-Compatible">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
     <title>Kedge File Reference</title>
-    <link href="img/favicon.ico" rel="icon" type="image/ico" />
+    <link href="/img/favicon.ico" rel="icon" type="image/ico" />
 
     <style>
       .highlight table td { padding: 5px; }
@@ -211,6 +211,8 @@
     </a>
     <div class="toc-wrapper">
       <a href="/"><img src="images/logo.png" class="logo" alt="Logo" /></a>
+      <h2 style="text-align:center;color:#fff">Kedge File Reference</h2>
+
         <div class="lang-selector">
               <a href="#" data-language-name="yaml">yaml</a>
         </div>
@@ -569,15 +571,19 @@ Depending on the controller key selected. Each "app" (Kedge file) is an extensio
 </blockquote>
 <pre class="highlight yaml tab-yaml"><code><span class="na">controller</span><span class="pi">:</span> <span class="s">deploymentconfig</span>
 <span class="na">name</span><span class="pi">:</span> <span class="s">httpd</span>
-<span class="na">replicas</span><span class="pi">:</span> <span class="s">2</span>
+
 <span class="na">containers</span><span class="pi">:</span>
 <span class="pi">-</span> <span class="na">image</span><span class="pi">:</span> <span class="s">bitnami/nginx</span>
+
 <span class="na">services</span><span class="pi">:</span>
 <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">httpd</span>
   <span class="na">type</span><span class="pi">:</span> <span class="s">NodePort</span>
   <span class="na">ports</span><span class="pi">:</span>
   <span class="pi">-</span> <span class="na">port</span><span class="pi">:</span> <span class="s">8080</span>
     <span class="na">targetPort</span><span class="pi">:</span> <span class="s">8080</span>
+
+<span class="c1"># DeploymentConfig related definitions</span>
+<span class="na">replicas</span><span class="pi">:</span> <span class="s">2</span>
 </code></pre>
 <blockquote>
 <p>Example using Job</p>
@@ -634,11 +640,13 @@ Depending on the controller key selected. Each "app" (Kedge file) is an extensio
 
 <p><strong>Note on conflicting fields:</strong></p>
 
-<p><code>activeDeadlineSeconds</code> is a conflicting field which exists in both, v1.PodSpec and batch/v1.JobSpec, and both of these fields exist at the top level of the Kedge spec.</p>
+<p>A conflicting field may exist both within the &quot;root&quot; of the file as well as within the specification.</p>
 
-<p>So, whenever <code>activeDeadlineSeconds</code> field is set, only JobSpec is populated, which means that <code>activeDeadlineSeconds</code> is set only for the job and not for the pod.</p>
+<p>For example, <code>activeDeadlineSeconds</code> is a conflicting field which exists in both, PodSpec and as well as JobSpec, and both of these fields may be defined at the top level of the Kedge file specification</p>
 
-<p>To populate a pod&#39;s <code>activeDeadlineSeconds</code>, the user will have to pass this field the long way by defining the pod exclusively under <code>job.spec.template.spec.activeDeadlineSeconds</code>.</p>
+<p>So, whenever <code>activeDeadlineSeconds</code> field is set, only JobSpec is populated, which means that <code>activeDeadlineSeconds</code> is set only for the Job and not for the Pod.</p>
+
+<p>To populate a Pod&#39;s <code>activeDeadlineSeconds</code>, the user will have to pass this field the long way by defining the pod exclusively under <code>job.spec.template.spec.activeDeadlineSeconds</code>.</p>
 <h2 id='labels'>labels</h2><pre class="highlight yaml tab-yaml"><code><span class="na">labels</span><span class="pi">:</span>
   <span class="na">env</span><span class="pi">:</span> <span class="s">dev</span>
   <span class="na">department</span><span class="pi">:</span> <span class="s">middle-tier</span>
