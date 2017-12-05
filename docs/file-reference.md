@@ -36,6 +36,30 @@ Endpoints:              172.17.0.4:80
 ...
 ```
 
+> Extending Kedge as well as using a shortcut
+
+```yaml
+name: web
+
+containers:
+- image: nginx
+  # Extending the Kedge file using:
+  # https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#container-v1-core
+  livenessProbe:
+    httpGet:
+      path: /
+      port: 80
+    initialDelaySeconds: 20
+    timeoutSeconds: 5
+
+services:
+- name: nginx
+  type: NodePort
+  # Using a Kedge-specific 'shortcut'
+  portMappings:
+  - 8080:80
+```
+
 __Note:__ This markdown file is best viewed at [kedgeproject.org/file-reference/](http://kedgeproject.org/file-reference/).
 
 Kedge is a simple, easy and declarative way to define and deploy applications to Kubernetes by writing very concise application definitions.
@@ -48,48 +72,7 @@ Installing Kedge can be found at [kedgeproject.org](http://kedgeproject.org) or 
 
 If you haven't used Kedge yet, we recommend using the [Quick Start](http://kedgeproject.org/quickstart/) guide, or follow the instructions within the side-bar.
 
-## Extending Kubernetes
-
-> Using the `health` key within `containers`
-
-```yaml
-name: web
-containers:
-- image: nginx
-  health:
-    httpGet:
-      path: /
-      port: 80
-    initialDelaySeconds: 20
-    timeoutSeconds: 5
-services:
-- name: nginx
-  type: NodePort
-  ports:
-  - port: 8080
-    targetPort: 80
-```
-
-> Alternatively, using `readinessProbe` instead of `health`
-
-```yaml
-name: web
-containers:
-- image: nginx
-  # https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#container-v1-core
-  livenessProbe:
-    httpGet:
-      path: /
-      port: 80
-    initialDelaySeconds: 20
-    timeoutSeconds: 5
-services:
-- name: nginx
-  type: NodePort
-  ports:
-  - port: 8080
-    targetPort: 80
-```
+**Extending Kubernetes**
 
 Kedge introduces a simplification of Kubernetes constructs in order to make application development simple and easy to modify/deploy.
 
