@@ -112,15 +112,14 @@ func PodsStarted(t *testing.T, clientset *kubernetes.Clientset, namespace string
 		podUp[p] = 0
 	}
 
-	// Timeouts after 9 minutes if the Pod has not yet started
-	// 9 minute reasoning = 1 minute before 10-minute Golang test timeout.
-	timeout := time.After(9 * time.Minute)
+	// Timeouts after 10 minutes if the Pod has not yet started
+	podTimeout := time.After(10 * time.Minute)
 	tick := time.Tick(time.Second)
 
 	for {
 		select {
-		case <-timeout:
-			return fmt.Errorf("pods did not come up in given time: 8 minutes")
+		case <-podTimeout:
+			return fmt.Errorf("pods did not come up in given time: 10 minutes")
 		case <-tick:
 			t.Logf("pods not started yet: %q", strings.Join(mapkeys(podUp), " "))
 
@@ -195,18 +194,22 @@ func getEndPoints(t *testing.T, clientset *kubernetes.Clientset, namespace strin
 
 // Ping all endpoints
 func pingEndPoints(t *testing.T, ep map[string]string) error {
-	timeout := time.After(8 * time.Minute)
+
+	// Increase pinging timeout to more than 8 minutes to allocate
+	// for replica containers across minikube
+	pingTimeout := time.After(10 * time.Minute)
 	tick := time.Tick(time.Second)
 
 	for {
 		select {
-		case <-timeout:
-			return fmt.Errorf("could not ping the specific service in given time: 8 minutes")
+		case <-pingTimeout:
+			return fmt.Errorf("could not ping the specific service in given time: 10 minutes")
 		case <-tick:
 			for e, u := range ep {
-				timeout := time.Duration(8 * time.Second)
+				// 10 second timeout for HTTP response
+				httpTimeout := time.Duration(10 * time.Second)
 				client := http.Client{
-					Timeout: timeout,
+					Timeout: httpTimeout,
 				}
 				respose, err := client.Get(u)
 				if err != nil {
