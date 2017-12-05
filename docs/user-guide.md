@@ -17,7 +17,7 @@ service "httpd" created
 
 Deploy directly to Kubernetes without creating the artifacts. Internally, Kedge will generate the artifacts and then create it using the `kubectl` command.
 
-### Deploy to Kubernetes
+__Deploy to Kubernetes:__
 
 ```sh
 $ kedge create -f httpd.yaml
@@ -31,7 +31,7 @@ Generate Kubernetes artifacts based upon your Kedge YAML file, see our [examples
 
 In these examples, we use the [simplest of examples](/examples/simplest/httpd.yaml)
 
-### Convert to Kubernetes artifacts
+__Convert to Kubernetes artifacts:__
 
 ```sh
 $ kedge generate -f httpd.yaml
@@ -76,7 +76,7 @@ status:
   loadBalancer: {}
 ```
 
-### Generate and deploy directly to Kubernetes
+__Generate and deploy directly to Kubernetes:__
 
 Generation commands can also be "piped" to Kubernetes
 
@@ -99,7 +99,7 @@ service "httpd" deleted
 
 Outputs the current Kedge version
 
-### Version
+__Version:__
 
 ```sh
 $ kedge version
@@ -107,7 +107,7 @@ $ kedge version
 
 ## Kedge Init
 
-### Getting started
+__Getting started:__
 
 ```bash
 $ kedge init --name web --image centos/httpd --ports 80
@@ -115,7 +115,7 @@ $ kedge init --name web --image centos/httpd --ports 80
 This will create a `kedge.yml` file for an `httpd` web server with container
 image `centos/httpd` exposed on port 80.
 
-### Create a different file
+__Create a different file:__
 
 ```bash
 $ kedge init --out myapp.yml --name web --image centos/httpd --ports 80
@@ -124,7 +124,7 @@ $ kedge init --out myapp.yml --name web --image centos/httpd --ports 80
 This will create a different file named `myapp.yml` as opposed to the default
 `kedge.yml`.
 
-### Create a different controller type
+__Create a different controller type:__
 
 By default the controller type that is created is [Kubernetes Deployments](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/),
 which is meant for long running processes. But if you want to create a controller
@@ -137,7 +137,7 @@ $ kedge init --name myjob --image jobimage --controller Job
 
 ## Kedge Build
 
-### Build
+__Build:__
 
 Build container image with image name `username/myapp:version`
 
@@ -149,7 +149,7 @@ Here you might wanna replace the `username` with container image registry URL an
 `username`.
 
 
-### Build & Push
+__Build & Push:__
 
 ```console
 $ kedge build -i username/myapp:version -p
@@ -160,7 +160,7 @@ If you want to build image and also push it to the registry then use the flag `-
 **Note**: You should have access to push image to that container registry. Read more about
 `docker login` on official [docs](https://docs.docker.com/engine/reference/commandline/login/).
 
-### Dockerfile and context are different
+__Dockerfile and context are different:__
 
 If you have a file structure like this, where your `Dockerfile` resides in a directory and
 your code context is different.
@@ -185,7 +185,7 @@ INFO[0000] Building image 'surajd/json-schema' from directory 'json-schema-gener
 INFO[0001] Image 'surajd/json-schema' from directory 'json-schema-generator' built successfully
 ```
 
-### Build in minikube/minishift
+__Build in minikube/minishift:__
 
 If you are running Kubernetes in a environment like minikube or minishift run following
 command before running this build command:
