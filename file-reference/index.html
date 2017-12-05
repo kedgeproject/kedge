@@ -210,7 +210,7 @@
       </span>
     </a>
     <div class="toc-wrapper">
-      <img src="images/logo.png" class="logo" alt="Logo" />
+      <a href="/"><img src="images/logo.png" class="logo" alt="Logo" /></a>
         <div class="lang-selector">
               <a href="#" data-language-name="yaml">yaml</a>
         </div>
@@ -221,11 +221,6 @@
       <div id="toc" class="toc-list-h1">
           <li>
             <a href="#introduction" class="toc-h1 toc-link" data-title="Introduction">Introduction</a>
-              <ul class="toc-list-h2">
-                  <li>
-                    <a href="#extending-kubernetes" class="toc-h2 toc-link" data-title="Extending Kubernetes">Extending Kubernetes</a>
-                  </li>
-              </ul>
           </li>
           <li>
             <a href="#kedge-keys" class="toc-h1 toc-link" data-title="Kedge Keys">Kedge Keys</a>
@@ -369,6 +364,29 @@ Name:                   httpd
 Endpoints:              172.17.0.4:80
 ...
 </code></pre>
+<blockquote>
+<p>Extending Kedge as well as using a shortcut</p>
+</blockquote>
+<pre class="highlight yaml tab-yaml"><code><span class="na">name</span><span class="pi">:</span> <span class="s">web</span>
+
+<span class="na">containers</span><span class="pi">:</span>
+<span class="pi">-</span> <span class="na">image</span><span class="pi">:</span> <span class="s">nginx</span>
+  <span class="c1"># Extending the Kedge file using:</span>
+  <span class="c1"># https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#container-v1-core</span>
+  <span class="na">livenessProbe</span><span class="pi">:</span>
+    <span class="na">httpGet</span><span class="pi">:</span>
+      <span class="na">path</span><span class="pi">:</span> <span class="s">/</span>
+      <span class="na">port</span><span class="pi">:</span> <span class="s">80</span>
+    <span class="na">initialDelaySeconds</span><span class="pi">:</span> <span class="s">20</span>
+    <span class="na">timeoutSeconds</span><span class="pi">:</span> <span class="s">5</span>
+
+<span class="na">services</span><span class="pi">:</span>
+<span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">nginx</span>
+  <span class="na">type</span><span class="pi">:</span> <span class="s">NodePort</span>
+  <span class="c1"># Using a Kedge-specific 'shortcut'</span>
+  <span class="na">portMappings</span><span class="pi">:</span>
+  <span class="pi">-</span> <span class="s">8080:80</span>
+</code></pre>
 <p><strong>Note:</strong> This markdown file is best viewed at <a href="http://kedgeproject.org/file-reference/">kedgeproject.org/file-reference/</a>.</p>
 
 <p>Kedge is a simple, easy and declarative way to define and deploy applications to Kubernetes by writing very concise application definitions.</p>
@@ -380,46 +398,9 @@ Endpoints:              172.17.0.4:80
 <p>Installing Kedge can be found at <a href="http://kedgeproject.org">kedgeproject.org</a> or alternatively, the <a href="https://github.com/kedgeproject/kedge/releases">GitHub release page</a>.</p>
 
 <p>If you haven&#39;t used Kedge yet, we recommend using the <a href="http://kedgeproject.org/quickstart/">Quick Start</a> guide, or follow the instructions within the side-bar.</p>
-<h2 id='extending-kubernetes'>Extending Kubernetes</h2>
-<blockquote>
-<p>Using the <code>health</code> key within <code>containers</code></p>
-</blockquote>
-<pre class="highlight yaml tab-yaml"><code><span class="na">name</span><span class="pi">:</span> <span class="s">web</span>
-<span class="na">containers</span><span class="pi">:</span>
-<span class="pi">-</span> <span class="na">image</span><span class="pi">:</span> <span class="s">nginx</span>
-  <span class="na">health</span><span class="pi">:</span>
-    <span class="na">httpGet</span><span class="pi">:</span>
-      <span class="na">path</span><span class="pi">:</span> <span class="s">/</span>
-      <span class="na">port</span><span class="pi">:</span> <span class="s">80</span>
-    <span class="na">initialDelaySeconds</span><span class="pi">:</span> <span class="s">20</span>
-    <span class="na">timeoutSeconds</span><span class="pi">:</span> <span class="s">5</span>
-<span class="na">services</span><span class="pi">:</span>
-<span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">nginx</span>
-  <span class="na">type</span><span class="pi">:</span> <span class="s">NodePort</span>
-  <span class="na">ports</span><span class="pi">:</span>
-  <span class="pi">-</span> <span class="na">port</span><span class="pi">:</span> <span class="s">8080</span>
-    <span class="na">targetPort</span><span class="pi">:</span> <span class="s">80</span>
-</code></pre>
-<blockquote>
-<p>Alternatively, using <code>readinessProbe</code> instead of <code>health</code></p>
-</blockquote>
-<pre class="highlight yaml tab-yaml"><code><span class="na">name</span><span class="pi">:</span> <span class="s">web</span>
-<span class="na">containers</span><span class="pi">:</span>
-<span class="pi">-</span> <span class="na">image</span><span class="pi">:</span> <span class="s">nginx</span>
-  <span class="c1"># https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#container-v1-core</span>
-  <span class="na">livenessProbe</span><span class="pi">:</span>
-    <span class="na">httpGet</span><span class="pi">:</span>
-      <span class="na">path</span><span class="pi">:</span> <span class="s">/</span>
-      <span class="na">port</span><span class="pi">:</span> <span class="s">80</span>
-    <span class="na">initialDelaySeconds</span><span class="pi">:</span> <span class="s">20</span>
-    <span class="na">timeoutSeconds</span><span class="pi">:</span> <span class="s">5</span>
-<span class="na">services</span><span class="pi">:</span>
-<span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">nginx</span>
-  <span class="na">type</span><span class="pi">:</span> <span class="s">NodePort</span>
-  <span class="na">ports</span><span class="pi">:</span>
-  <span class="pi">-</span> <span class="na">port</span><span class="pi">:</span> <span class="s">8080</span>
-    <span class="na">targetPort</span><span class="pi">:</span> <span class="s">80</span>
-</code></pre>
+
+<p><strong>Extending Kubernetes</strong></p>
+
 <p>Kedge introduces a simplification of Kubernetes constructs in order to make application development simple and easy to modify/deploy.</p>
 
 <p>However, in many parts of Kedge, you&#39;re able to use the standard Kubernetes constructs you may already know.</p>
