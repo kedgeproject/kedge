@@ -197,13 +197,13 @@ func pingEndPoints(t *testing.T, ep map[string]string) error {
 
 	// Increase pinging timeout to more than 8 minutes to allocate
 	// for replica containers across minikube
-	pingTimeout := time.After(10 * time.Minute)
+	pingTimeout := time.After(15 * time.Minute)
 	tick := time.Tick(time.Second)
 
 	for {
 		select {
 		case <-pingTimeout:
-			return fmt.Errorf("could not ping the specific service in given time: 10 minutes")
+			return fmt.Errorf("could not ping the specific service in given time: 15 minutes")
 		case <-tick:
 			for e, u := range ep {
 				// 10 second timeout for HTTP response
