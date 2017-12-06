@@ -2,6 +2,7 @@ items:
   "Introduction": "/"
   "Installation": "/installation/"
   "Quick Start": "/quickstart/"
+  "Getting Started": "/getting-started/"
   "User Guide": "/user-guide/"
   "File Reference": "/file-reference/"
   "Development": "/development/"
