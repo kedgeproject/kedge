@@ -33,27 +33,8 @@ git checkout master docs
 # Remove README.md from docs folder as it isn't relevant
 rm docs/README.md
 
-# Use introduction.md instead as the main index page
-mv docs/introduction.md index.md
-
 # File reference is going to be built with "Slate"
 mv docs/file-reference.md slate/source/index.html.md
-
-# Check that index.md has the appropriate Jekyll format
-index="index.md"
-if cat $index | head -n 1 | grep "\-\-\-";
-then
-echo "index.md already contains Jekyll format"
-else
-# Remove ".md" from the name
-name=${index::-3}
-echo "Adding Jekyll file format to $index"
-jekyll="---
-layout: default
----
-"
-echo -e "$jekyll\n$(cat $index)" > $index
-fi
 
 # clean-up the docs and convert to jekyll-friendly docs
 cd docs
