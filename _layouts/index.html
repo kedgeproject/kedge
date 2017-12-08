@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+
+  {% include head.html %}
+
+  <!-- CSS -->
+  <link href="/css/main.css" rel="stylesheet" type="text/css">
+  <link href="/css/hljs-github.min.css" rel="stylesheet" type="text/css">
+
+  <body>
+    <header>
+      <div id="hero">
+        <div class="inner">
+          <div class="left"><img class="hero-logo" src="img/logo.png" style="" title=""></div>
+          <div class="right">
+            <h2>Simple Declarative<br>
+            Kubernetes Definitions</h2>
+            <p><a class="button" href="{{ site.docs_index }}">Get Started</a> <a class="button white" href="{{ site.repository_url }}" target="_blank">GitHub</a></p>
+          </div>
+        </div>
+        <div class="features">
+          <section>
+            <h3>Familiarity</h3>
+            <p>Use pre-existing Kubernetes definitions such as Pod or Container within your YAML file.</p>
+          </section>
+          <section>
+            <h3>Reduce</h3>
+            <p>Reduce your file-size and definitions by using intuitive (and easy to use) Kedge shortcuts.</p>
+          </section>
+          <section>
+            <h3>Automatic</h3>
+            <p>Kedge will automatically analyze and determine the best defaults for your application to run on Kubernetes.</p>
+          </section>
+        </div>
+      </div>
+      <nav class="links">
+        <a href="{{ site.docs_index }}">Documentation</a> <a href="{{ site.repository_url }}" target="_blank">GitHub</a>
+      </nav>
+    </header>
+    <main>
+      <section>
+        <h2>Avoid typing long artifact files. Reduce your file size dramastically.</h2>
+        <p>Kedge will convert the defined definitions to their Kubernetes equivilant. Utilize intuitive Kedge shortcuts and look through our <a href="/file-reference">file reference</a>.</p>
+        <div class="examples">
+          <div class="example">
+            <p><strong>Web server Kedge example</strong></p>
+            <pre><code class="yaml">name: httpd
+containers:
+  - image: centos/httpd
+services:
+  - name: httpd
+    type: LoadBalancer
+    portMappings: 
+      - 8080:80
+  </code></pre>
+          </div>
+          <div class="example">
+            <div class="kubernetes">
+              <p><strong>Converted Kubernetes artifact file(s)</strong></p>
+              <pre><code class="yaml">---
+apiVersion: v1
+kind: Service
+metadata:
+  creationTimestamp: null
+  labels:
+    app: httpd
+  name: httpd
+spec:
+  ports:
+  - name: httpd-8080
+    port: 8080
+    protocol: TCP
+    targetPort: 80
+  selector:
+    app: httpd
+  type: LoadBalancer
+status:
+  loadBalancer: {}
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  creationTimestamp: null
+  labels:
+    app: httpd
+  name: httpd
+spec:
+  strategy: {}
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: httpd
+      name: httpd
+    spec:
+      containers:
+      - image: centos/httpd
+        name: httpd
+        resources: {}
+status: {}
+  </code></pre>
+            </div>
+          </div>
+          <p>Just run <code>kedge apply -f httpd.yaml</code> and it's directly deployed to your cluster.</p>
+        </div>
+      </section>
+      <section>
+        <h2>Examples</h2>
+        <p>Pick and example and see what Kedge is all about.</p>
+        <table>
+          <tbody>
+            <tr>
+              <th>Name</th>
+              <th>Kedge LOC</th>
+              <th>Kubernetes LOC</th>
+              <th>Decrease %</th>
+            </tr>
+            <tr>
+              <td>
+                <a href="https://github.com/kedgeproject/kedge/tree/master/examples/httpd">httpd</a>
+              </td>
+              <td>8</td>
+              <td>41</td>
+              <td><strong>80.49%</strong></td>
+            </tr>
+            <tr>
+              <td>
+                <a href="https://github.com/kedgeproject/kedge/tree/master/examples/guestbook-demo">guestbook-demo</a>
+              </td>
+              <td>66</td>
+              <td>203</td>
+              <td><strong>67.49%</strong></td>
+            </tr>
+            <tr>
+              <td>
+                <a href="https://github.com/kedgeproject/kedge/tree/master/examples/wordpress">wordpress</a>
+              </td>
+              <td>68</td>
+              <td>181</td>
+              <td><strong>62.43%</strong></td>
+            </tr>
+            <tr>
+              <td>
+                <a href="https://github.com/kedgeproject/kedge/tree/master/examples/gitlab">gitlab</a>
+              </td>
+              <td>226</td>
+              <td>396</td>
+              <td><strong>40.93%</strong></td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+    <footer>
+      <a class="button" href="{{ site.docs_index }}">Get Started</a>
+      <div class="content">
+        <nav>
+          <h3>Documentation</h3>
+          <div>
+            <ul>
+            {% for item in site.data.menu.documentation_footer_1 %}
+                <li><a href="{{ item[1] | prepend: site.baseurl }}">{{ item[0] }}</a></li>
+            {% endfor %}
+            </ul>
+            <ul>
+            {% for item in site.data.menu.documentation_footer_2 %}
+                <li><a href="{{ item[1] | prepend: site.baseurl }}">{{ item[0] }}</a></li>
+            {% endfor %}
+            </ul>
+          </div>
+        </nav>
+        <nav>
+          <h3>Links</h3>
+          <ul>
+          {% for item in site.data.menu.footer %}
+              <li><a href="{{ item[1] | prepend: site.baseurl }}">{{ item[0] }}</a></li>
+          {% endfor %}
+          </ul>
+        </nav>
+      </div>
+      <div class="copyright">
+        {{ site.copyright }}
+
+      </div>
+    </footer>
+    <div></div>
+  </body>
+
+</html>

@@ -1,13 +1,22 @@
 items:
-  "Introduction": "/"
+  "Quick Start": "/quickstart/"
+  "Installation": "/installation/"
+  "User Guide": "/user-guide/"
+  "File Reference": "/file-reference/"
+
+advanced:
+  "Development": "/development/"
+
+documentation_footer_1:
   "Installation": "/installation/"
   "Quick Start": "/quickstart/"
-  "Getting Started": "/getting-started/"
   "User Guide": "/user-guide/"
+
+documentation_footer_2:
   "File Reference": "/file-reference/"
   "Development": "/development/"
 
 footer:
-  "Chat about Kedge on Slack": "http://slack.kedgeproject.org"
+  "Slack": "http://slack.kedgeproject.org"
   "Releases": "https://github.com/kedgeproject/kedge/releases"
-  "Kedge on GitHub": "https://github.com/kedgeproject/kedge"
+  "GitHub": "https://github.com/kedgeproject/kedge"
