@@ -145,3 +145,7 @@ func addKeyValueToMap(k string, v string, m map[string]string) map[string]string
 
 	return m
 }
+
+func GetNameLabel(name string) map[string]string {
+	return map[string]string{appLabelKey: name}
+}

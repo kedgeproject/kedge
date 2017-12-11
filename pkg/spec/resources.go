@@ -291,8 +291,7 @@ func (cf *ControllerFields) fixControllerFields() error {
 // Transform
 
 func (app *ControllerFields) getLabels() map[string]string {
-	labels := map[string]string{appLabelKey: app.Name}
-	return labels
+	return GetNameLabel(app.Name)
 }
 
 func (app *ControllerFields) createIngresses() ([]runtime.Object, error) {

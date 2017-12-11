@@ -28,7 +28,7 @@ import (
 var Dockerfile string
 var DockerImage string
 var DockerContext string
-var PushImage bool
+var PushImage, s2iBuild bool
 
 var buildCmd = &cobra.Command{
 	Use:   "build",
@@ -38,9 +38,17 @@ var buildCmd = &cobra.Command{
 			fmt.Println("Please specify the container image name using flag '--image' or '-i'")
 			os.Exit(-1)
 		}
-		if err := build.BuildPushDockerImage(Dockerfile, DockerImage, DockerContext, PushImage); err != nil {
-			fmt.Println(err)
-			os.Exit(-1)
+
+		if s2iBuild {
+			if err := build.BuildS2I(Dockerfile, DockerImage, DockerContext); err != nil {
+				fmt.Println(err)
+				os.Exit(-1)
+			}
+		} else {
+			if err := build.BuildPushDockerImage(Dockerfile, DockerImage, DockerContext, PushImage); err != nil {
+				fmt.Println(err)
+				os.Exit(-1)
+			}
 		}
 	},
 }
@@ -51,6 +59,7 @@ func init() {
 	buildCmd.Flags().StringVarP(&DockerImage, "image", "i", "", "Image name and tag of resulting image")
 	buildCmd.Flags().StringVarP(&DockerContext, "context", "c", ".", "Path to a directory containing a Dockerfile, it is build context that is sent to the Docker daemon")
 	buildCmd.Flags().BoolVarP(&PushImage, "push", "p", false, "Add this flag if you want to push the image")
+	buildCmd.Flags().BoolVarP(&s2iBuild, "s2i", "", false, "If this is enabled then BuildConfig and Imagestream is created")
 
 	RootCmd.AddCommand(buildCmd)
 }

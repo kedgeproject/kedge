@@ -22,13 +22,24 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	log "github.com/Sirupsen/logrus"
 	dockerlib "github.com/fsouza/go-dockerclient"
+	"github.com/ghodss/yaml"
+	os_build_v1 "github.com/openshift/origin/pkg/build/apis/build/v1"
+	os_image_v1 "github.com/openshift/origin/pkg/image/apis/image/v1"
 	"github.com/pkg/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	kapi "k8s.io/kubernetes/pkg/api/v1"
+
+	"github.com/kedgeproject/kedge/pkg/cmd"
+	"github.com/kedgeproject/kedge/pkg/spec"
+	_ "k8s.io/kubernetes/pkg/api/install"
 )
 
 func BuildPushDockerImage(dockerfile, image, context string, push bool) error {
@@ -173,4 +184,196 @@ func CreateTarball(source, target string) error {
 			_, err = io.Copy(tarball, file)
 			return err
 		})
+}
+
+// GetGitCurrentBranch gets current git branch name for the current git repo
+func GetGitCurrentBranch(dir string) (string, error) {
+	cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimRight(string(out), "\n"), nil
+}
+
+// GetGitCurrentRemoteURL gets current git remote URI for the current git repo
+func GetGitCurrentRemoteURL(dir string) (string, error) {
+	cmd := exec.Command("git", "ls-remote", "--get-url")
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	url := strings.TrimRight(string(out), "\n")
+	if !strings.HasSuffix(url, ".git") {
+		url += ".git"
+	}
+
+	if strings.HasPrefix(url, "git") {
+		// URL: git@github.com:surajssd/kedge.git
+		// will be divided into tokens like this:
+		// git@ github.com surajssd/kedge.git
+		// src: https://stackoverflow.com/a/2514986/3848679
+		// More generic regex: '(\w+://)(.+@)*([\w\d\.]+)(:[\d]+){0,1}/*(.*)'
+		urlRe := regexp.MustCompile(`(.+@)*([\w\d\.]+):(.*)`)
+		urlComponents := urlRe.FindStringSubmatch(url)
+		url = filepath.Join(urlComponents[len(urlComponents)-2],
+			urlComponents[len(urlComponents)-1])
+		url = "https://" + url
+	}
+	return url, nil
+}
+
+// getImageTag get tag name from image name
+// if no tag is specified return 'latest'
+func GetImageTag(image string) string {
+	// format:      registry_host:registry_port/repo_name/image_name:image_tag
+	// example:
+	// 1)     myregistryhost:5000/fedora/httpd:version1.0
+	// 2)     myregistryhost:5000/fedora/httpd
+	// 3)     myregistryhost/fedora/httpd:version1.0
+	// 4)     myregistryhost/fedora/httpd
+	// 5)     fedora/httpd
+	// 6)     httpd
+	imageAndTag := image
+
+	imageTagSplit := strings.Split(image, "/")
+	if len(imageTagSplit) >= 2 {
+		imageAndTag = imageTagSplit[len(imageTagSplit)-1]
+	}
+
+	p := strings.Split(imageAndTag, ":")
+	if len(p) == 2 {
+		return p[1]
+	}
+	return "latest"
+}
+
+func GetImageName(image string) string {
+	imageAndTag := image
+
+	imageTagSplit := strings.Split(image, "/")
+	if len(imageTagSplit) >= 2 {
+		imageAndTag = imageTagSplit[len(imageTagSplit)-1]
+	}
+	p := strings.Split(imageAndTag, ":")
+	if len(p) <= 2 {
+		return p[0]
+	}
+
+	return image
+}
+
+func localdir() (string, error) {
+	abs, err := filepath.Abs(".")
+	if err != nil {
+		return "", err
+	}
+	return filepath.Base(abs), nil
+}
+
+func BuildS2I(dockerfile, image, context string) error {
+	repo, err := GetGitCurrentRemoteURL(context)
+	if err != nil {
+		return err
+	}
+	branch, err := GetGitCurrentBranch(context)
+	if err != nil {
+		return err
+	}
+	// name of this build
+	//name, err := localdir()
+	//if err != nil {
+	//	return err
+	//}
+	name := GetImageName(image)
+	// labels
+	labels := spec.GetNameLabel(name)
+
+	bc := os_build_v1.BuildConfig{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "BuildConfig",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   name,
+			Labels: labels,
+		},
+		Spec: os_build_v1.BuildConfigSpec{
+			Triggers: []os_build_v1.BuildTriggerPolicy{
+				{Type: "ConfigChange"},
+			},
+			CommonSpec: os_build_v1.CommonSpec{
+				Source: os_build_v1.BuildSource{
+					Git: &os_build_v1.GitBuildSource{
+						URI: repo,
+						Ref: branch,
+					},
+					ContextDir: context,
+					Type:       "Git",
+				},
+				Strategy: os_build_v1.BuildStrategy{
+					Type: "Docker",
+					DockerStrategy: &os_build_v1.DockerBuildStrategy{
+						DockerfilePath: dockerfile,
+					},
+				},
+				Output: os_build_v1.BuildOutput{
+					To: &kapi.ObjectReference{
+						Kind: "ImageStreamTag",
+						Name: name + ":" + GetImageTag(image),
+					},
+				},
+			},
+		},
+	}
+
+	is := os_image_v1.ImageStream{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ImageStream",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   name,
+			Labels: labels,
+		},
+		Spec: os_image_v1.ImageStreamSpec{
+			LookupPolicy: os_image_v1.ImageLookupPolicy{
+				Local: false,
+			},
+			Tags: []os_image_v1.TagReference{
+				{
+					From: &kapi.ObjectReference{
+						Kind: "DockerImage",
+						Name: image,
+					},
+				},
+			},
+		},
+	}
+
+	bcyaml, err := yaml.Marshal(bc)
+	if err != nil {
+		return err
+	}
+	isyaml, err := yaml.Marshal(is)
+	if err != nil {
+		return err
+	}
+	args := []string{"create", "-f", "-"}
+	err = cmd.RunClusterCommand(args, isyaml, true)
+	if err != nil {
+		return err
+	}
+	err = cmd.RunClusterCommand(args, bcyaml, true)
+	if err != nil {
+		return err
+	}
+	//fmt.Println("---")
+	//fmt.Println(string(bcyaml))
+	//fmt.Println("---")
+	//fmt.Println(string(isyaml))
+
+	return nil
 }

@@ -30,7 +30,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-// GenerateArtifacts either writes to file or uses kubectl/oc to deploy.
+// CreateArtifacts either writes to file or uses kubectl/oc to deploy.
 // TODO: Refactor into two separate functions (remove `generate bool`).
 func CreateArtifacts(paths []string, generate bool, args ...string) error {
 
@@ -90,12 +90,11 @@ func CreateArtifacts(paths []string, generate bool, args ...string) error {
 				// e.g. If the command and arguments are "apply --namespace staging", then the
 				// final command becomes "kubectl apply --namespace staging -f -"
 				arguments := append(args, "-f", "-")
-				err = runClusterCommand(arguments, data, useOC)
+				err = RunClusterCommand(arguments, data, useOC)
 				if err != nil {
 					return errors.Wrap(err, "failed to execute command")
 				}
 			}
-
 		}
 
 		for _, file := range includeResources {
@@ -118,7 +117,7 @@ func CreateArtifacts(paths []string, generate bool, args ...string) error {
 				// e.g. If the command and arguments are "apply --namespace staging", then the
 				// final command becomes "kubectl apply --namespace staging -f absolute-filename"
 				arguments := append(args, "-f", file)
-				err = runClusterCommand(arguments, nil, useOC)
+				err = RunClusterCommand(arguments, nil, useOC)
 				if err != nil {
 					return errors.Wrap(err, "failed to execute command")
 				}
@@ -128,9 +127,9 @@ func CreateArtifacts(paths []string, generate bool, args ...string) error {
 	return nil
 }
 
-// runClusterCommand calls kubectl or oc binary.
+// RunClusterCommand calls kubectl or oc binary.
 // Boolean flag useOC controls if oc or kubectl will be used
-func runClusterCommand(args []string, data []byte, useOC bool) error {
+func RunClusterCommand(args []string, data []byte, useOC bool) error {
 	executable := "kubectl"
 	if useOC {
 		executable = "oc"
