@@ -1,5 +1,57 @@
 # Change Log
 
+## [v0.6.0](https://github.com/kedgeproject/kedge/tree/v0.6.0) (2017-12-11)
+[Full Changelog](https://github.com/kedgeproject/kedge/compare/v0.5.1...v0.6.0)
+
+**Closed issues:**
+
+- "File Reference" broken link in Documentation - Quick Start [\#523](https://github.com/kedgeproject/kedge/issues/523)
+- Command line test \(similar to kompose\) [\#495](https://github.com/kedgeproject/kedge/issues/495)
+- We don't delete temporary build tarballs [\#488](https://github.com/kedgeproject/kedge/issues/488)
+- No documentation on apply / should start using "apply" as a default program. [\#479](https://github.com/kedgeproject/kedge/issues/479)
+- How to test documentation PR locally ? [\#469](https://github.com/kedgeproject/kedge/issues/469)
+- Update documentation regarding separate controller constructs with PodSpec, ControllerSpec, etc. [\#457](https://github.com/kedgeproject/kedge/issues/457)
+- Add version field to the directive and also generate associated metadata based on version [\#407](https://github.com/kedgeproject/kedge/issues/407)
+- Create hacktoberfest labels [\#343](https://github.com/kedgeproject/kedge/issues/343)
+- Update our examples to leverage new kedge shortcuts [\#312](https://github.com/kedgeproject/kedge/issues/312)
+- Add build support of S2I build [\#309](https://github.com/kedgeproject/kedge/issues/309)
+- generate openshift artifacts [\#210](https://github.com/kedgeproject/kedge/issues/210)
+- example in file-reference.md [\#191](https://github.com/kedgeproject/kedge/issues/191)
+- Add documentation, user guide etc [\#65](https://github.com/kedgeproject/kedge/issues/65)
+- Parameterize the ingress host [\#41](https://github.com/kedgeproject/kedge/issues/41)
+
+**Merged pull requests:**
+
+- Fix slate issues / redirecting [\#527](https://github.com/kedgeproject/kedge/pull/527) ([cdrage](https://github.com/cdrage))
+- Fix up TOC [\#526](https://github.com/kedgeproject/kedge/pull/526) ([cdrage](https://github.com/cdrage))
+- Fix typos on gh-pages landing page [\#524](https://github.com/kedgeproject/kedge/pull/524) ([robin-owen](https://github.com/robin-owen))
+- Remove introduction.md [\#522](https://github.com/kedgeproject/kedge/pull/522) ([cdrage](https://github.com/cdrage))
+- Redesign Kedge website [\#521](https://github.com/kedgeproject/kedge/pull/521) ([cdrage](https://github.com/cdrage))
+- Increase e2e timeout to 15 minutes. [\#519](https://github.com/kedgeproject/kedge/pull/519) ([cdrage](https://github.com/cdrage))
+- Add Getting Started to side-menu [\#518](https://github.com/kedgeproject/kedge/pull/518) ([cdrage](https://github.com/cdrage))
+- Updates slate with a title as well as fixed favicon [\#517](https://github.com/kedgeproject/kedge/pull/517) ([cdrage](https://github.com/cdrage))
+- Modify file reference [\#516](https://github.com/kedgeproject/kedge/pull/516) ([cdrage](https://github.com/cdrage))
+- Update to a darker font [\#515](https://github.com/kedgeproject/kedge/pull/515) ([cdrage](https://github.com/cdrage))
+- Make logo point to index [\#514](https://github.com/kedgeproject/kedge/pull/514) ([cdrage](https://github.com/cdrage))
+- Update file reference [\#513](https://github.com/kedgeproject/kedge/pull/513) ([cdrage](https://github.com/cdrage))
+- Increase timeout [\#512](https://github.com/kedgeproject/kedge/pull/512) ([cdrage](https://github.com/cdrage))
+- Change h3 headers to bold [\#509](https://github.com/kedgeproject/kedge/pull/509) ([cdrage](https://github.com/cdrage))
+- Add getting started guide [\#508](https://github.com/kedgeproject/kedge/pull/508) ([cdrage](https://github.com/cdrage))
+- Add dockerfile to project [\#505](https://github.com/kedgeproject/kedge/pull/505) ([djzager](https://github.com/djzager))
+- Fix slate favicon [\#500](https://github.com/kedgeproject/kedge/pull/500) ([cdrage](https://github.com/cdrage))
+- Delete tarball after image builds [\#496](https://github.com/kedgeproject/kedge/pull/496) ([surajnarwade](https://github.com/surajnarwade))
+- Update 1.8 to 1.6 link [\#494](https://github.com/kedgeproject/kedge/pull/494) ([cdrage](https://github.com/cdrage))
+- micro-service -\> microservice [\#493](https://github.com/kedgeproject/kedge/pull/493) ([cdrage](https://github.com/cdrage))
+- Clarify controller doc definitions / extensions [\#492](https://github.com/kedgeproject/kedge/pull/492) ([cdrage](https://github.com/cdrage))
+- Add milestones and changelog links to ROADMAP / update [\#487](https://github.com/kedgeproject/kedge/pull/487) ([cdrage](https://github.com/cdrage))
+- Fix guestbook-demo to work on openshift [\#484](https://github.com/kedgeproject/kedge/pull/484) ([kadel](https://github.com/kadel))
+- Add documentation regarding apply command / update current docs [\#482](https://github.com/kedgeproject/kedge/pull/482) ([cdrage](https://github.com/cdrage))
+- docs\(development\): adding new controller explanation [\#464](https://github.com/kedgeproject/kedge/pull/464) ([surajssd](https://github.com/surajssd))
+- This will add description about the new field appversion [\#461](https://github.com/kedgeproject/kedge/pull/461) ([piyush1594](https://github.com/piyush1594))
+- This will add a new key appversion [\#454](https://github.com/kedgeproject/kedge/pull/454) ([piyush1594](https://github.com/piyush1594))
+- \(feat\): s2i build using local code [\#452](https://github.com/kedgeproject/kedge/pull/452) ([surajssd](https://github.com/surajssd))
+- Update examples to reflect shortcuts [\#435](https://github.com/kedgeproject/kedge/pull/435) ([cdrage](https://github.com/cdrage))
+
 ## [v0.5.1](https://github.com/kedgeproject/kedge/tree/v0.5.1) (2017-11-23)
 [Full Changelog](https://github.com/kedgeproject/kedge/compare/v0.5.0...v0.5.1)
 
@@ -14,6 +66,7 @@
 
 **Merged pull requests:**
 
+- 0.5.1 Release [\#486](https://github.com/kedgeproject/kedge/pull/486) ([cdrage](https://github.com/cdrage))
 - Update quickstart [\#476](https://github.com/kedgeproject/kedge/pull/476) ([cdrage](https://github.com/cdrage))
 - docs\(routes\): indent the routes example in README [\#463](https://github.com/kedgeproject/kedge/pull/463) ([surajssd](https://github.com/surajssd))
 - Allow the usage of a string or int as a value in portMappings [\#455](https://github.com/kedgeproject/kedge/pull/455) ([cdrage](https://github.com/cdrage))
