@@ -193,3 +193,22 @@ command before running this build command:
 ```console
 $ eval $(minikube docker-env)
 ```
+
+### Build using source to image
+
+You can hand off the image building work to OpenShift's source to image utility, without having
+to write any Dockerfile. 
+
+To do build using OpensShift's s2i run following command:
+
+```console
+$ kedge build --s2i --image pyappth -b centos/python-35-centos7:3.5
+```
+
+Deconstructing above command, we can see that to enable using OpenShift's s2i use the boolean
+flag `--s2i` then give the output name of the ImageStream that will be created using flag
+`--image` and finally also provide what builder image to use to do builds of the code using
+flag `-b`.
+
+**Note**: Flag `-b` is valid only when using s2i mode. And build flag `-p` is not valid when
+in s2i mode.

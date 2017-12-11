@@ -44,8 +44,11 @@ import (
 
 // allLabelKey is the key that Kedge injects in every Kubernetes resource that
 // it generates as an ObjectMeta label
-const appLabelKey = "app"
-const appVersion = "appversion"
+const (
+	appLabelKey   = "app"
+	appVersion    = "appversion"
+	BuildLabelKey = "build"
+)
 
 // Fix
 
