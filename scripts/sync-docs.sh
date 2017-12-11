@@ -34,7 +34,7 @@ git checkout master docs
 rm docs/README.md
 
 # File reference is going to be built with "Slate"
-mv docs/file-reference.md slate/source/index.html.md
+cp docs/file-reference.md slate/source/index.html.md
 
 # clean-up the docs and convert to jekyll-friendly docs
 cd docs
