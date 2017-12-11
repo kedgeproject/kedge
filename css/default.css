@@ -233,3 +233,19 @@ body{font-size:16px;}
   p, h2, h3 { orphans: 3; widows: 3; }
   h2, h3 { page-break-after: avoid; }
 }
+
+#markdown-toc ul {
+  padding: 0px 5px 0px 10px;
+  margin:0 !important;
+}
+
+#markdown-toc li {
+  padding:5px 0px 0px 0px;
+  line-height:1em;
+}
+
+#markdown-toc {
+  font-size:14px;
+  font-weight:400;
+  padding: 0 0 0 10px;
+}
