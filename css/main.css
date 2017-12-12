@@ -38,6 +38,10 @@ header {
   margin-bottom: 10px;
 }
 
+header h1 {
+  color: #E7DACB;
+}
+
 header h2 {
   margin: 0;
   font-size: 1.5em;
