@@ -17,6 +17,7 @@ documentation_footer_2:
   "Development": "/development/"
 
 footer:
+  "Blog": "https://medium.com/kedge"
   "Slack": "http://slack.kedgeproject.org"
   "Releases": "https://github.com/kedgeproject/kedge/releases"
   "GitHub": "https://github.com/kedgeproject/kedge"
