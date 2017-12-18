@@ -188,6 +188,71 @@ func TestSubstituteVariables(t *testing.T) {
 			[]byte(""),
 			true,
 		},
+		{
+			[]byte(`
+				name: httpd
+				containers:
+				- image: foo/bar:[[ TEST_IMAGE_TAG:latest ]]
+				`),
+			[]byte(`
+				name: httpd
+				containers:
+				- image: foo/bar:version
+				`),
+			false,
+		},
+		{
+			[]byte(`
+				name: httpd
+				containers:
+				- image: foo/bar:[[ TEST_TAG:latest ]]
+				`),
+			[]byte(`
+				name: httpd
+				containers:
+				- image: foo/bar:latest
+				`),
+			false,
+		},
+		{
+			[]byte(`
+				name: httpd
+				containers:
+				- image: foo/bar:[[ TEST_TAG: latest ]]
+				`),
+			[]byte(`
+				name: httpd
+				containers:
+				- image: foo/bar:latest
+				`),
+			false,
+		},
+		{
+			[]byte(`
+				name: httpd
+				containers:
+				- image: foo/bar:[[ TEST_TAG: latest]]
+				`),
+			[]byte(`
+				name: httpd
+				containers:
+				- image: foo/bar:latest
+				`),
+			false,
+		},
+		{
+			[]byte(`
+				name: httpd
+				containers:
+				- image: foo/bar:[[ TEST_TAG:latest]]
+				`),
+			[]byte(`
+				name: httpd
+				containers:
+				- image: foo/bar:latest
+				`),
+			false,
+		},
 	}
 
 	for _, test := range tests {

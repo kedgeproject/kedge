@@ -1067,6 +1067,18 @@ NGINX_VERSION=1.13 kedge apply -f nginx.yaml
 
 You can use variables anywhere in the Kedge file. Variable names are enclosed in double square brackets (`[[ variable_name ]]`). For example `[[ IMAGE_NAME ]]` will be replaced with value of environment variable `$IMAGE_NAME`.
 
+> Specify default value of variable,
+
+```yaml
+name: foo
+image: foo/bar:[[ TAG:latest ]]
+```
+
+You can specify a default value of a variable if it is not set. 
+For example: `[[ TAG:latest ]]`
+If `TAG` variable is not set, `latest` will be used.
+
+
 # Controllers
 
 There are three defineable controllers within Kedge:
