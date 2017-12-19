@@ -1,0 +1,23 @@
+name: redis-slave
+
+labels:
+  app: redis
+  role: slave
+  tier: backend
+
+deployments:
+- containers:
+  - name: slave
+    image: gcr.io/google_samples/gb-redisslave:v1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 100Mi
+    env:
+    - name: GET_HOSTS_FROM
+      value: dns
+        
+services:
+- name: redis-slave
+  portMappings:
+  - 6379:6379

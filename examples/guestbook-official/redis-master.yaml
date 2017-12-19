@@ -1,0 +1,20 @@
+name: redis-master
+
+labels:
+  app: redis
+  role: master
+  tier: backend
+
+deployments:
+- containers:
+  - name: master
+    image: gcr.io/google_containers/redis:e2e 
+    resources:
+      requests:
+        cpu: 100m
+        memory: 100Mi
+
+services:
+- name: redis-master
+  portMappings:
+  - 6379:6379
