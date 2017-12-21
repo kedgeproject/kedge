@@ -39,6 +39,19 @@ import (
 
 type eventType int
 
+func (e eventType) String() string {
+	switch e {
+	case addEvent:
+		return "add"
+	case updateEvent:
+		return "update"
+	case deleteEvent:
+		return "delete"
+	default:
+		return fmt.Sprintf("unknown(%d)", int(e))
+	}
+}
+
 const (
 	addEvent eventType = iota
 	updateEvent
@@ -61,6 +74,9 @@ type GraphBuilder struct {
 	// each monitor list/watches a resource, the results are funneled to the
 	// dependencyGraphBuilder
 	monitors []cache.Controller
+	// informersStarted is closed after after all of the controllers have been initialized and are running.
+	// After that it is safe to start them here, before that it is not.
+	informersStarted <-chan struct{}
 	// metaOnlyClientPool uses a special codec, which removes fields except for
 	// apiVersion, kind, and metadata during decoding.
 	metaOnlyClientPool dynamic.ClientPool
@@ -151,6 +167,7 @@ func (gb *GraphBuilder) controllerFor(resource schema.GroupVersionResource, kind
 		// need to clone because it's from a shared cache
 		shared.Informer().AddEventHandlerWithResyncPeriod(handlers, ResourceResyncTime)
 		if gb.stopCh != nil {
+			<-gb.informersStarted
 			// if gb.stopCh is set, it means we've already gotten past the initial gb.Run() call, so this
 			// means we've re-loaded and re-read discovery and we are adding a new monitor for a
 			// previously unseen resource, so we need to call Start on the shared informers again (this
@@ -229,6 +246,7 @@ var ignoredResources = map[schema.GroupResource]struct{}{
 	{Group: "authorization.k8s.io", Resource: "selfsubjectaccessreviews"}:  {},
 	{Group: "authorization.k8s.io", Resource: "localsubjectaccessreviews"}: {},
 	{Group: "apiregistration.k8s.io", Resource: "apiservices"}:             {},
+	{Group: "apiextensions.k8s.io", Resource: "customresourcedefinitions"}: {},
 }
 
 // DefaultIgnoredResources returns the default set of resources that the garbage collector controller
@@ -304,13 +322,13 @@ type ownerRefPair struct {
 // when the number of references is small.
 func referencesDiffs(old []metav1.OwnerReference, new []metav1.OwnerReference) (added []metav1.OwnerReference, removed []metav1.OwnerReference, changed []ownerRefPair) {
 	oldUIDToRef := make(map[string]metav1.OwnerReference)
-	for i := 0; i < len(old); i++ {
-		oldUIDToRef[string(old[i].UID)] = old[i]
+	for _, value := range old {
+		oldUIDToRef[string(value.UID)] = value
 	}
 	oldUIDSet := sets.StringKeySet(oldUIDToRef)
 	newUIDToRef := make(map[string]metav1.OwnerReference)
-	for i := 0; i < len(new); i++ {
-		newUIDToRef[string(new[i].UID)] = new[i]
+	for _, value := range new {
+		newUIDToRef[string(value.UID)] = value
 	}
 	newUIDSet := sets.StringKeySet(newUIDToRef)
 

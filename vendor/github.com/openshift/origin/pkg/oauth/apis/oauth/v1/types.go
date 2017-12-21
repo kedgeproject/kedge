@@ -4,6 +4,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// +genclient
+// +genclient:nonNamespaced
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 // OAuthAccessToken describes an OAuth access token
 type OAuthAccessToken struct {
 	metav1.TypeMeta `json:",inline"`
@@ -34,6 +38,10 @@ type OAuthAccessToken struct {
 	// RefreshToken is the value by which this token can be renewed. Can be blank.
 	RefreshToken string `json:"refreshToken,omitempty" protobuf:"bytes,9,opt,name=refreshToken"`
 }
+
+// +genclient
+// +genclient:nonNamespaced
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // OAuthAuthorizeToken describes an OAuth authorization token
 type OAuthAuthorizeToken struct {
@@ -70,7 +78,9 @@ type OAuthAuthorizeToken struct {
 	CodeChallengeMethod string `json:"codeChallengeMethod,omitempty" protobuf:"bytes,10,opt,name=codeChallengeMethod"`
 }
 
-// +genclient=true
+// +genclient
+// +genclient:nonNamespaced
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // OAuthClient describes an OAuth client
 type OAuthClient struct {
@@ -89,6 +99,7 @@ type OAuthClient struct {
 	RespondWithChallenges bool `json:"respondWithChallenges,omitempty" protobuf:"varint,4,opt,name=respondWithChallenges"`
 
 	// RedirectURIs is the valid redirection URIs associated with a client
+	// +patchStrategy=merge
 	RedirectURIs []string `json:"redirectURIs,omitempty" patchStrategy:"merge" protobuf:"bytes,5,rep,name=redirectURIs"`
 
 	// GrantMethod determines how to handle grants for this client. If no method is provided, the
@@ -102,6 +113,10 @@ type OAuthClient struct {
 	// is checked against each restriction.  If any restriction matches, then the scope is allowed.
 	// If no restriction matches, then the scope is denied.
 	ScopeRestrictions []ScopeRestriction `json:"scopeRestrictions,omitempty" protobuf:"bytes,7,rep,name=scopeRestrictions"`
+
+	// AccessTokenMaxAgeSeconds overrides the default access token max age for tokens granted to this client.
+	// 0 means no expiration.
+	AccessTokenMaxAgeSeconds *int32 `json:"accessTokenMaxAgeSeconds,omitempty" protobuf:"varint,8,opt,name=accessTokenMaxAgeSeconds"`
 }
 
 type GrantHandlerType string
@@ -134,6 +149,10 @@ type ClusterRoleScopeRestriction struct {
 	AllowEscalation bool `json:"allowEscalation" protobuf:"varint,3,opt,name=allowEscalation"`
 }
 
+// +genclient
+// +genclient:nonNamespaced
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 // OAuthClientAuthorization describes an authorization created by an OAuth client
 type OAuthClientAuthorization struct {
 	metav1.TypeMeta `json:",inline"`
@@ -154,6 +173,8 @@ type OAuthClientAuthorization struct {
 	Scopes []string `json:"scopes,omitempty" protobuf:"bytes,5,rep,name=scopes"`
 }
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 // OAuthAccessTokenList is a collection of OAuth access tokens
 type OAuthAccessTokenList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -162,6 +183,8 @@ type OAuthAccessTokenList struct {
 	// Items is the list of OAuth access tokens
 	Items []OAuthAccessToken `json:"items" protobuf:"bytes,2,rep,name=items"`
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // OAuthAuthorizeTokenList is a collection of OAuth authorization tokens
 type OAuthAuthorizeTokenList struct {
@@ -172,6 +195,8 @@ type OAuthAuthorizeTokenList struct {
 	Items []OAuthAuthorizeToken `json:"items" protobuf:"bytes,2,rep,name=items"`
 }
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 // OAuthClientList is a collection of OAuth clients
 type OAuthClientList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -181,6 +206,8 @@ type OAuthClientList struct {
 	Items []OAuthClient `json:"items" protobuf:"bytes,2,rep,name=items"`
 }
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 // OAuthClientAuthorizationList is a collection of OAuth client authorizations
 type OAuthClientAuthorizationList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -189,6 +216,8 @@ type OAuthClientAuthorizationList struct {
 	// Items is the list of OAuth client authorizations
 	Items []OAuthClientAuthorization `json:"items" protobuf:"bytes,2,rep,name=items"`
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // OAuthRedirectReference is a reference to an OAuth redirect object.
 type OAuthRedirectReference struct {

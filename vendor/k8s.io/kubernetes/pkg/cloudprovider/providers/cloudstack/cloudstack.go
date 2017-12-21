@@ -24,6 +24,7 @@ import (
 	"github.com/xanzy/go-cloudstack/cloudstack"
 	"gopkg.in/gcfg.v1"
 	"k8s.io/kubernetes/pkg/cloudprovider"
+	"k8s.io/kubernetes/pkg/controller"
 )
 
 // ProviderName is the name of this cloud provider.
@@ -81,6 +82,9 @@ func newCSCloud(cfg *CSConfig) (*CSCloud, error) {
 	return &CSCloud{client, cfg.Global.ProjectID, cfg.Global.Zone}, nil
 }
 
+// Initialize passes a Kubernetes clientBuilder interface to the cloud provider
+func (cs *CSCloud) Initialize(clientBuilder controller.ControllerClientBuilder) {}
+
 // LoadBalancer returns an implementation of LoadBalancer for CloudStack.
 func (cs *CSCloud) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
 	return cs, true
@@ -114,6 +118,11 @@ func (cs *CSCloud) ProviderName() string {
 // ScrubDNS filters DNS settings for pods.
 func (cs *CSCloud) ScrubDNS(nameservers, searches []string) (nsOut, srchOut []string) {
 	return nameservers, searches
+}
+
+// HasClusterID returns true if the cluster has a clusterID
+func (cs *CSCloud) HasClusterID() bool {
+	return true
 }
 
 // GetZone returns the Zone containing the region that the program is running in.

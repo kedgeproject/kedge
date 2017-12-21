@@ -18,13 +18,13 @@ If you are running a cluster in Google Container Engine (GKE), instead see the [
 
 ### Step Zero: Prerequisites <a id="step-zero"></a>
 
-This example assumes that you have a working cluster. See the [Getting Started Guides](../../docs/getting-started-guides/) for details about creating a cluster.
+This example assumes that you have a working cluster. See the [Getting Started Guides](https://kubernetes.io/docs/getting-started-guides/) for details about creating a cluster.
 
-**Tip:** View all the `kubectl` commands, including their options and descriptions in the [kubectl CLI reference](../../docs/user-guide/kubectl/kubectl.md).
+**Tip:** View all the `kubectl` commands, including their options and descriptions in the [kubectl CLI reference](https://kubernetes.io/docs/user-guide/kubectl/kubectl.md).
 
 ### Step One: Create the Redis master pod<a id="step-one"></a>
 
-Use the `examples/guestbook-go/redis-master-controller.json` file to create a [replication controller](../../docs/user-guide/replication-controller.md) and Redis master [pod](../../docs/user-guide/pods.md). The pod runs a Redis key-value server in a container. Using a replication controller is the preferred way to launch long-running pods, even for 1 replica, so that the pod benefits from the self-healing mechanism in Kubernetes (keeps the pods alive).
+Use the `examples/guestbook-go/redis-master-controller.json` file to create a [replication controller](https://kubernetes.io/docs/user-guide/replication-controller.md) and Redis master [pod](https://kubernetes.io/docs/user-guide/pods.md). The pod runs a Redis key-value server in a container. Using a replication controller is the preferred way to launch long-running pods, even for 1 replica, so that the pod benefits from the self-healing mechanism in Kubernetes (keeps the pods alive).
 
 1. Use the [redis-master-controller.json](redis-master-controller.json) file to create the Redis master replication controller in your Kubernetes cluster by running the `kubectl create -f` *`filename`* command:
 
@@ -59,7 +59,7 @@ Use the `examples/guestbook-go/redis-master-controller.json` file to create a [r
 
     ```console
     me@workstation$ gcloud compute ssh --zone us-central1-b kubernetes-node-bz1p
-    
+
     me@kubernetes-node-3:~$ sudo docker ps
     CONTAINER ID        IMAGE     COMMAND                  CREATED             STATUS
     d5c458dabe50        redis     "/entrypoint.sh redis"   5 minutes ago       Up 5 minutes
@@ -69,7 +69,7 @@ Use the `examples/guestbook-go/redis-master-controller.json` file to create a [r
 
 ### Step Two: Create the Redis master service <a id="step-two"></a>
 
-A Kubernetes [service](../../docs/user-guide/services.md) is a named load balancer that proxies traffic to one or more pods. The services in a Kubernetes cluster are discoverable inside other pods via environment variables or DNS.
+A Kubernetes [service](https://kubernetes.io/docs/user-guide/services.md) is a named load balancer that proxies traffic to one or more pods. The services in a Kubernetes cluster are discoverable inside other pods via environment variables or DNS.
 
 Services find the pods to load balance based on pod labels. The pod that you created in Step One has the label `app=redis` and `role=master`. The selector field of the service determines which pods will receive the traffic sent to the service.
 
@@ -195,7 +195,7 @@ This is a simple Go `net/http` ([negroni](https://github.com/codegangsta/negroni
     redis-master-xx4uv             1/1       Running   0          23m
     redis-slave-b6wj4              1/1       Running   0          6m
     redis-slave-iai40              1/1       Running   0          6m
-    ... 
+    ...
     ```
 
     Result: You see a single Redis master, two Redis slaves, and three guestbook pods.
@@ -263,7 +263,7 @@ redis-slave
 ```
 
 Tip: To turn down your Kubernetes cluster, follow the corresponding instructions in the version of the
-[Getting Started Guides](../../docs/getting-started-guides/) that you previously used to create your cluster.
+[Getting Started Guides](https://kubernetes.io/docs/getting-started-guides/) that you previously used to create your cluster.
 
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->

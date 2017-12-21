@@ -18,8 +18,25 @@ package gce
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
+
+func TestExtraKeyInConfig(t *testing.T) {
+	const s = `[Global]
+project-id = my-project
+unknown-key = abc
+network-name = my-network
+   `
+	reader := strings.NewReader(s)
+	config, err := readConfig(reader)
+	if err != nil {
+		t.Fatalf("Unexpected config parsing error %v", err)
+	}
+	if config.Global.ProjectID != "my-project" || config.Global.NetworkName != "my-network" {
+		t.Fatalf("Expected config values to continue to be read despite extra key-value pair.")
+	}
+}
 
 func TestGetRegion(t *testing.T) {
 	zoneName := "us-central1-b"
@@ -149,12 +166,92 @@ func TestScrubDNS(t *testing.T) {
 	}
 }
 
-func TestCreateFirewallFails(t *testing.T) {
-	name := "loadbalancer"
-	region := "us-central1"
-	desc := "description"
-	gce := &GCECloud{}
-	if err := gce.createFirewall(name, region, desc, nil, nil, nil); err == nil {
-		t.Errorf("error expected when creating firewall without any tags found")
+func TestSplitProviderID(t *testing.T) {
+	providers := []struct {
+		providerID string
+
+		project  string
+		zone     string
+		instance string
+
+		fail bool
+	}{
+		{
+			providerID: ProviderName + "://project-example-164317/us-central1-f/kubernetes-node-fhx1",
+			project:    "project-example-164317",
+			zone:       "us-central1-f",
+			instance:   "kubernetes-node-fhx1",
+			fail:       false,
+		},
+		{
+			providerID: ProviderName + "://project-example.164317/us-central1-f/kubernetes-node-fhx1",
+			project:    "project-example.164317",
+			zone:       "us-central1-f",
+			instance:   "kubernetes-node-fhx1",
+			fail:       false,
+		},
+		{
+			providerID: ProviderName + "://project-example-164317/us-central1-fkubernetes-node-fhx1",
+			project:    "",
+			zone:       "",
+			instance:   "",
+			fail:       true,
+		},
+		{
+			providerID: ProviderName + ":/project-example-164317/us-central1-f/kubernetes-node-fhx1",
+			project:    "",
+			zone:       "",
+			instance:   "",
+			fail:       true,
+		},
+		{
+			providerID: "aws://project-example-164317/us-central1-f/kubernetes-node-fhx1",
+			project:    "",
+			zone:       "",
+			instance:   "",
+			fail:       true,
+		},
+		{
+			providerID: ProviderName + "://project-example-164317/us-central1-f/kubernetes-node-fhx1/",
+			project:    "",
+			zone:       "",
+			instance:   "",
+			fail:       true,
+		},
+		{
+			providerID: ProviderName + "://project-example.164317//kubernetes-node-fhx1",
+			project:    "",
+			zone:       "",
+			instance:   "",
+			fail:       true,
+		},
+		{
+			providerID: ProviderName + "://project-example.164317/kubernetes-node-fhx1",
+			project:    "",
+			zone:       "",
+			instance:   "",
+			fail:       true,
+		},
+	}
+
+	for _, test := range providers {
+		project, zone, instance, err := splitProviderID(test.providerID)
+		if (err != nil) != test.fail {
+			t.Errorf("Expected to failt=%t, with pattern %v", test.fail, test)
+		}
+
+		if test.fail {
+			continue
+		}
+
+		if project != test.project {
+			t.Errorf("Expected %v, but got %v", test.project, project)
+		}
+		if zone != test.zone {
+			t.Errorf("Expected %v, but got %v", test.zone, zone)
+		}
+		if instance != test.instance {
+			t.Errorf("Expected %v, but got %v", test.instance, instance)
+		}
 	}
 }

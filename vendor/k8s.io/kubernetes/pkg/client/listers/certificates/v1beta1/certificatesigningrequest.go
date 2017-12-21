@@ -20,10 +20,8 @@ package v1beta1
 
 import (
 	"k8s.io/apimachinery/pkg/api/errors"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/cache"
-	certificates "k8s.io/kubernetes/pkg/apis/certificates"
 	v1beta1 "k8s.io/kubernetes/pkg/apis/certificates/v1beta1"
 )
 
@@ -56,13 +54,12 @@ func (s *certificateSigningRequestLister) List(selector labels.Selector) (ret []
 
 // Get retrieves the CertificateSigningRequest from the index for a given name.
 func (s *certificateSigningRequestLister) Get(name string) (*v1beta1.CertificateSigningRequest, error) {
-	key := &v1beta1.CertificateSigningRequest{ObjectMeta: v1.ObjectMeta{Name: name}}
-	obj, exists, err := s.indexer.Get(key)
+	obj, exists, err := s.indexer.GetByKey(name)
 	if err != nil {
 		return nil, err
 	}
 	if !exists {
-		return nil, errors.NewNotFound(certificates.Resource("certificatesigningrequest"), name)
+		return nil, errors.NewNotFound(v1beta1.Resource("certificatesigningrequest"), name)
 	}
 	return obj.(*v1beta1.CertificateSigningRequest), nil
 }

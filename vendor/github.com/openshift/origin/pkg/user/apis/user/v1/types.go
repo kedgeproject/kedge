@@ -7,7 +7,9 @@ import (
 	kapi "k8s.io/kubernetes/pkg/api/v1"
 )
 
-// +genclient=true
+// +genclient
+// +genclient:nonNamespaced
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // Upon log in, every user of the system receives a User and Identity resource. Administrators
 // may directly manipulate the attributes of the users for their own tracking, or set groups
@@ -31,6 +33,8 @@ type User struct {
 	Groups []string `json:"groups" protobuf:"bytes,4,rep,name=groups"`
 }
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 // UserList is a collection of Users
 type UserList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -39,6 +43,10 @@ type UserList struct {
 	// Items is the list of users
 	Items []User `json:"items" protobuf:"bytes,2,rep,name=items"`
 }
+
+// +genclient
+// +genclient:nonNamespaced
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // Identity records a successful authentication of a user with an identity provider. The
 // information about the source of authentication is stored on the identity, and the identity
@@ -64,6 +72,8 @@ type Identity struct {
 	Extra map[string]string `json:"extra,omitempty" protobuf:"bytes,5,rep,name=extra"`
 }
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 // IdentityList is a collection of Identities
 type IdentityList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -72,6 +82,11 @@ type IdentityList struct {
 	// Items is the list of identities
 	Items []Identity `json:"items" protobuf:"bytes,2,rep,name=items"`
 }
+
+// +genclient
+// +genclient:nonNamespaced
+// +genclient:onlyVerbs=get,create,update,delete
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // UserIdentityMapping maps a user to an identity
 type UserIdentityMapping struct {
@@ -94,6 +109,10 @@ func (t OptionalNames) String() string {
 	return fmt.Sprintf("%v", []string(t))
 }
 
+// +genclient
+// +genclient:nonNamespaced
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 // Group represents a referenceable set of Users
 type Group struct {
 	metav1.TypeMeta `json:",inline"`
@@ -103,6 +122,8 @@ type Group struct {
 	// Users is the list of users in this group.
 	Users OptionalNames `json:"users" protobuf:"bytes,2,rep,name=users"`
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // GroupList is a collection of Groups
 type GroupList struct {

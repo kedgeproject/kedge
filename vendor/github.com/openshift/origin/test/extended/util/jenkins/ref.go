@@ -186,7 +186,7 @@ func (j *JenkinsRef) GetResourceWithStatus(validStatusList []int, timeout time.D
 			}
 		}
 		if !found {
-			ginkgolog("Expected http status [%v] during GET by recevied [%v]", validStatusList, status)
+			ginkgolog("Expected http status [%v] during GET by recevied [%v] for %s with body %s", validStatusList, status, resourcePathFormat, body)
 			return false, nil
 		}
 		retBody = body
@@ -327,6 +327,35 @@ func (j *JenkinsRef) GetJobConsoleLogs(jobName, buildNumber string) (string, err
 	return j.WaitForContent("", 200, 10*time.Minute, "job/%s/%s/consoleText", jobName, buildNumber)
 }
 
+// GetJobConsoleLogsAndMatchViaBuildResult leverages various information in the BuildResult and
+// returns the corresponding console logs, as well as look for matching string
+func (j *JenkinsRef) GetJobConsoleLogsAndMatchViaBuildResult(br *exutil.BuildResult, match string) (string, error) {
+	if br == nil {
+		return "", fmt.Errorf("passed in nil BuildResult")
+	}
+	if br.Build == nil {
+		if br.Oc == nil {
+			return "", fmt.Errorf("BuildResult oc should have been set up during BuildResult construction")
+		}
+		var err error // interestingly, removing this line and using := on the next got a compile error
+		br.Build, err = br.Oc.BuildClient().Build().Builds(br.Oc.Namespace()).Get(br.BuildName, metav1.GetOptions{})
+		if err != nil {
+			return "", err
+		}
+	}
+	bldURI := br.Build.Annotations[buildapi.BuildJenkinsLogURLAnnotation]
+	if len(bldURI) > 0 {
+		// need to strip the route host...WaitForContent will prepend the svc ip:port we need to use in ext tests
+		url, err := url.Parse(bldURI)
+		if err != nil {
+			return "", err
+		}
+		bldURI = strings.Trim(url.Path, "/")
+		return j.WaitForContent(match, 200, 10*time.Minute, bldURI)
+	}
+	return "", fmt.Errorf("build %#v is missing the build uri annontation", br.Build)
+}
+
 // GetLastJobConsoleLogs returns the last build associated with a Jenkins job.
 func (j *JenkinsRef) GetLastJobConsoleLogs(jobName string) (string, error) {
 	return j.GetJobConsoleLogs(jobName, "lastBuild")
@@ -372,7 +401,7 @@ func SetupSnapshotImage(envVarName, localImageName, snapshotImageStream string, 
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		g.By("waiting for build to finish")
-		err = exutil.WaitForABuild(oc.Client().Builds(oc.Namespace()), snapshotImageStream+"-1", exutil.CheckBuildSuccessFn, exutil.CheckBuildFailedFn, exutil.CheckBuildCancelledFn)
+		err = exutil.WaitForABuild(oc.BuildClient().Build().Builds(oc.Namespace()), snapshotImageStream+"-1", exutil.CheckBuildSuccessFn, exutil.CheckBuildFailedFn, exutil.CheckBuildCancelledFn)
 		if err != nil {
 			exutil.DumpBuildLogs(snapshotImageStream, oc)
 		}
@@ -424,7 +453,7 @@ func ProcessLogURLAnnotations(oc *exutil.CLI, t *exutil.BuildResult) (*url.URL, 
 func DumpLogs(oc *exutil.CLI, t *exutil.BuildResult) (string, error) {
 	var err error
 	if t.Build == nil {
-		t.Build, err = oc.Client().Builds(oc.Namespace()).Get(t.BuildName, metav1.GetOptions{})
+		t.Build, err = oc.BuildClient().Build().Builds(oc.Namespace()).Get(t.BuildName, metav1.GetOptions{})
 		if err != nil {
 			return "", fmt.Errorf("cannot retrieve build %s: %v", t.BuildName, err)
 		}

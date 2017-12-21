@@ -18,12 +18,12 @@ import (
 	"k8s.io/kubernetes/pkg/capabilities"
 
 	"github.com/openshift/origin/pkg/api/validation"
+	deployapi "github.com/openshift/origin/pkg/apps/apis/apps"
 	buildapi "github.com/openshift/origin/pkg/build/apis/build"
-	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
+	networkapi "github.com/openshift/origin/pkg/network/apis/network"
 	projectapi "github.com/openshift/origin/pkg/project/apis/project"
 	routeapi "github.com/openshift/origin/pkg/route/apis/route"
-	sdnapi "github.com/openshift/origin/pkg/sdn/apis/network"
 	templateapi "github.com/openshift/origin/pkg/template/apis/template"
 
 	// install all APIs
@@ -121,6 +121,7 @@ func TestExampleObjectSchemas(t *testing.T) {
 		"../test/integration/testdata": {
 			// TODO fix this test to  handle json and yaml
 			"project-request-template-with-quota": nil, // skip a yaml file
+			"test-replication-controller":         nil, // skip &api.ReplicationController
 			"test-deployment-config":              &deployapi.DeploymentConfig{},
 			"test-image":                          &imageapi.Image{},
 			"test-image-stream":                   &imageapi.ImageStream{},
@@ -130,7 +131,7 @@ func TestExampleObjectSchemas(t *testing.T) {
 			"test-service-with-finalizer":         &kapi.Service{},
 			"test-buildcli":                       &kapi.List{},
 			"test-buildcli-beta2":                 &kapi.List{},
-			"test-egress-network-policy":          &sdnapi.EgressNetworkPolicy{},
+			"test-egress-network-policy":          &networkapi.EgressNetworkPolicy{},
 		},
 		"../test/templates/testdata": {
 			"crunchydata-pod": nil, // Explicitly fails validation, but should pass transformation
@@ -179,13 +180,13 @@ func validateObject(path string, obj runtime.Object, t *testing.T) {
 		}
 
 		if namespaceRequired {
-			objectMeta, objectMetaErr := metav1.ObjectMetaFor(obj)
+			objectMeta, objectMetaErr := meta.Accessor(obj)
 			if objectMetaErr != nil {
 				t.Errorf("Expected no error, Got %v", objectMetaErr)
 				return
 			}
 
-			objectMeta.Namespace = metav1.NamespaceDefault
+			objectMeta.SetNamespace(metav1.NamespaceDefault)
 		}
 	}
 

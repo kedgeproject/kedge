@@ -460,6 +460,7 @@ items:
     resources:
     - endpoints
     - namespaces
+    - secrets
     - serviceaccounts
     verbs:
     - get
@@ -467,6 +468,7 @@ items:
     - ""
     resources:
     - endpoints
+    - secrets
     - serviceaccounts
     verbs:
     - update
@@ -670,13 +672,18 @@ items:
     verbs:
     - create
     - delete
-    - get
   - apiGroups:
     - ""
     resources:
     - pods/status
     verbs:
     - update
+  - apiGroups:
+    - ""
+    resources:
+    - pods/eviction
+    verbs:
+    - create
   - apiGroups:
     - ""
     resources:

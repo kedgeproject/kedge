@@ -27,6 +27,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	genericapirequest "k8s.io/apiserver/pkg/endpoints/request"
+	"k8s.io/apiserver/pkg/features"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 )
 
 // RESTUpdateStrategy defines the minimum validation, accepted input, and
@@ -63,16 +65,16 @@ type RESTUpdateStrategy interface {
 // TODO: add other common fields that require global validation.
 func validateCommonFields(obj, old runtime.Object, strategy RESTUpdateStrategy) (field.ErrorList, error) {
 	allErrs := field.ErrorList{}
-	objectMeta, err := metav1.ObjectMetaFor(obj)
+	objectMeta, err := meta.Accessor(obj)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get new object metadata: %v", err)
 	}
-	oldObjectMeta, err := metav1.ObjectMetaFor(old)
+	oldObjectMeta, err := meta.Accessor(old)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get old object metadata: %v", err)
 	}
-	allErrs = append(allErrs, genericvalidation.ValidateObjectMeta(objectMeta, strategy.NamespaceScoped(), path.ValidatePathSegmentName, field.NewPath("metadata"))...)
-	allErrs = append(allErrs, genericvalidation.ValidateObjectMetaUpdate(objectMeta, oldObjectMeta, field.NewPath("metadata"))...)
+	allErrs = append(allErrs, genericvalidation.ValidateObjectMetaAccessor(objectMeta, strategy.NamespaceScoped(), path.ValidatePathSegmentName, field.NewPath("metadata"))...)
+	allErrs = append(allErrs, genericvalidation.ValidateObjectMetaAccessorUpdate(objectMeta, oldObjectMeta, field.NewPath("metadata"))...)
 
 	return allErrs, nil
 }
@@ -90,19 +92,25 @@ func BeforeUpdate(strategy RESTUpdateStrategy, ctx genericapirequest.Context, ob
 			return errors.NewBadRequest("the namespace of the provided object does not match the namespace sent on the request")
 		}
 	} else {
-		objectMeta.Namespace = metav1.NamespaceNone
+		objectMeta.SetNamespace(metav1.NamespaceNone)
 	}
 	// Ensure requests cannot update generation
-	oldMeta, err := metav1.ObjectMetaFor(old)
+	oldMeta, err := meta.Accessor(old)
 	if err != nil {
 		return err
 	}
-	objectMeta.Generation = oldMeta.Generation
+	objectMeta.SetGeneration(oldMeta.GetGeneration())
+
+	// Ensure Initializers are not set unless the feature is enabled
+	if !utilfeature.DefaultFeatureGate.Enabled(features.Initializers) {
+		oldMeta.SetInitializers(nil)
+		objectMeta.SetInitializers(nil)
+	}
 
 	strategy.PrepareForUpdate(ctx, obj, old)
 
 	// ClusterName is ignored and should not be saved
-	objectMeta.ClusterName = ""
+	objectMeta.SetClusterName("")
 
 	// Ensure some common fields, like UID, are validated for all resources.
 	errs, err := validateCommonFields(obj, old, strategy)
@@ -112,7 +120,7 @@ func BeforeUpdate(strategy RESTUpdateStrategy, ctx genericapirequest.Context, ob
 
 	errs = append(errs, strategy.ValidateUpdate(ctx, obj, old)...)
 	if len(errs) > 0 {
-		return errors.NewInvalid(kind.GroupKind(), objectMeta.Name, errs)
+		return errors.NewInvalid(kind.GroupKind(), objectMeta.GetName(), errs)
 	}
 
 	strategy.Canonicalize(obj)
@@ -172,10 +180,7 @@ func (i *defaultUpdatedObjectInfo) UpdatedObject(ctx genericapirequest.Context, 
 	// so we don't return the original. BeforeUpdate can mutate the returned object, doing things like clearing ResourceVersion.
 	// If we're re-called, we need to be able to return the pristine version.
 	if newObj != nil {
-		newObj, err = i.copier.Copy(newObj)
-		if err != nil {
-			return nil, err
-		}
+		newObj = newObj.DeepCopyObject()
 	}
 
 	// Allow any configured transformers to update the new object

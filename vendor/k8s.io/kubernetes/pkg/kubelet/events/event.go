@@ -32,6 +32,12 @@ const (
 	BackOffStartContainer   = "BackOff"
 	ExceededGracePeriod     = "ExceededGracePeriod"
 
+	// Pod event reason list
+	FailedToKillPod                = "FailedKillPod"
+	FailedToCreatePodContainer     = "FailedCreatePodContainer"
+	FailedToMakePodDataDirectories = "Failed"
+	NetworkNotReady                = "NetworkNotReady"
+
 	// Image event reason list
 	PullingImage            = "Pulling"
 	PulledImage             = "Pulled"
@@ -47,6 +53,7 @@ const (
 	NodeNotSchedulable                   = "NodeNotSchedulable"
 	StartingKubelet                      = "Starting"
 	KubeletSetupFailed                   = "KubeletSetupFailed"
+	FailedAttachVolume                   = "FailedAttachVolume"
 	FailedDetachVolume                   = "FailedDetachVolume"
 	FailedMountVolume                    = "FailedMount"
 	FailedUnMountVolume                  = "FailedUnMount"
@@ -66,6 +73,9 @@ const (
 	FailedNodeAllocatableEnforcement     = "FailedNodeAllocatableEnforcement"
 	SuccessfulNodeAllocatableEnforcement = "NodeAllocatableEnforced"
 	UnsupportedMountOption               = "UnsupportedMountOption"
+	SandboxChanged                       = "SandboxChanged"
+	FailedCreatePodSandBox               = "FailedCreatePodSandBox"
+	FailedStatusPodSandBox               = "FailedPodSandBoxStatus"
 
 	// Image manager event reason list
 	InvalidDiskCapacity = "InvalidDiskCapacity"

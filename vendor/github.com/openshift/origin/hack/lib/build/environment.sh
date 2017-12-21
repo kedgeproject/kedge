@@ -28,6 +28,19 @@ function os::build::environment::create() {
         os::log::debug "Creating volume ${OS_BUILD_ENV_VOLUME}"
         docker volume create --name "${OS_BUILD_ENV_VOLUME}" > /dev/null
       fi
+
+      if [[ -n "${OS_BUILD_ENV_TMP_VOLUME:-}" ]]; then
+        if docker volume inspect "${OS_BUILD_ENV_TMP_VOLUME}" >/dev/null 2>&1; then
+          os::log::debug "Re-using volume ${OS_BUILD_ENV_TMP_VOLUME}"
+        else
+          # if OS_BUILD_ENV_VOLUME is set and no volume already exists, create a docker volume to
+          # store the working output so successive iterations can reuse shared code.
+          os::log::debug "Creating volume ${OS_BUILD_ENV_TMP_VOLUME}"
+          docker volume create --name "${OS_BUILD_ENV_TMP_VOLUME}" >/dev/null
+        fi
+        additional_context+=" -v ${OS_BUILD_ENV_TMP_VOLUME}:/tmp"
+      fi
+
       local workingdir
       workingdir=$( os::build::environment::release::workingdir )
       additional_context+=" -v ${OS_BUILD_ENV_VOLUME}:${workingdir}"
@@ -59,6 +72,11 @@ function os::build::environment::create() {
     fi
     if [[ "${cmd[0]}" == "/bin/sh" || "${cmd[0]}" == "/bin/bash" ]]; then
       additional_context+=" -it"
+    else
+      # container exit races with log collection so we
+      # need to sleep at the end but preserve the exit
+      # code of whatever the user asked for us to run
+      cmd=( '/bin/bash' '-c' "${cmd[*]}; return_code=\$?; sleep 1; exit \${return_code}" )
     fi
   fi
 
@@ -86,11 +104,22 @@ readonly -f os::build::environment::release::workingdir
 # (unless OS_BUILD_ENV_LEAVE_CONTAINER is set, in which case it will only stop the container).
 function os::build::environment::cleanup() {
   local container=$1
+  local volume=$2
+  local tmp_volume=$3
   os::log::debug "Stopping container ${container}"
   docker stop --time=0 "${container}" > /dev/null || true
   if [[ -z "${OS_BUILD_ENV_LEAVE_CONTAINER:-}" ]]; then
     os::log::debug "Removing container ${container}"
     docker rm "${container}" > /dev/null
+
+    if [[ -z "${OS_BUILD_ENV_REUSE_TMP_VOLUME:-}" ]]; then
+      os::log::debug "Removing tmp build volume"
+      os::build::environment::remove_volume "${tmp_volume}"
+    fi
+    if [[ -n "${OS_BUILD_ENV_CLEAN_BUILD_VOLUME:-}" ]]; then
+      os::log::debug "Removing build volume"
+      os::build::environment::remove_volume "${volume}"
+    fi
   fi
 }
 readonly -f os::build::environment::cleanup
@@ -187,22 +216,45 @@ function os::build::environment::withsource() {
 }
 readonly -f os::build::environment::withsource
 
+function os::build::environment::volume_name() {
+  local prefix=$1
+  local commit=$2
+  local volume=$3
+
+  if [[ -z "${volume}" ]]; then
+    volume="${prefix}-$( git rev-parse "${commit}" )"
+  fi
+
+  echo "${volume}" | tr '[:upper:]' '[:lower:]'
+}
+readonly -f os::build::environment::volume_name
+
+function os::build::environment::remove_volume() {
+  local volume=$1
+
+  if docker volume inspect "${volume}" >/dev/null 2>&1; then
+    os::log::debug "Removing volume ${volume}"
+    docker volume rm "${volume}" >/dev/null
+  fi
+}
+readonly -f os::build::environment::remove_volume
+
 # os::build::environment::run launches the container with the provided arguments and
 # the current commit (defaults to HEAD). The container is automatically cleaned up.
 function os::build::environment::run() {
   local commit="${OS_GIT_COMMIT:-HEAD}"
-  local volume="${OS_BUILD_ENV_REUSE_VOLUME:-}"
-  if [[ -z "${volume}" ]]; then
-    volume="origin-build-$( git rev-parse "${commit}" )"
-  fi
-  volume="$( echo "${volume}" | tr '[:upper:]' '[:lower:]' )"
+  local volume
+  local tmp_volume
+
+  volume="$( os::build::environment::volume_name "origin-build" "${commit}" "${OS_BUILD_ENV_REUSE_VOLUME:-}" )"
+  tmp_volume="$( os::build::environment::volume_name "origin-build-tmp" "${commit}" "${OS_BUILD_ENV_REUSE_TMP_VOLUME:-}" )"
+
   export OS_BUILD_ENV_VOLUME="${volume}"
+  export OS_BUILD_ENV_TMP_VOLUME="${tmp_volume}"
 
   if [[ -n "${OS_BUILD_ENV_VOLUME_FORCE_NEW:-}" ]]; then
-    if docker volume inspect "${volume}" >/dev/null 2>&1; then
-      os::log::debug "Removing volume ${volume}"
-      docker volume rm "${volume}"
-    fi
+    os::build::environment::remove_volume "${volume}"
+    os::build::environment::remove_volume "${tmp_volume}"
   fi
 
   if [[ -n "${OS_BUILD_ENV_PULL_IMAGE:-}" ]]; then
@@ -212,10 +264,11 @@ function os::build::environment::run() {
 
   os::log::debug "Using commit ${commit}"
   os::log::debug "Using volume ${volume}"
+  os::log::debug "Using tmp volume ${tmp_volume}"
 
   local container
   container="$( os::build::environment::create "$@" )"
-  trap "os::build::environment::cleanup ${container}" EXIT
+  trap "os::build::environment::cleanup ${container} ${volume} ${tmp_volume}" EXIT
 
   os::log::debug "Using container ${container}"
 

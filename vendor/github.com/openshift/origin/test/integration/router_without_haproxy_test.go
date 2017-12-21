@@ -37,10 +37,11 @@ const waitInterval = 50 * time.Millisecond
 func TestRouterNamespaceSync(t *testing.T) {
 	testutil.RequireEtcd(t)
 
-	routeclient, projectclient, kc, err := launchApi()
+	routeclient, projectclient, kc, fn, err := launchApi(t)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	defer fn()
 
 	// Create a route in a namespace without the label
 	namespace := createNamespace(t, kc)
@@ -89,12 +90,9 @@ func TestRouterNamespaceSync(t *testing.T) {
 	waitForRouterToHaveRoute(t, templatePlugin, route, false)
 }
 
-// TestRouterReloadSuppressionOnSync validates that the router will
-// not be reloaded until all events from the initial sync have been
-// processed.  Reload should similarly suppressed on subsequent
-// resyncs.
-func TestRouterReloadSuppressionOnSync(t *testing.T) {
-	defer testutil.DumpEtcdOnFailure(t)
+// TestRouterFirstReloadSuppressionOnSync validates that the router will not be reloaded
+// until all events from the initial sync have been processed.
+func TestRouterFirstReloadSuppressionOnSync(t *testing.T) {
 	stressRouter(
 		t,
 		// Allow the test to be configured to enable experimentation
@@ -107,12 +105,11 @@ func TestRouterReloadSuppressionOnSync(t *testing.T) {
 }
 
 func stressRouter(t *testing.T, namespaceCount, routesPerNamespace, routerCount, maxRouterDelay int32) {
-	testutil.RequireEtcd(t)
-
-	routeclient, projectclient, kc, err := launchApi()
+	routeclient, projectclient, kc, fn, err := launchApi(t)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	defer fn()
 
 	// Keep track of created routes to be able to verify against
 	// the processed router state.
@@ -145,7 +142,7 @@ func stressRouter(t *testing.T, namespaceCount, routesPerNamespace, routerCount,
 	plugins := []*templateplugin.TemplatePlugin{}
 
 	// Don't coalesce reloads to validate reload suppression during sync.
-	reloadInterval := 0
+	reloadInterval := 0 * time.Second
 
 	// Track reload counts indexed by router name.
 	reloadedMap := make(map[string]int)
@@ -291,32 +288,34 @@ func createRouteProperties(serviceName, host string) *routeapi.Route {
 
 // launchAPI launches an api server and returns clients configured to
 // access it.
-func launchApi() (routeinternalclientset.Interface, projectinternalclientset.Interface, kclientset.Interface, error) {
-	_, clusterAdminKubeConfig, err := testserver.StartTestMasterAPI()
+func launchApi(t *testing.T) (routeinternalclientset.Interface, projectinternalclientset.Interface, kclientset.Interface, func(), error) {
+	masterConfig, clusterAdminKubeConfig, err := testserver.StartTestMasterAPI()
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	kc, err := testutil.GetClusterAdminKubeClient(clusterAdminKubeConfig)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	cfg, err := testutil.GetClusterAdminClientConfig(clusterAdminKubeConfig)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	routeclient, err := routeinternalclientset.NewForConfig(cfg)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	projectclient, err := projectinternalclientset.NewForConfig(cfg)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
-	return routeclient, projectclient, kc, nil
+	return routeclient, projectclient, kc, func() {
+		testserver.CleanupMasterEtcd(t, masterConfig)
+	}, nil
 }
 
 // DelayPlugin implements the router.Plugin interface to introduce
@@ -365,7 +364,7 @@ func (p *DelayPlugin) Commit() error {
 
 // launchRateLimitedRouter launches a rate-limited template router
 // that communicates with the api via the provided clients.
-func launchRateLimitedRouter(t *testing.T, routeclient routeinternalclientset.Interface, projectclient projectinternalclientset.Interface, kc kclientset.Interface, name string, maxDelay int32, reloadInterval int, reloadedMap map[string]int) *templateplugin.TemplatePlugin {
+func launchRateLimitedRouter(t *testing.T, routeclient routeinternalclientset.Interface, projectclient projectinternalclientset.Interface, kc kclientset.Interface, name string, maxDelay int32, reloadInterval time.Duration, reloadedMap map[string]int) *templateplugin.TemplatePlugin {
 	reloadedMap[name] = 0
 	rateLimitingFunc := func() error {
 		reloadedMap[name] += 1
@@ -379,14 +378,14 @@ func launchRateLimitedRouter(t *testing.T, routeclient routeinternalclientset.In
 		plugin = NewDelayPlugin(plugin, maxDelay)
 	}
 
-	factory := controllerfactory.NewDefaultRouterControllerFactory(routeclient.Route(), kc)
+	factory := controllerfactory.NewDefaultRouterControllerFactory(routeclient, projectclient.Project().Projects(), kc)
 	ctrl := factory.Create(plugin, false, false)
 	ctrl.Run()
 
 	return templatePlugin
 }
 
-func initializeRouterPlugins(routeclient routeinternalclientset.Interface, projectclient projectinternalclientset.Interface, name string, reloadInterval int, rateLimitingFunc ratelimiter.HandlerFunc) (*templateplugin.TemplatePlugin, router.Plugin) {
+func initializeRouterPlugins(routeclient routeinternalclientset.Interface, projectclient projectinternalclientset.Interface, name string, reloadInterval time.Duration, rateLimitingFunc ratelimiter.HandlerFunc) (*templateplugin.TemplatePlugin, router.Plugin) {
 	r := templateplugin.NewFakeTemplateRouter()
 
 	r.EnableRateLimiter(reloadInterval, func() error {
@@ -408,13 +407,8 @@ func launchRouter(routeclient routeinternalclientset.Interface, projectclient pr
 	templatePlugin, plugin := initializeRouterPlugins(routeclient, projectclient, "test-router", 0, func() error {
 		return nil
 	})
-	factory := routerSelection.NewFactory(routeclient.Route(), projectclient.Project().Projects(), kc)
+	factory := routerSelection.NewFactory(routeclient, projectclient.Project().Projects(), kc)
 	ctrl := factory.Create(plugin, false, false)
-
-	// Minimize resync latency
-	ctrl.NamespaceSyncInterval = factory.ResyncInterval - 1*time.Second
-	ctrl.NamespaceWaitInterval = 1 * time.Second
-
 	ctrl.Run()
 
 	return templatePlugin

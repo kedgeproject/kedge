@@ -14,15 +14,17 @@ import (
 	kapi "k8s.io/kubernetes/pkg/api"
 
 	buildapi "github.com/openshift/origin/pkg/build/apis/build"
-	"github.com/openshift/origin/pkg/client"
-	"github.com/openshift/origin/pkg/generate/git"
+	buildclient "github.com/openshift/origin/pkg/build/generated/internalclientset"
+	buildclientinternal "github.com/openshift/origin/pkg/build/generated/internalclientset/typed/build/internalversion"
 	"github.com/openshift/origin/pkg/gitserver"
+
+	s2igit "github.com/openshift/source-to-image/pkg/scm/git"
 )
 
 type AutoLinkBuilds struct {
 	Namespaces []string
 	Builders   []kapi.ObjectReference
-	Client     client.BuildConfigsNamespacer
+	Client     buildclientinternal.BuildConfigsGetter
 
 	CurrentNamespace string
 
@@ -44,11 +46,11 @@ func NewAutoLinkBuildsFromEnvironment() (*AutoLinkBuilds, error) {
 	if err != nil {
 		return nil, err
 	}
-	client, err := client.New(clientConfig)
+	buildClient, err := buildclient.NewForConfig(clientConfig)
 	if err != nil {
 		return nil, err
 	}
-	config.Client = client
+	config.Client = buildClient.Build()
 
 	if value := os.Getenv("AUTOLINK_NAMESPACE"); len(value) > 0 {
 		namespace = value
@@ -144,7 +146,7 @@ func (a *AutoLinkBuilds) Link() (map[string]gitserver.Clone, error) {
 		if len(uri) == 0 {
 			continue
 		}
-		origin, err := git.ParseRepository(uri)
+		origin, err := s2igit.Parse(uri)
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -163,7 +165,7 @@ func (a *AutoLinkBuilds) Link() (map[string]gitserver.Clone, error) {
 		}
 
 		// we can't clone from ourself
-		if self.Host == origin.Host {
+		if self.Host == origin.URL.Host {
 			continue
 		}
 

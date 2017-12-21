@@ -1,37 +1,45 @@
 package strategy
 
 import (
-	"fmt"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/google/cadvisor/container/crio"
 
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation"
-	"k8s.io/apiserver/pkg/admission"
+	clienttesting "k8s.io/client-go/testing"
 	kapi "k8s.io/kubernetes/pkg/api"
+	kapihelper "k8s.io/kubernetes/pkg/api/helper"
 	"k8s.io/kubernetes/pkg/api/v1"
 
 	buildapi "github.com/openshift/origin/pkg/build/apis/build"
 	_ "github.com/openshift/origin/pkg/build/apis/build/install"
 	"github.com/openshift/origin/pkg/build/util"
+	buildutil "github.com/openshift/origin/pkg/build/util"
+	"github.com/openshift/origin/pkg/security/apis/security"
+	securityinternalversion "github.com/openshift/origin/pkg/security/generated/internalclientset/typed/security/internalversion"
+	"github.com/openshift/origin/pkg/security/generated/internalclientset/typed/security/internalversion/fake"
 )
 
-type FakeAdmissionControl struct {
-	admit bool
-}
+func newFakeSecurityClient(rootAllowed bool) securityinternalversion.SecurityInterface {
+	securityClient := &fake.FakeSecurity{Fake: &clienttesting.Fake{}}
+	securityClient.AddReactor("*", "*", func(clienttesting.Action) (bool, runtime.Object, error) {
+		var ref *kapi.ObjectReference
+		if rootAllowed {
+			ref = &kapi.ObjectReference{} // i.e., not nil
+		}
 
-func (a *FakeAdmissionControl) Admit(attr admission.Attributes) (err error) {
-	if a.admit {
-		return nil
-	}
-	return fmt.Errorf("pod not allowed")
-}
-
-func (a *FakeAdmissionControl) Handles(operation admission.Operation) bool {
-	return true
+		return true, &security.PodSecurityPolicySubjectReview{
+			Status: security.PodSecurityPolicySubjectReviewStatus{
+				AllowedBy: ref,
+			},
+		}, nil
+	})
+	return securityClient
 }
 
 func TestSTICreateBuildPodRootNotAllowed(t *testing.T) {
@@ -46,9 +54,9 @@ var nodeSelector = map[string]string{"node": "mynode"}
 
 func testSTICreateBuildPod(t *testing.T, rootAllowed bool) {
 	strategy := &SourceBuildStrategy{
-		Image:            "sti-test-image",
-		Codec:            kapi.Codecs.LegacyCodec(buildapi.LegacySchemeGroupVersion),
-		AdmissionControl: &FakeAdmissionControl{admit: rootAllowed},
+		Image:          "sti-test-image",
+		Codec:          kapi.Codecs.LegacyCodec(buildapi.LegacySchemeGroupVersion),
+		SecurityClient: newFakeSecurityClient(rootAllowed),
 	}
 
 	build := mockSTIBuild()
@@ -81,34 +89,37 @@ func testSTICreateBuildPod(t *testing.T, rootAllowed bool) {
 		t.Errorf("Expected never, got %#v", actual.Spec.RestartPolicy)
 	}
 
-	// strategy ENV is whitelisted into the container environment, and not all
-	// the values are allowed, so only expect 10 not 11 values.
-	expectedEnvCount := 10
+	// strategy ENV variables are whitelisted(filtered) into the container environment, and not all
+	// the values are allowed, so don't expect to see the filtered values in the result.
+	expectedKeys := map[string]string{"BUILD": "", "SOURCE_REPOSITORY": "", "SOURCE_URI": "", "SOURCE_CONTEXT_DIR": "", "SOURCE_REF": "", "ORIGIN_VERSION": "", "BUILD_LOGLEVEL": "", "PUSH_DOCKERCFG_PATH": "", "PULL_DOCKERCFG_PATH": ""}
 	if !rootAllowed {
-		expectedEnvCount = 12
+		expectedKeys["ALLOWED_UIDS"] = ""
+		expectedKeys["DROP_CAPS"] = ""
 	}
-	if len(container.Env) != expectedEnvCount {
-		var keys []string
-		for _, env := range container.Env {
-			keys = append(keys, env.Name)
-		}
-		t.Fatalf("Expected 11 elements in Env table, got %d:\n%s", len(container.Env), strings.Join(keys, ", "))
+	gotKeys := map[string]string{}
+	for _, k := range container.Env {
+		gotKeys[k.Name] = ""
 	}
-	if len(container.VolumeMounts) != 4 {
-		t.Fatalf("Expected 4 volumes in container, got %d", len(container.VolumeMounts))
+	if !reflect.DeepEqual(expectedKeys, gotKeys) {
+		t.Errorf("Expected environment keys:\n%v\ngot keys\n%v", expectedKeys, gotKeys)
 	}
-	for i, expected := range []string{dockerSocketPath, DockerPushSecretMountPath, DockerPullSecretMountPath, sourceSecretMountPath} {
+
+	// the pod has 6 volumes but the git source secret is not mounted into the main container.
+	if len(container.VolumeMounts) != 5 {
+		t.Fatalf("Expected 5 volumes in container, got %d", len(container.VolumeMounts))
+	}
+	for i, expected := range []string{buildutil.BuildWorkDirMount, dockerSocketPath, crio.CrioSocket, DockerPushSecretMountPath, DockerPullSecretMountPath} {
 		if container.VolumeMounts[i].MountPath != expected {
 			t.Fatalf("Expected %s in VolumeMount[%d], got %s", expected, i, container.VolumeMounts[i].MountPath)
 		}
 	}
-	if len(actual.Spec.Volumes) != 4 {
-		t.Fatalf("Expected 4 volumes in Build pod, got %d", len(actual.Spec.Volumes))
+	if len(actual.Spec.Volumes) != 6 {
+		t.Fatalf("Expected 6 volumes in Build pod, got %d", len(actual.Spec.Volumes))
 	}
 	if *actual.Spec.ActiveDeadlineSeconds != 60 {
 		t.Errorf("Expected ActiveDeadlineSeconds 60, got %d", *actual.Spec.ActiveDeadlineSeconds)
 	}
-	if !kapi.Semantic.DeepEqual(container.Resources, util.CopyApiResourcesToV1Resources(&build.Spec.Resources)) {
+	if !kapihelper.Semantic.DeepEqual(container.Resources, util.CopyApiResourcesToV1Resources(&build.Spec.Resources)) {
 		t.Fatalf("Expected actual=expected, %v != %v", container.Resources, build.Spec.Resources)
 	}
 	found := false
@@ -125,7 +136,7 @@ func testSTICreateBuildPod(t *testing.T, rootAllowed bool) {
 		if v.Name == buildapi.AllowedUIDs && v.Value == "1-" {
 			foundAllowedUIDs = true
 		}
-		if v.Name == buildapi.DropCapabilities && v.Value == "KILL,MKNOD,SETGID,SETUID,SYS_CHROOT" {
+		if v.Name == buildapi.DropCapabilities && v.Value == "KILL,MKNOD,SETGID,SETUID" {
 			foundDropCaps = true
 		}
 	}
@@ -156,13 +167,15 @@ func testSTICreateBuildPod(t *testing.T, rootAllowed bool) {
 			t.Errorf("Expected %s:%s, got %s:%s!\n", exp[0], exp[1], e.Name, e.Value)
 		}
 	}
+
+	checkAliasing(t, actual)
 }
 
 func TestS2IBuildLongName(t *testing.T) {
 	strategy := &SourceBuildStrategy{
-		Image:            "sti-test-image",
-		Codec:            kapi.Codecs.LegacyCodec(buildapi.LegacySchemeGroupVersion),
-		AdmissionControl: &FakeAdmissionControl{admit: true},
+		Image:          "sti-test-image",
+		Codec:          kapi.Codecs.LegacyCodec(buildapi.LegacySchemeGroupVersion),
+		SecurityClient: newFakeSecurityClient(true),
 	}
 	build := mockSTIBuild()
 	build.Name = strings.Repeat("a", validation.DNS1123LabelMaxLength*2)

@@ -6,25 +6,20 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	authorizationclient "github.com/openshift/origin/pkg/authorization/generated/internalclientset"
 	authorizationinterfaces "github.com/openshift/origin/pkg/authorization/interfaces"
-	policy "github.com/openshift/origin/pkg/cmd/admin/policy"
 	"github.com/openshift/origin/pkg/cmd/server/bootstrappolicy"
+	policy "github.com/openshift/origin/pkg/oc/admin/policy"
 	testutil "github.com/openshift/origin/test/util"
 	testserver "github.com/openshift/origin/test/util/server"
 )
 
 func TestPolicyCommands(t *testing.T) {
-	testutil.RequireEtcd(t)
-	defer testutil.DumpEtcdOnFailure(t)
-	_, clusterAdminKubeConfig, err := testserver.StartTestMasterAPI()
+	masterConfig, clusterAdminKubeConfig, err := testserver.StartTestMasterAPI()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-
-	clusterAdminClient, err := testutil.GetClusterAdminClient(clusterAdminKubeConfig)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	defer testserver.CleanupMasterEtcd(t, masterConfig)
 
 	clusterAdminClientConfig, err := testutil.GetClusterAdminClientConfig(clusterAdminKubeConfig)
 	if err != nil {
@@ -33,14 +28,15 @@ func TestPolicyCommands(t *testing.T) {
 
 	const projectName = "hammer-project"
 
-	haroldClient, err := testserver.CreateNewProject(clusterAdminClient, *clusterAdminClientConfig, projectName, "harold")
+	_, haroldConfig, err := testserver.CreateNewProject(clusterAdminClientConfig, projectName, "harold")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	haroldAuthorizationClient := authorizationclient.NewForConfigOrDie(haroldConfig)
 
 	addViewer := policy.RoleModificationOptions{
 		RoleName:            bootstrappolicy.ViewRoleName,
-		RoleBindingAccessor: policy.NewLocalRoleBindingAccessor(projectName, haroldClient),
+		RoleBindingAccessor: policy.NewLocalRoleBindingAccessor(projectName, haroldAuthorizationClient),
 		Users:               []string{"valerie"},
 		Groups:              []string{"my-group"},
 	}
@@ -49,7 +45,7 @@ func TestPolicyCommands(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	viewers, err := haroldClient.RoleBindings(projectName).Get("view", metav1.GetOptions{})
+	viewers, err := haroldAuthorizationClient.RoleBindings(projectName).Get("view", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -63,7 +59,7 @@ func TestPolicyCommands(t *testing.T) {
 
 	removeValerie := policy.RemoveFromProjectOptions{
 		BindingNamespace: projectName,
-		Client:           haroldClient,
+		Client:           haroldAuthorizationClient,
 		Users:            []string{"valerie"},
 		Out:              ioutil.Discard,
 	}
@@ -71,7 +67,7 @@ func TestPolicyCommands(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	viewers, err = haroldClient.RoleBindings(projectName).Get("view", metav1.GetOptions{})
+	viewers, err = haroldAuthorizationClient.RoleBindings(projectName).Get("view", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -85,7 +81,7 @@ func TestPolicyCommands(t *testing.T) {
 
 	removeMyGroup := policy.RemoveFromProjectOptions{
 		BindingNamespace: projectName,
-		Client:           haroldClient,
+		Client:           haroldAuthorizationClient,
 		Groups:           []string{"my-group"},
 		Out:              ioutil.Discard,
 	}
@@ -93,7 +89,7 @@ func TestPolicyCommands(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	viewers, err = haroldClient.RoleBindings(projectName).Get("view", metav1.GetOptions{})
+	viewers, err = haroldAuthorizationClient.RoleBindings(projectName).Get("view", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

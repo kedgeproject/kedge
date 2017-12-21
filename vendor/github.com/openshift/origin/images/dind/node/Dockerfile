@@ -21,12 +21,24 @@ RUN dnf -y update && dnf -y install\
  bridge-utils\
  ethtool\
  iptables-services\
- openvswitch
+ conntrack-tools\
+ openvswitch\
+ python-netaddr\
+ python2-pyroute2\
+ python2-requests\
+ PyYAML\
+ cri-o
 
-# Upgrade to a newer OVS. (This can go away when the base image is upgraded to F26.)
+# Remove the CRI-O CNI network configs so openshift-sdn's will be used instead
+RUN rm -f /etc/cni/net.d/*
+
+# Upgrade to a newer OVS and install OVN packages that are only available
+# with the newer release. (This can go away when the base image is upgraded to
+# OVS 2.8 prerelease or release versions and include OVN sub-packages)
 RUN dnf -y install dnf-plugins-core &&\
  dnf -y copr enable danw/origin-dind-ovs &&\
- dnf -y update openvswitch
+ dnf -y update openvswitch &&\
+ dnf -y install openvswitch-ovn-*
 
 # A default deny firewall (either iptables or firewalld) is
 # installed by default on non-cloud fedora and rhel, so all
@@ -57,8 +69,7 @@ RUN mkdir -p /opt/cni/bin
 # Symlink from the data path intended to be mounted as a volume to
 # make reloading easy.  Revisit if/when dind becomes useful for more
 # than dev/test.
-RUN ln -sf /data/openshift-sdn-ovs /usr/local/bin/ && \
-    ln -sf /data/openshift /usr/local/bin/ && \
+RUN ln -sf /data/openshift /usr/local/bin/ && \
     ln -sf /data/openshift /usr/local/bin/oc && \
     ln -sf /data/openshift /usr/local/bin/oadm && \
     ln -sf /data/openshift /usr/local/bin/osc && \
@@ -67,9 +78,24 @@ RUN ln -sf /data/openshift-sdn-ovs /usr/local/bin/ && \
     ln -sf /data/openshift /usr/local/bin/openshift-deploy && \
     ln -sf /data/openshift /usr/local/bin/openshift-docker-build && \
     ln -sf /data/openshift /usr/local/bin/openshift-sti-build && \
+    ln -sf /data/openshift /usr/local/bin/openshift-git-clone && \
+    ln -sf /data/openshift /usr/local/bin/openshift-manage-dockerfile && \
+    ln -sf /data/openshift /usr/local/bin/openshift-extract-image-content && \
     ln -sf /data/openshift /usr/local/bin/openshift-f5-router && \
     ln -sf /data/openshift-sdn /opt/cni/bin/ && \
     ln -sf /data/host-local    /opt/cni/bin/ && \
     ln -sf /data/loopback      /opt/cni/bin/
 
 ENV KUBECONFIG /data/openshift.local.config/master/admin.kubeconfig
+
+COPY ovn-kubernetes-node-setup.service /etc/systemd/system/
+COPY ovn-kubernetes-node-setup.sh /usr/local/bin/
+RUN systemctl enable ovn-kubernetes-node-setup.service
+
+COPY ovn-kubernetes-node.service /etc/systemd/system/
+COPY ovn-kubernetes-node.sh /usr/local/bin/
+RUN systemctl enable ovn-kubernetes-node.service
+
+COPY crio-node.sh /usr/local/bin/
+COPY crio-node.service /etc/systemd/system/
+RUN systemctl enable crio-node.service

@@ -34,6 +34,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/quota"
+	_ "k8s.io/kubernetes/pkg/util/reflector/prometheus" // for reflector metric registration
 	_ "k8s.io/kubernetes/pkg/util/workqueue/prometheus" // for workqueue metric registration
 	resourcequotaapi "k8s.io/kubernetes/plugin/pkg/admission/resourcequota/apis/resourcequota"
 )
@@ -342,8 +343,8 @@ func filterLimitedResourcesByGroupResource(input []resourcequotaapi.LimitedResou
 	return result
 }
 
-// limitedByDefault determines from the specfified usage and limitedResources the set of resources names
-// that must be present in a covering quota.  It returns an error if it was unable to determine if
+// limitedByDefault determines from the specified usage and limitedResources the set of resources names
+// that must be present in a covering quota.  It returns empty set if it was unable to determine if
 // a resource was not limited by default.
 func limitedByDefault(usage api.ResourceList, limitedResources []resourcequotaapi.LimitedResource) []api.ResourceName {
 	result := []api.ResourceName{}
@@ -365,7 +366,7 @@ func limitedByDefault(usage api.ResourceList, limitedResources []resourcequotaap
 }
 
 // checkRequest verifies that the request does not exceed any quota constraint. it returns a copy of quotas not yet persisted
-// that capture what the usage would be if the request succeeded.  It return an error if the is insufficient quota to satisfy the request
+// that capture what the usage would be if the request succeeded.  It return an error if there is insufficient quota to satisfy the request
 func (e *quotaEvaluator) checkRequest(quotas []api.ResourceQuota, a admission.Attributes) ([]api.ResourceQuota, error) {
 	namespace := a.GetNamespace()
 	evaluators := e.registry.Evaluators()

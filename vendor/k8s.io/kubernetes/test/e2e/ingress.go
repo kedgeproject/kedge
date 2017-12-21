@@ -46,7 +46,7 @@ var _ = framework.KubeDescribe("Loadbalancing: L7", func() {
 
 		// this test wants powerful permissions.  Since the namespace names are unique, we can leave this
 		// lying around so we don't have to race any caches
-		framework.BindClusterRole(jig.Client.RbacV1beta1(), f.ClientPool, "cluster-admin", f.Namespace.Name,
+		framework.BindClusterRole(jig.Client.Rbac(), "cluster-admin", f.Namespace.Name,
 			rbacv1beta1.Subject{Kind: rbacv1beta1.ServiceAccountKind, Namespace: f.Namespace.Name, Name: "default"})
 
 		err := framework.WaitForAuthorizationUpdate(jig.Client.AuthorizationV1beta1(),
@@ -87,7 +87,7 @@ var _ = framework.KubeDescribe("Loadbalancing: L7", func() {
 				return
 			}
 			By("Deleting ingress")
-			jig.DeleteIngress()
+			jig.TryDeleteIngress()
 
 			By("Cleaning up cloud resources")
 			framework.CleanupGCEIngressController(gceController)
@@ -144,7 +144,7 @@ var _ = framework.KubeDescribe("Loadbalancing: L7", func() {
 	})
 
 	// Time: borderline 5m, slow by design
-	framework.KubeDescribe("Nginx", func() {
+	framework.KubeDescribe("[Slow] Nginx", func() {
 		var nginxController *framework.NginxIngressController
 
 		BeforeEach(func() {
@@ -177,7 +177,7 @@ var _ = framework.KubeDescribe("Loadbalancing: L7", func() {
 				return
 			}
 			By("Deleting ingress")
-			jig.DeleteIngress()
+			jig.TryDeleteIngress()
 		})
 
 		It("should conform to Ingress spec", func() {

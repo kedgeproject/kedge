@@ -21,14 +21,15 @@ import (
 	"github.com/docker/distribution/registry/api/errcode"
 	registryclient "github.com/docker/distribution/registry/client"
 	"github.com/docker/distribution/registry/client/auth"
+	"github.com/docker/distribution/registry/client/auth/challenge"
 	"github.com/docker/distribution/registry/client/transport"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kapi "k8s.io/kubernetes/pkg/api"
 
-	"github.com/openshift/origin/pkg/dockerregistry"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
 	"github.com/openshift/origin/pkg/image/apis/image/dockerpre012"
+	dockerregistry "github.com/openshift/origin/pkg/image/importer/dockerv1client"
 )
 
 // ErrNotV2Registry is returned when the server does not report itself as a V2 Docker registry
@@ -45,20 +46,57 @@ func NewContext(transport, insecureTransport http.RoundTripper) Context {
 	return Context{
 		Transport:         transport,
 		InsecureTransport: insecureTransport,
-		Challenges:        auth.NewSimpleChallengeManager(),
+		Challenges:        challenge.NewSimpleManager(),
+		Actions:           []string{"pull"},
+		Retries:           2,
 	}
 }
 
 type Context struct {
 	Transport         http.RoundTripper
 	InsecureTransport http.RoundTripper
-	Challenges        auth.ChallengeManager
+	Challenges        challenge.Manager
+	Scopes            []auth.Scope
+	Actions           []string
+	Retries           int
+}
+
+func (c Context) WithScopes(scopes ...auth.Scope) Context {
+	c.Scopes = scopes
+	return c
+}
+
+func (c Context) WithActions(actions ...string) Context {
+	c.Actions = actions
+	return c
 }
 
 func (c Context) WithCredentials(credentials auth.CredentialStore) RepositoryRetriever {
+	return c.WithAuthHandlers(func(rt http.RoundTripper, _ *url.URL, repoName string) []auth.AuthenticationHandler {
+		scopes := make([]auth.Scope, 0, 1+len(c.Scopes))
+		scopes = append(scopes, c.Scopes...)
+		if len(c.Actions) == 0 {
+			scopes = append(scopes, auth.RepositoryScope{Repository: repoName, Actions: []string{"pull"}})
+		} else {
+			scopes = append(scopes, auth.RepositoryScope{Repository: repoName, Actions: c.Actions})
+		}
+		return []auth.AuthenticationHandler{
+			auth.NewTokenHandlerWithOptions(auth.TokenHandlerOptions{
+				Transport:   rt,
+				Credentials: credentials,
+				Scopes:      scopes,
+			}),
+			auth.NewBasicHandler(credentials),
+		}
+	})
+}
+
+type AuthHandlersFunc func(transport http.RoundTripper, registry *url.URL, repoName string) []auth.AuthenticationHandler
+
+func (c Context) WithAuthHandlers(fn AuthHandlersFunc) RepositoryRetriever {
 	return &repositoryRetriever{
 		context:     c,
-		credentials: credentials,
+		credentials: fn,
 
 		pings:    make(map[url.URL]error),
 		redirect: make(map[url.URL]*url.URL),
@@ -67,7 +105,7 @@ func (c Context) WithCredentials(credentials auth.CredentialStore) RepositoryRet
 
 type repositoryRetriever struct {
 	context     Context
-	credentials auth.CredentialStore
+	credentials AuthHandlersFunc
 
 	pings    map[url.URL]error
 	redirect map[url.URL]*url.URL
@@ -84,6 +122,9 @@ func (r *repositoryRetriever) Repository(ctx gocontext.Context, registry *url.UR
 		t = r.context.InsecureTransport
 	}
 	src := *registry
+	if len(src.Scheme) == 0 {
+		src.Scheme = "https"
+	}
 	// ping the registry to get challenge headers
 	if err, ok := r.pings[src]; ok {
 		if err != nil {
@@ -110,8 +151,7 @@ func (r *repositoryRetriever) Repository(ctx gocontext.Context, registry *url.UR
 		// TODO: make multiple attempts if the first credential fails
 		auth.NewAuthorizer(
 			r.context.Challenges,
-			auth.NewTokenHandler(t, r.credentials, repoName, "pull"),
-			auth.NewBasicHandler(r.credentials),
+			r.credentials(t, registry, repoName)...,
 		),
 	)
 
@@ -119,7 +159,10 @@ func (r *repositoryRetriever) Repository(ctx gocontext.Context, registry *url.UR
 	if err != nil {
 		return nil, err
 	}
-	return NewRetryRepository(repo, 2, 3/2*time.Second), nil
+	if r.context.Retries > 0 {
+		return NewRetryRepository(repo, r.context.Retries, 3/2*time.Second), nil
+	}
+	return repo, nil
 }
 
 func (r *repositoryRetriever) ping(registry url.URL, insecure bool, transport http.RoundTripper) (*url.URL, error) {
@@ -136,7 +179,7 @@ func (r *repositoryRetriever) ping(registry url.URL, insecure bool, transport ht
 	resp, err := pingClient.Do(req)
 	if err != nil {
 		if insecure && registry.Scheme == "https" {
-			glog.V(5).Infof("Falling back to an HTTP check for an insecure registry %s: %v", registry, err)
+			glog.V(5).Infof("Falling back to an HTTP check for an insecure registry %s: %v", registry.String(), err)
 			registry.Scheme = "http"
 			_, nErr := r.ping(registry, true, transport)
 			if nErr != nil {
@@ -151,7 +194,14 @@ func (r *repositoryRetriever) ping(registry url.URL, insecure bool, transport ht
 	versions := auth.APIVersions(resp, "Docker-Distribution-API-Version")
 	if len(versions) == 0 {
 		glog.V(5).Infof("Registry responded to v2 Docker endpoint, but has no header for Docker Distribution %s: %d, %#v", req.URL, resp.StatusCode, resp.Header)
-		return nil, &ErrNotV2Registry{Registry: registry.String()}
+		switch {
+		case resp.StatusCode >= 200 && resp.StatusCode < 300:
+			// v2
+		case resp.StatusCode == http.StatusUnauthorized, resp.StatusCode == http.StatusForbidden:
+			// v2
+		default:
+			return nil, &ErrNotV2Registry{Registry: registry.String()}
+		}
 	}
 
 	r.context.Challenges.AddResponse(resp)
@@ -228,7 +278,7 @@ func schema0ToImage(dockerImage *dockerregistry.Image) (*imageapi.Image, error) 
 
 	image := &imageapi.Image{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: dockerImage.ID,
+			Name: dockerImage.Image.ID,
 		},
 		DockerImageMetadata:        baseImage,
 		DockerImageMetadataVersion: "1.0",

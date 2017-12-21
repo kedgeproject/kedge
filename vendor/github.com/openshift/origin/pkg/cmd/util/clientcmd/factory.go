@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/pkg/apis/apps"
 	kclientcmd "k8s.io/client-go/tools/clientcmd"
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/api/v1"
@@ -25,12 +26,11 @@ import (
 	"k8s.io/kubernetes/pkg/controller"
 	kcmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 	"k8s.io/kubernetes/pkg/kubectl/resource"
+	"k8s.io/kubernetes/pkg/printers"
 
+	deployapi "github.com/openshift/origin/pkg/apps/apis/apps"
 	buildapi "github.com/openshift/origin/pkg/build/apis/build"
 	"github.com/openshift/origin/pkg/cmd/util"
-	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
-	deployutil "github.com/openshift/origin/pkg/deploy/util"
-	imageapi "github.com/openshift/origin/pkg/image/apis/image"
 )
 
 // New creates a default Factory for commands that should share identical server
@@ -66,15 +66,16 @@ func NewFactory(optionalClientConfig kclientcmd.ClientConfig) *Factory {
 
 // PrintResourceInfos receives a list of resource infos and prints versioned objects if a generic output format was specified
 // otherwise, it iterates through info objects, printing each resource with a unique printer for its mapping
-func (f *Factory) PrintResourceInfos(cmd *cobra.Command, infos []*resource.Info, out io.Writer) error {
-	printer, generic, err := f.PrinterForCommand(cmd)
+func (f *Factory) PrintResourceInfos(cmd *cobra.Command, isLocal bool, infos []*resource.Info, out io.Writer) error {
+	// mirrors PrintResourceInfoForCommand upstream
+	printer, err := f.PrinterForCommand(cmd, isLocal, nil, printers.PrintOptions{})
 	if err != nil {
 		return nil
 	}
-	if !generic {
+	if !printer.IsGeneric() {
 		for _, info := range infos {
 			mapping := info.ResourceMapping()
-			printer, err := f.PrinterForMapping(cmd, mapping, false)
+			printer, err := f.PrinterForMapping(cmd, isLocal, nil, mapping, false)
 			if err != nil {
 				return err
 			}
@@ -124,6 +125,9 @@ func (f *Factory) UpdateObjectEnvironment(obj runtime.Object, fn func(*[]api.Env
 		if t.Spec.Strategy.DockerStrategy != nil {
 			return true, fn(&t.Spec.Strategy.DockerStrategy.Env)
 		}
+		if t.Spec.Strategy.JenkinsPipelineStrategy != nil {
+			return true, fn(&t.Spec.Strategy.JenkinsPipelineStrategy.Env)
+		}
 	}
 	return false, fmt.Errorf("object does not contain any environment variables")
 }
@@ -142,87 +146,6 @@ func (f *Factory) ExtractFileContents(obj runtime.Object) (map[string][]byte, bo
 		return out, true, nil
 	default:
 		return nil, false, nil
-	}
-}
-
-// ApproximatePodTemplateForObject returns a pod template object for the provided source.
-// It may return both an error and a object. It attempt to return the best possible template
-// available at the current time.
-func (f *Factory) ApproximatePodTemplateForObject(object runtime.Object) (*api.PodTemplateSpec, error) {
-	switch t := object.(type) {
-	case *imageapi.ImageStreamTag:
-		// create a minimal pod spec that uses the image referenced by the istag without any introspection
-		// it possible that we could someday do a better job introspecting it
-		return &api.PodTemplateSpec{
-			Spec: api.PodSpec{
-				RestartPolicy: api.RestartPolicyNever,
-				Containers: []api.Container{
-					{Name: "container-00", Image: t.Image.DockerImageReference},
-				},
-			},
-		}, nil
-	case *imageapi.ImageStreamImage:
-		// create a minimal pod spec that uses the image referenced by the istag without any introspection
-		// it possible that we could someday do a better job introspecting it
-		return &api.PodTemplateSpec{
-			Spec: api.PodSpec{
-				RestartPolicy: api.RestartPolicyNever,
-				Containers: []api.Container{
-					{Name: "container-00", Image: t.Image.DockerImageReference},
-				},
-			},
-		}, nil
-	case *deployapi.DeploymentConfig:
-		fallback := t.Spec.Template
-
-		_, kc, err := f.Clients()
-		if err != nil {
-			return fallback, err
-		}
-
-		latestDeploymentName := deployutil.LatestDeploymentNameForConfig(t)
-		deployment, err := kc.Core().ReplicationControllers(t.Namespace).Get(latestDeploymentName, metav1.GetOptions{})
-		if err != nil {
-			return fallback, err
-		}
-
-		fallback = deployment.Spec.Template
-
-		pods, err := kc.Core().Pods(deployment.Namespace).List(metav1.ListOptions{LabelSelector: labels.SelectorFromSet(deployment.Spec.Selector).String()})
-		if err != nil {
-			return fallback, err
-		}
-
-		for i := range pods.Items {
-			pod := &pods.Items[i]
-			if fallback == nil || pod.CreationTimestamp.Before(fallback.CreationTimestamp) {
-				fallback = &api.PodTemplateSpec{
-					ObjectMeta: pod.ObjectMeta,
-					Spec:       pod.Spec,
-				}
-			}
-		}
-		return fallback, nil
-
-	default:
-		pod, err := f.AttachablePodForObject(object)
-		if pod != nil {
-			return &api.PodTemplateSpec{
-				ObjectMeta: pod.ObjectMeta,
-				Spec:       pod.Spec,
-			}, err
-		}
-		switch t := object.(type) {
-		case *api.ReplicationController:
-			return t.Spec.Template, err
-		case *extensions.ReplicaSet:
-			return &t.Spec.Template, err
-		case *extensions.DaemonSet:
-			return &t.Spec.Template, err
-		case *batch.Job:
-			return &t.Spec.Template, err
-		}
-		return nil, err
 	}
 }
 
@@ -257,11 +180,15 @@ func (f *Factory) PodForResource(resource string, timeout time.Duration) (string
 		}
 		return pod.Name, nil
 	case deployapi.Resource("deploymentconfigs"), deployapi.LegacyResource("deploymentconfigs"):
-		oc, kc, err := f.Clients()
+		appsClient, err := f.OpenshiftInternalAppsClient()
 		if err != nil {
 			return "", err
 		}
-		dc, err := oc.DeploymentConfigs(namespace).Get(name, metav1.GetOptions{})
+		kc, err := f.ClientSet()
+		if err != nil {
+			return "", err
+		}
+		dc, err := appsClient.Apps().DeploymentConfigs(namespace).Get(name, metav1.GetOptions{})
 		if err != nil {
 			return "", err
 		}
@@ -307,6 +234,24 @@ func (f *Factory) PodForResource(resource string, timeout time.Duration) (string
 			return "", err
 		}
 		return pod.Name, nil
+	case apps.Resource("statefulsets"):
+		kc, err := f.ClientSet()
+		if err != nil {
+			return "", err
+		}
+		s, err := kc.Apps().StatefulSets(namespace).Get(name, metav1.GetOptions{})
+		if err != nil {
+			return "", err
+		}
+		selector, err := metav1.LabelSelectorAsSelector(s.Spec.Selector)
+		if err != nil {
+			return "", err
+		}
+		pod, _, err := kcmdutil.GetFirstPod(kc.Core(), namespace, selector, timeout, sortBy)
+		if err != nil {
+			return "", err
+		}
+		return pod.Name, nil
 	case extensions.Resource("replicasets"):
 		kc, err := f.ClientSet()
 		if err != nil {
@@ -325,17 +270,6 @@ func (f *Factory) PodForResource(resource string, timeout time.Duration) (string
 			return "", err
 		}
 		return pod.Name, nil
-	case extensions.Resource("jobs"):
-		kc, err := f.ClientSet()
-		if err != nil {
-			return "", err
-		}
-		// TODO/REBASE kc.Extensions() doesn't exist any more. Is this ok?
-		job, err := kc.Batch().Jobs(namespace).Get(name, metav1.GetOptions{})
-		if err != nil {
-			return "", err
-		}
-		return podNameForJob(job, kc, timeout, sortBy)
 	case batch.Resource("jobs"):
 		kc, err := f.ClientSet()
 		if err != nil {

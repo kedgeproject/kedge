@@ -17,16 +17,18 @@ import (
 	clientgotesting "k8s.io/client-go/testing"
 
 	buildapi "github.com/openshift/origin/pkg/build/apis/build"
+	buildfake "github.com/openshift/origin/pkg/build/generated/internalclientset/fake"
 	buildutil "github.com/openshift/origin/pkg/build/util"
-	"github.com/openshift/origin/pkg/client/testclient"
 )
 
 var (
 	configName           = strings.Repeat("a", validation.DNS1123LabelMaxLength)
 	longConfigNameA      = strings.Repeat("0", 250) + "a"
 	longConfigNameB      = strings.Repeat("0", 250) + "b"
-	buildsResource       = schema.GroupVersionResource{Group: "", Version: "", Resource: "builds"}
-	buildConfigsResource = schema.GroupVersionResource{Group: "", Version: "", Resource: "buildconfigs"}
+	buildsResource       = schema.GroupVersionResource{Group: "build.openshift.io", Version: "", Resource: "builds"}
+	buildKind            = schema.GroupVersionKind{Group: "build.openshift.io", Version: "", Kind: "Build"}
+	buildConfigsResource = schema.GroupVersionResource{Group: "build.openshift.io", Version: "", Resource: "buildconfigs"}
+	buildConfigKind      = schema.GroupVersionKind{Group: "build.openshift.io", Version: "", Kind: "BuildConfig"}
 )
 
 func makeBuildConfig(configName string, version int64, deleting bool) *buildapi.BuildConfig {
@@ -84,8 +86,8 @@ func makeBuildList(configName string, version int) *buildapi.BuildList {
 	return list
 }
 
-func newBuildListFake(objects ...runtime.Object) *testclient.Fake {
-	fake := testclient.NewSimpleFake(objects...)
+func newBuildListFake(objects ...runtime.Object) *buildfake.Clientset {
+	fake := buildfake.NewSimpleClientset(objects...)
 	fake.PrependReactor("list", "builds", func(action clientgotesting.Action) (handled bool, ret runtime.Object, err error) {
 		selector := action.(clientgotesting.ListAction).GetListRestrictions().Labels
 		retList := &buildapi.BuildList{}
@@ -121,14 +123,14 @@ func actionsAreEqual(a, b clientgotesting.Action) bool {
 }
 
 func TestStop(t *testing.T) {
-	notFoundClient := &testclient.Fake{} //(notFound(), makeBuildList(configName, 2))
+	notFoundClient := &buildfake.Clientset{} //(notFound(), makeBuildList(configName, 2))
 	notFoundClient.AddReactor("*", "*", func(action clientgotesting.Action) (handled bool, ret runtime.Object, err error) {
 		return true, nil, kerrors.NewNotFound(buildapi.Resource("BuildConfig"), configName)
 	})
 
 	tests := map[string]struct {
 		targetBC string
-		oc       *testclient.Fake
+		oc       *buildfake.Clientset
 		expected []clientgotesting.Action
 		err      bool
 	}{
@@ -138,8 +140,8 @@ func TestStop(t *testing.T) {
 			expected: []clientgotesting.Action{
 				clientgotesting.NewGetAction(buildConfigsResource, "default", configName),
 				// Since there are no builds associated with this build config, do not expect an update
-				clientgotesting.NewListAction(buildsResource, "default", metav1.ListOptions{LabelSelector: buildutil.BuildConfigSelector(configName).String()}),
-				clientgotesting.NewListAction(buildsResource, "default", metav1.ListOptions{LabelSelector: buildutil.BuildConfigSelectorDeprecated(configName).String()}),
+				clientgotesting.NewListAction(buildsResource, buildKind, "default", metav1.ListOptions{LabelSelector: buildutil.BuildConfigSelector(configName).String()}),
+				clientgotesting.NewListAction(buildsResource, buildKind, "default", metav1.ListOptions{LabelSelector: buildutil.BuildConfigSelectorDeprecated(configName).String()}),
 				clientgotesting.NewDeleteAction(buildConfigsResource, "default", configName),
 			},
 			err: false,
@@ -149,8 +151,8 @@ func TestStop(t *testing.T) {
 			oc:       newBuildListFake(makeBuildConfig(configName, 4, false), makeBuildList(configName, 4)),
 			expected: []clientgotesting.Action{
 				clientgotesting.NewGetAction(buildConfigsResource, "default", configName),
-				clientgotesting.NewListAction(buildsResource, "default", metav1.ListOptions{LabelSelector: buildutil.BuildConfigSelector(configName).String()}),
-				clientgotesting.NewListAction(buildsResource, "default", metav1.ListOptions{LabelSelector: buildutil.BuildConfigSelectorDeprecated(configName).String()}),
+				clientgotesting.NewListAction(buildsResource, buildKind, "default", metav1.ListOptions{LabelSelector: buildutil.BuildConfigSelector(configName).String()}),
+				clientgotesting.NewListAction(buildsResource, buildKind, "default", metav1.ListOptions{LabelSelector: buildutil.BuildConfigSelectorDeprecated(configName).String()}),
 				clientgotesting.NewGetAction(buildConfigsResource, "default", configName),                              // Second GET to enable conflict retry logic
 				clientgotesting.NewUpdateAction(buildConfigsResource, "default", makeBuildConfig(configName, 4, true)), // Because this bc has builds, it is paused
 				clientgotesting.NewDeleteAction(buildsResource, "default", "build-"+configName+"-1"),
@@ -166,8 +168,8 @@ func TestStop(t *testing.T) {
 			oc:       newBuildListFake(makeBuildConfig(longConfigNameA, 4, false), makeBuildList(longConfigNameA, 4), makeBuildList(longConfigNameB, 4)),
 			expected: []clientgotesting.Action{
 				clientgotesting.NewGetAction(buildConfigsResource, "default", longConfigNameA),
-				clientgotesting.NewListAction(buildsResource, "default", metav1.ListOptions{LabelSelector: buildutil.BuildConfigSelector(longConfigNameA).String()}),
-				clientgotesting.NewListAction(buildsResource, "default", metav1.ListOptions{LabelSelector: buildutil.BuildConfigSelectorDeprecated(longConfigNameA).String()}),
+				clientgotesting.NewListAction(buildsResource, buildKind, "default", metav1.ListOptions{LabelSelector: buildutil.BuildConfigSelector(longConfigNameA).String()}),
+				clientgotesting.NewListAction(buildsResource, buildKind, "default", metav1.ListOptions{LabelSelector: buildutil.BuildConfigSelectorDeprecated(longConfigNameA).String()}),
 				clientgotesting.NewGetAction(buildConfigsResource, "default", longConfigNameA),                              // Second GET to enable conflict retry logic
 				clientgotesting.NewUpdateAction(buildConfigsResource, "default", makeBuildConfig(longConfigNameA, 4, true)), // Because this bc has builds, it is paused
 				clientgotesting.NewDeleteAction(buildsResource, "default", "build-"+longConfigNameA+"-1"),
@@ -188,11 +190,11 @@ func TestStop(t *testing.T) {
 		},
 		"config, no builds": {
 			targetBC: configName,
-			oc:       testclient.NewSimpleFake(makeBuildConfig(configName, 0, false)),
+			oc:       buildfake.NewSimpleClientset(makeBuildConfig(configName, 0, false)),
 			expected: []clientgotesting.Action{
 				clientgotesting.NewGetAction(buildConfigsResource, "default", configName),
-				clientgotesting.NewListAction(buildsResource, "default", metav1.ListOptions{LabelSelector: buildutil.BuildConfigSelector(configName).String()}),
-				clientgotesting.NewListAction(buildsResource, "default", metav1.ListOptions{LabelSelector: buildutil.BuildConfigSelectorDeprecated(configName).String()}),
+				clientgotesting.NewListAction(buildsResource, buildKind, "default", metav1.ListOptions{LabelSelector: buildutil.BuildConfigSelector(configName).String()}),
+				clientgotesting.NewListAction(buildsResource, buildKind, "default", metav1.ListOptions{LabelSelector: buildutil.BuildConfigSelectorDeprecated(configName).String()}),
 				clientgotesting.NewDeleteAction(buildConfigsResource, "default", configName),
 			},
 			err: false,
@@ -200,7 +202,7 @@ func TestStop(t *testing.T) {
 	}
 
 	for testName, test := range tests {
-		reaper := &BuildConfigReaper{oc: test.oc, pollInterval: time.Millisecond, timeout: time.Millisecond}
+		reaper := &BuildConfigReaper{buildClient: test.oc, pollInterval: time.Millisecond, timeout: time.Millisecond}
 		err := reaper.Stop("default", test.targetBC, 1*time.Second, nil)
 
 		if !test.err && err != nil {

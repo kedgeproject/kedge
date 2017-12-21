@@ -17,11 +17,6 @@ os::log::system::start
 
 os::util::ensure::iptables_privileges_exist
 
-# Allow setting $JUNIT_REPORT to toggle output behavior
-if [[ -n "${JUNIT_REPORT:-}" ]]; then
-    export JUNIT_REPORT_OUTPUT="${LOG_DIR}/raw_test_output.log"
-fi
-
 # Always keep containers' raw output for simplicity
 junit_gssapi_output="${LOG_DIR}/raw_test_output_gssapi.log"
 
@@ -53,11 +48,6 @@ cp "${SERVER_CONFIG_DIR}/master/master-config.yaml" "${SERVER_CONFIG_DIR}/master
 openshift ex config patch "${SERVER_CONFIG_DIR}/master/master-config.tmp.yaml" --patch="${oauth_patch}" > "${SERVER_CONFIG_DIR}/master/master-config.yaml"
 os::start::server
 
-# Allow setting $JUNIT_REPORT to toggle output behavior
-if [[ -n "${JUNIT_REPORT:-}" ]]; then
-	export JUNIT_REPORT_OUTPUT="${LOG_DIR}/raw_test_output.log"
-fi
-
 export KUBECONFIG="${ADMIN_KUBECONFIG}"
 
 os::start::registry
@@ -65,7 +55,7 @@ os::cmd::expect_success 'oc rollout status dc/docker-registry'
 
 os::cmd::expect_success 'oc login -u system:admin'
 os::cmd::expect_success "oc new-project ${project_name}"
-os::cmd::expect_success "oadm policy add-scc-to-user anyuid -z default -n ${project_name}"
+os::cmd::expect_success "oc adm policy add-scc-to-user anyuid -z default -n ${project_name}"
 
 # create all the resources we need
 os::cmd::expect_success "oc create -f '${test_data_location}/proxy'"

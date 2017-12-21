@@ -32,10 +32,11 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	informers "k8s.io/kubernetes/pkg/client/informers/informers_generated/externalversions"
+	"k8s.io/kubernetes/pkg/controller"
 	"k8s.io/kubernetes/pkg/controller/garbagecollector/metaonly"
+	_ "k8s.io/kubernetes/pkg/util/reflector/prometheus" // for reflector metric registration
 	// install the prometheus plugin
 	_ "k8s.io/kubernetes/pkg/util/workqueue/prometheus"
 	// import known versions
@@ -80,6 +81,7 @@ func NewGarbageCollector(
 	deletableResources map[schema.GroupVersionResource]struct{},
 	ignoredResources map[schema.GroupResource]struct{},
 	sharedInformers informers.SharedInformerFactory,
+	informersStarted <-chan struct{},
 ) (*GarbageCollector, error) {
 	attemptToDelete := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "garbage_collector_attempt_to_delete")
 	attemptToOrphan := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "garbage_collector_attempt_to_orphan")
@@ -94,6 +96,7 @@ func NewGarbageCollector(
 	}
 	gb := &GraphBuilder{
 		metaOnlyClientPool:                  metaOnlyClientPool,
+		informersStarted:                    informersStarted,
 		registeredRateLimiterForControllers: NewRegisteredRateLimiter(deletableResources),
 		restMapper:                          mapper,
 		graphChanges:                        workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "garbage_collector_graph_changes"),
@@ -115,25 +118,31 @@ func NewGarbageCollector(
 }
 
 func (gc *GarbageCollector) Run(workers int, stopCh <-chan struct{}) {
+	defer utilruntime.HandleCrash()
 	defer gc.attemptToDelete.ShutDown()
 	defer gc.attemptToOrphan.ShutDown()
 	defer gc.dependencyGraphBuilder.graphChanges.ShutDown()
 
-	glog.Infof("Garbage Collector: Initializing")
+	glog.Infof("Starting garbage collector controller")
+	defer glog.Infof("Shutting down garbage collector controller")
+
 	gc.dependencyGraphBuilder.Run(stopCh)
-	if !cache.WaitForCacheSync(stopCh, gc.dependencyGraphBuilder.HasSynced) {
+
+	if !controller.WaitForCacheSync("garbage collector", stopCh, gc.dependencyGraphBuilder.HasSynced) {
 		return
 	}
-	glog.Infof("Garbage Collector: All resource monitors have synced. Proceeding to collect garbage")
+
+	glog.Infof("Garbage collector: all resource monitors have synced. Proceeding to collect garbage")
 
 	// gc workers
 	for i := 0; i < workers; i++ {
 		go wait.Until(gc.runAttemptToDeleteWorker, 1*time.Second, stopCh)
 		go wait.Until(gc.runAttemptToOrphanWorker, 1*time.Second, stopCh)
 	}
+
 	Register()
+
 	<-stopCh
-	glog.Infof("Garbage Collector: Shutting down")
 }
 
 func (gc *GarbageCollector) HasSynced() bool {
@@ -212,7 +221,7 @@ func (gc *GarbageCollector) isDangling(reference metav1.OwnerReference, item *no
 	// TODO: It's only necessary to talk to the API server if the owner node
 	// is a "virtual" node. The local graph could lag behind the real
 	// status, but in practice, the difference is small.
-	owner, err = client.Resource(resource, item.identity.Namespace).Get(reference.Name)
+	owner, err = client.Resource(resource, item.identity.Namespace).Get(reference.Name, metav1.GetOptions{})
 	switch {
 	case errors.IsNotFound(err):
 		gc.absentOwnerCache.Add(reference.UID)
@@ -405,7 +414,6 @@ func (gc *GarbageCollector) processDeletingDependentsItem(item *node) error {
 
 // dependents are copies of pointers to the owner's dependents, they don't need to be locked.
 func (gc *GarbageCollector) orphanDependents(owner objectReference, dependents []*node) error {
-	var failedDependents []objectReference
 	var errorsSlice []error
 	for _, dependent := range dependents {
 		// the dependent.identity.UID is used as precondition
@@ -414,10 +422,10 @@ func (gc *GarbageCollector) orphanDependents(owner objectReference, dependents [
 		// note that if the target ownerReference doesn't exist in the
 		// dependent, strategic merge patch will NOT return an error.
 		if err != nil && !errors.IsNotFound(err) {
-			errorsSlice = append(errorsSlice, fmt.Errorf("orphaning %s failed with %v", dependent.identity, err))
+			errorsSlice = append(errorsSlice, fmt.Errorf("orphaning %s failed, %v", dependent.identity, err))
 		}
 	}
-	if len(failedDependents) != 0 {
+	if len(errorsSlice) != 0 {
 		return fmt.Errorf("failed to orphan dependents of owner %s, got errors: %s", owner, utilerrors.NewAggregate(errorsSlice).Error())
 	}
 	glog.V(5).Infof("successfully updated all dependents of owner %s", owner)
@@ -455,14 +463,14 @@ func (gc *GarbageCollector) attemptToOrphanWorker() bool {
 
 	err := gc.orphanDependents(owner.identity, dependents)
 	if err != nil {
-		glog.V(5).Infof("orphanDependents for %s failed with %v", owner.identity, err)
+		utilruntime.HandleError(fmt.Errorf("orphanDependents for %s failed with %v", owner.identity, err))
 		gc.attemptToOrphan.AddRateLimited(item)
 		return true
 	}
 	// update the owner, remove "orphaningFinalizer" from its finalizers list
 	err = gc.removeFinalizer(owner, metav1.FinalizerOrphanDependents)
 	if err != nil {
-		glog.V(5).Infof("removeOrphanFinalizer for %s failed with %v", owner.identity, err)
+		utilruntime.HandleError(fmt.Errorf("removeOrphanFinalizer for %s failed with %v", owner.identity, err))
 		gc.attemptToOrphan.AddRateLimited(item)
 	}
 	return true

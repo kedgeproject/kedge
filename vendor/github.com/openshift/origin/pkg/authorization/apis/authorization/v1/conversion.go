@@ -6,11 +6,10 @@ import (
 	"k8s.io/apimachinery/pkg/conversion"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
+	kapi "k8s.io/kubernetes/pkg/api"
 
-	oapi "github.com/openshift/origin/pkg/api"
-	"github.com/openshift/origin/pkg/api/extension"
+	"github.com/openshift/origin/pkg/api/apihelpers"
 	newer "github.com/openshift/origin/pkg/authorization/apis/authorization"
-	uservalidation "github.com/openshift/origin/pkg/user/apis/user/validation"
 )
 
 func Convert_v1_SubjectAccessReview_To_authorization_SubjectAccessReview(in *SubjectAccessReview, out *newer.SubjectAccessReview, s conversion.Scope) error {
@@ -93,7 +92,7 @@ func Convert_authorization_ResourceAccessReviewResponse_To_v1_ResourceAccessRevi
 
 func Convert_v1_PolicyRule_To_authorization_PolicyRule(in *PolicyRule, out *newer.PolicyRule, s conversion.Scope) error {
 	SetDefaults_PolicyRule(in)
-	if err := oapi.Convert_runtime_RawExtension_To_runtime_Object(&in.AttributeRestrictions, &out.AttributeRestrictions, s); err != nil {
+	if err := apihelpers.Convert_runtime_RawExtension_To_runtime_Object(kapi.Scheme, &in.AttributeRestrictions, &out.AttributeRestrictions, s); err != nil {
 		return err
 	}
 
@@ -113,7 +112,7 @@ func Convert_v1_PolicyRule_To_authorization_PolicyRule(in *PolicyRule, out *newe
 }
 
 func Convert_authorization_PolicyRule_To_v1_PolicyRule(in *newer.PolicyRule, out *PolicyRule, s conversion.Scope) error {
-	if err := oapi.Convert_runtime_Object_To_runtime_RawExtension(&in.AttributeRestrictions, &out.AttributeRestrictions, s); err != nil {
+	if err := apihelpers.Convert_runtime_Object_To_runtime_RawExtension(kapi.Scheme, &in.AttributeRestrictions, &out.AttributeRestrictions, s); err != nil {
 		return err
 	}
 
@@ -152,7 +151,7 @@ func Convert_v1_RoleBinding_To_authorization_RoleBinding(in *RoleBinding, out *n
 		return nil
 	}
 
-	out.Subjects = newer.BuildSubjects(in.UserNames, in.GroupNames, uservalidation.ValidateUserName, uservalidation.ValidateGroupName)
+	out.Subjects = newer.BuildSubjects(in.UserNames, in.GroupNames)
 
 	return nil
 }
@@ -198,7 +197,7 @@ func Convert_v1_ClusterRoleBinding_To_authorization_ClusterRoleBinding(in *Clust
 		return nil
 	}
 
-	out.Subjects = newer.BuildSubjects(in.UserNames, in.GroupNames, uservalidation.ValidateUserName, uservalidation.ValidateGroupName)
+	out.Subjects = newer.BuildSubjects(in.UserNames, in.GroupNames)
 
 	return nil
 }
@@ -394,72 +393,30 @@ func addConversionFuncs(scheme *runtime.Scheme) error {
 		return err
 	}
 
-	if err := scheme.AddFieldLabelConversionFunc("v1", "ClusterPolicy",
-		oapi.GetFieldLabelConversionFunc(newer.ClusterPolicyToSelectableFields(&newer.ClusterPolicy{}), nil),
-	); err != nil {
-		return err
-	}
-	if err := scheme.AddFieldLabelConversionFunc(SchemeGroupVersion.String(), "ClusterPolicy",
-		oapi.GetFieldLabelConversionFunc(newer.ClusterPolicyToSelectableFields(&newer.ClusterPolicy{}), nil),
-	); err != nil {
-		return err
-	}
+	return nil
+}
 
-	if err := scheme.AddFieldLabelConversionFunc("v1", "ClusterPolicyBinding",
-		oapi.GetFieldLabelConversionFunc(newer.ClusterPolicyBindingToSelectableFields(&newer.ClusterPolicyBinding{}), nil),
-	); err != nil {
-		return err
-	}
-	if err := scheme.AddFieldLabelConversionFunc(SchemeGroupVersion.String(), "ClusterPolicyBinding",
-		oapi.GetFieldLabelConversionFunc(newer.ClusterPolicyBindingToSelectableFields(&newer.ClusterPolicyBinding{}), nil),
-	); err != nil {
-		return err
-	}
-
-	if err := scheme.AddFieldLabelConversionFunc("v1", "Policy",
-		oapi.GetFieldLabelConversionFunc(newer.PolicyToSelectableFields(&newer.Policy{}), nil),
-	); err != nil {
-		return err
-	}
-	if err := scheme.AddFieldLabelConversionFunc(SchemeGroupVersion.String(), "Policy",
-		oapi.GetFieldLabelConversionFunc(newer.PolicyToSelectableFields(&newer.Policy{}), nil),
-	); err != nil {
-		return err
-	}
-
-	if err := scheme.AddFieldLabelConversionFunc("v1", "PolicyBinding",
-		oapi.GetFieldLabelConversionFunc(newer.PolicyBindingToSelectableFields(&newer.PolicyBinding{}), nil),
-	); err != nil {
-		return err
-	}
-	if err := scheme.AddFieldLabelConversionFunc(SchemeGroupVersion.String(), "PolicyBinding",
-		oapi.GetFieldLabelConversionFunc(newer.PolicyBindingToSelectableFields(&newer.PolicyBinding{}), nil),
-	); err != nil {
-		return err
-	}
-
-	if err := scheme.AddFieldLabelConversionFunc("v1", "Role",
-		oapi.GetFieldLabelConversionFunc(newer.RoleToSelectableFields(&newer.Role{}), nil),
-	); err != nil {
-		return err
-	}
-	if err := scheme.AddFieldLabelConversionFunc(SchemeGroupVersion.String(), "Role",
-		oapi.GetFieldLabelConversionFunc(newer.RoleToSelectableFields(&newer.Role{}), nil),
-	); err != nil {
-		return err
-	}
-
-	if err := scheme.AddFieldLabelConversionFunc("v1", "RoleBinding",
-		oapi.GetFieldLabelConversionFunc(newer.RoleBindingToSelectableFields(&newer.RoleBinding{}), nil),
-	); err != nil {
-		return err
-	}
-	if err := scheme.AddFieldLabelConversionFunc(SchemeGroupVersion.String(), "RoleBinding",
-		oapi.GetFieldLabelConversionFunc(newer.RoleBindingToSelectableFields(&newer.RoleBinding{}), nil),
-	); err != nil {
+func addLegacyFieldSelectorKeyConversions(scheme *runtime.Scheme) error {
+	if err := scheme.AddFieldLabelConversionFunc(LegacySchemeGroupVersion.String(), "PolicyBinding", legacyPolicyBindingFieldSelectorKeyConversionFunc); err != nil {
 		return err
 	}
 	return nil
+}
+
+func addFieldSelectorKeyConversions(scheme *runtime.Scheme) error {
+	return nil
+}
+
+// because field selectors can vary in support by version they are exposed under, we have one function for each
+// groupVersion we're registering for
+
+func legacyPolicyBindingFieldSelectorKeyConversionFunc(label, value string) (internalLabel, internalValue string, err error) {
+	switch label {
+	case "policyRef.namespace":
+		return label, value, nil
+	default:
+		return runtime.DefaultMetaV1FieldSelectorConversion(label, value)
+	}
 }
 
 var _ runtime.NestedObjectDecoder = &PolicyRule{}
@@ -468,11 +425,11 @@ var _ runtime.NestedObjectEncoder = &PolicyRule{}
 func (c *PolicyRule) DecodeNestedObjects(d runtime.Decoder) error {
 	// decoding failures result in a runtime.Unknown object being created in Object and passed
 	// to conversion
-	extension.DecodeNestedRawExtensionOrUnknown(d, &c.AttributeRestrictions)
+	apihelpers.DecodeNestedRawExtensionOrUnknown(d, &c.AttributeRestrictions)
 	return nil
 }
 func (c *PolicyRule) EncodeNestedObjects(e runtime.Encoder) error {
-	return extension.EncodeNestedRawExtension(e, &c.AttributeRestrictions)
+	return apihelpers.EncodeNestedRawExtension(e, &c.AttributeRestrictions)
 }
 
 var _ runtime.NestedObjectDecoder = &SelfSubjectRulesReview{}

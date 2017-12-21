@@ -1,9 +1,7 @@
 package templaterouter
 
 import (
-	"fmt"
 	"reflect"
-	"strings"
 	"testing"
 	"time"
 
@@ -171,17 +169,26 @@ func (r *TestRouter) DeleteEndpoints(id string) {
 	}
 }
 
+func (r *TestRouter) calculateServiceWeights(serviceUnits map[string]int32) map[string]int32 {
+	var serviceWeights = make(map[string]int32)
+	for key := range serviceUnits {
+		serviceWeights[key] = serviceUnits[key]
+	}
+	return serviceWeights
+}
+
 // AddRoute adds a ServiceAliasConfig and associated ServiceUnits for the route
 func (r *TestRouter) AddRoute(route *routeapi.Route) {
-	routeKey := r.routeKey(route)
+	routeKey := getKey(route)
 
 	config := ServiceAliasConfig{
-		Host:             route.Spec.Host,
-		Path:             route.Spec.Path,
-		ServiceUnitNames: getServiceUnits(route),
+		Host:         route.Spec.Host,
+		Path:         route.Spec.Path,
+		ServiceUnits: getServiceUnits(route),
 	}
+	config.ServiceUnitNames = r.calculateServiceWeights(config.ServiceUnits)
 
-	for key := range config.ServiceUnitNames {
+	for key := range config.ServiceUnits {
 		r.CreateServiceUnit(key)
 	}
 
@@ -190,7 +197,7 @@ func (r *TestRouter) AddRoute(route *routeapi.Route) {
 
 // RemoveRoute removes the service alias config for Route
 func (r *TestRouter) RemoveRoute(route *routeapi.Route) {
-	routeKey := r.routeKey(route)
+	routeKey := getKey(route)
 	_, ok := r.State[routeKey]
 	if !ok {
 		return
@@ -217,7 +224,7 @@ func (r *TestRouter) FilterNamespaces(namespaces sets.String) {
 	for k := range r.ServiceUnits {
 		// TODO: the id of a service unit should be defined inside this class, not passed in from the outside
 		//   remove the leak of the abstraction when we refactor this code
-		ns := strings.SplitN(k, "/", 2)[0]
+		ns, _ := getPartsFromEndpointsKey(k)
 		if namespaces.Has(ns) {
 			continue
 		}
@@ -225,7 +232,7 @@ func (r *TestRouter) FilterNamespaces(namespaces sets.String) {
 	}
 
 	for k := range r.State {
-		ns := strings.SplitN(k, "-", 2)[0]
+		ns, _ := getPartsFromRouteKey(k)
 		if namespaces.Has(ns) {
 			continue
 		}
@@ -233,9 +240,9 @@ func (r *TestRouter) FilterNamespaces(namespaces sets.String) {
 	}
 }
 
-// routeKey create an identifier for the route consisting of host-path
-func (r *TestRouter) routeKey(route *routeapi.Route) string {
-	return route.Spec.Host + "-" + route.Spec.Path
+// getKey create an identifier for the route consisting of host-path
+func getKey(route *routeapi.Route) string {
+	return routeKeyFromParts(route.Spec.Host, route.Spec.Path)
 }
 
 func (r *TestRouter) Commit() {
@@ -494,7 +501,7 @@ func TestHandleRoute(t *testing.T) {
 			},
 		},
 	}
-	serviceUnitKey := fmt.Sprintf("%s/%s", route.Namespace, route.Spec.To.Name)
+	serviceUnitKey := endpointsKeyFromParts(route.Namespace, route.Spec.To.Name)
 
 	plugin.HandleRoute(watch.Added, route)
 
@@ -503,10 +510,10 @@ func TestHandleRoute(t *testing.T) {
 	if !ok {
 		t.Errorf("TestHandleRoute was unable to find the service unit %s after HandleRoute was called", route.Spec.To.Name)
 	} else {
-		serviceAliasCfg, ok := router.State[router.routeKey(route)]
+		serviceAliasCfg, ok := router.State[getKey(route)]
 
 		if !ok {
-			t.Errorf("TestHandleRoute expected route key %s", router.routeKey(route))
+			t.Errorf("TestHandleRoute expected route key %s", getKey(route))
 		} else {
 			if serviceAliasCfg.Host != route.Spec.Host || serviceAliasCfg.Path != route.Spec.Path {
 				t.Errorf("Expected route did not match service alias config %v : %v", route, serviceAliasCfg)
@@ -536,7 +543,7 @@ func TestHandleRoute(t *testing.T) {
 	if err := plugin.HandleRoute(watch.Added, duplicateRoute); err == nil {
 		t.Fatal("unexpected non-error")
 	}
-	if _, ok := router.FindServiceUnit("foo/TestService2"); ok {
+	if _, ok := router.FindServiceUnit(endpointsKeyFromParts("foo", "TestService2")); ok {
 		t.Fatalf("unexpected second unit: %#v", router)
 	}
 	if r, ok := plugin.RoutesForHost("www.example.com"); !ok || r[0].Name != "test" {
@@ -554,10 +561,10 @@ func TestHandleRoute(t *testing.T) {
 	if err := plugin.HandleRoute(watch.Deleted, duplicateRoute); err == nil {
 		t.Fatal("unexpected non-error")
 	}
-	if _, ok := router.FindServiceUnit("foo/TestService2"); ok {
+	if _, ok := router.FindServiceUnit(endpointsKeyFromParts("foo", "TestService2")); ok {
 		t.Fatalf("unexpected second unit: %#v", router)
 	}
-	if _, ok := router.FindServiceUnit("foo/TestService"); !ok {
+	if _, ok := router.FindServiceUnit(endpointsKeyFromParts("foo", "TestService")); !ok {
 		t.Fatalf("unexpected first unit: %#v", router)
 	}
 	if r, ok := plugin.RoutesForHost("www.example.com"); !ok || r[0].Name != "test" {
@@ -576,7 +583,7 @@ func TestHandleRoute(t *testing.T) {
 	if err := plugin.HandleRoute(watch.Added, duplicateRoute); err != nil {
 		t.Fatal("unexpected error")
 	}
-	_, ok = router.FindServiceUnit("foo/TestService2")
+	_, ok = router.FindServiceUnit(endpointsKeyFromParts("foo", "TestService2"))
 	if !ok {
 		t.Fatalf("missing second unit: %#v", router)
 	}
@@ -597,10 +604,10 @@ func TestHandleRoute(t *testing.T) {
 	if !ok {
 		t.Errorf("TestHandleRoute was unable to find the service unit %s after HandleRoute was called", route.Spec.To.Name)
 	} else {
-		serviceAliasCfg, ok := router.State[router.routeKey(route)]
+		serviceAliasCfg, ok := router.State[getKey(route)]
 
 		if !ok {
-			t.Errorf("TestHandleRoute expected route key %s", router.routeKey(route))
+			t.Errorf("TestHandleRoute expected route key %s", getKey(route))
 		} else {
 			if serviceAliasCfg.Host != route.Spec.Host || serviceAliasCfg.Path != route.Spec.Path {
 				t.Errorf("Expected route did not match service alias config %v : %v", route, serviceAliasCfg)
@@ -622,10 +629,10 @@ func TestHandleRoute(t *testing.T) {
 	if !ok {
 		t.Errorf("TestHandleRoute was unable to find the service unit %s after HandleRoute was called", route.Spec.To.Name)
 	} else {
-		_, ok := router.State[router.routeKey(route)]
+		_, ok := router.State[getKey(route)]
 
 		if ok {
-			t.Errorf("TestHandleRoute did not expect route key %s", router.routeKey(route))
+			t.Errorf("TestHandleRoute did not expect route key %s", getKey(route))
 		}
 	}
 	if plugin.HostLen() != 0 {
@@ -663,7 +670,7 @@ func TestHandleRouteExtendedValidation(t *testing.T) {
 			},
 		},
 	}
-	serviceUnitKey := fmt.Sprintf("%s/%s", route.Namespace, route.Spec.To.Name)
+	serviceUnitKey := endpointsKeyFromParts(route.Namespace, route.Spec.To.Name)
 
 	plugin.HandleRoute(watch.Added, route)
 
@@ -672,10 +679,10 @@ func TestHandleRouteExtendedValidation(t *testing.T) {
 	if !ok {
 		t.Errorf("TestHandleRoute was unable to find the service unit %s after HandleRoute was called", route.Spec.To.Name)
 	} else {
-		serviceAliasCfg, ok := router.State[router.routeKey(route)]
+		serviceAliasCfg, ok := router.State[getKey(route)]
 
 		if !ok {
-			t.Errorf("TestHandleRoute expected route key %s", router.routeKey(route))
+			t.Errorf("TestHandleRoute expected route key %s", getKey(route))
 		} else {
 			if serviceAliasCfg.Host != route.Spec.Host || serviceAliasCfg.Path != route.Spec.Path {
 				t.Errorf("Expected route did not match service alias config %v : %v", route, serviceAliasCfg)
@@ -1012,7 +1019,7 @@ func TestNamespaceScopingFromEmpty(t *testing.T) {
 	// ignores all events for namespace that doesn't match
 	for _, s := range []watch.EventType{watch.Added, watch.Modified, watch.Deleted} {
 		plugin.HandleRoute(s, route)
-		if _, ok := router.FindServiceUnit("foo/TestService"); ok || plugin.HostLen() != 0 {
+		if _, ok := router.FindServiceUnit(endpointsKeyFromParts("foo", "TestService")); ok || plugin.HostLen() != 0 {
 			t.Errorf("unexpected router state %#v", router)
 		}
 	}
@@ -1021,7 +1028,7 @@ func TestNamespaceScopingFromEmpty(t *testing.T) {
 	plugin.HandleNamespaces(sets.NewString("bar"))
 	for _, s := range []watch.EventType{watch.Added, watch.Modified, watch.Deleted} {
 		plugin.HandleRoute(s, route)
-		if _, ok := router.FindServiceUnit("foo/TestService"); ok || plugin.HostLen() != 0 {
+		if _, ok := router.FindServiceUnit(endpointsKeyFromParts("foo", "TestService")); ok || plugin.HostLen() != 0 {
 			t.Errorf("unexpected router state %#v", router)
 		}
 	}
@@ -1029,21 +1036,21 @@ func TestNamespaceScopingFromEmpty(t *testing.T) {
 	// allow foo
 	plugin.HandleNamespaces(sets.NewString("foo", "bar"))
 	plugin.HandleRoute(watch.Added, route)
-	if _, ok := router.FindServiceUnit("foo/TestService"); !ok || plugin.HostLen() != 1 {
+	if _, ok := router.FindServiceUnit(endpointsKeyFromParts("foo", "TestService")); !ok || plugin.HostLen() != 1 {
 		t.Errorf("unexpected router state %#v", router)
 	}
 
 	// forbid foo, and make sure it's cleared
 	plugin.HandleNamespaces(sets.NewString("bar"))
-	if _, ok := router.FindServiceUnit("foo/TestService"); ok || plugin.HostLen() != 0 {
+	if _, ok := router.FindServiceUnit(endpointsKeyFromParts("foo", "TestService")); ok || plugin.HostLen() != 0 {
 		t.Errorf("unexpected router state %#v", router)
 	}
 	plugin.HandleRoute(watch.Modified, route)
-	if _, ok := router.FindServiceUnit("foo/TestService"); ok || plugin.HostLen() != 0 {
+	if _, ok := router.FindServiceUnit(endpointsKeyFromParts("foo", "TestService")); ok || plugin.HostLen() != 0 {
 		t.Errorf("unexpected router state %#v", router)
 	}
 	plugin.HandleRoute(watch.Added, route)
-	if _, ok := router.FindServiceUnit("foo/TestService"); ok || plugin.HostLen() != 0 {
+	if _, ok := router.FindServiceUnit(endpointsKeyFromParts("foo", "TestService")); ok || plugin.HostLen() != 0 {
 		t.Errorf("unexpected router state %#v", router)
 	}
 }

@@ -23,13 +23,13 @@ import (
 
 	"github.com/golang/glog"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apiserver/pkg/admission"
 	kubeinformers "k8s.io/client-go/informers"
 	kubeclientset "k8s.io/client-go/kubernetes"
-	corev1 "k8s.io/client-go/listers/core/v1"
-	"k8s.io/client-go/pkg/api/v1"
+	listerscorev1 "k8s.io/client-go/listers/core/v1"
 
 	scadmission "github.com/kubernetes-incubator/service-catalog/pkg/apiserver/admission"
 )
@@ -45,8 +45,9 @@ const (
 	missingNamespaceWait = 50 * time.Millisecond
 )
 
-func init() {
-	admission.RegisterPlugin(PluginName, func(io.Reader) (admission.Interface, error) {
+// Register registers a plugin
+func Register(plugins *admission.Plugins) {
+	plugins.Register(PluginName, func(io.Reader) (admission.Interface, error) {
 		return NewLifecycle()
 	})
 }
@@ -56,7 +57,7 @@ func init() {
 type lifecycle struct {
 	*admission.Handler
 	client          kubeclientset.Interface
-	namespaceLister corev1.NamespaceLister
+	namespaceLister listerscorev1.NamespaceLister
 }
 
 type forceLiveLookupEntry struct {
@@ -112,7 +113,7 @@ func (l *lifecycle) Admit(a admission.Attributes) error {
 	// refuse to operate on non-existent namespaces
 	if !exists {
 		// as a last resort, make a call directly to storage
-		namespace, err = l.client.Core().Namespaces().Get(a.GetNamespace(), metav1.GetOptions{})
+		namespace, err = l.client.CoreV1().Namespaces().Get(a.GetNamespace(), metav1.GetOptions{})
 		switch {
 		case errors.IsNotFound(err):
 			return err
@@ -124,7 +125,7 @@ func (l *lifecycle) Admit(a admission.Attributes) error {
 
 	// ensure that we're not trying to create objects in terminating namespaces
 	if a.GetOperation() == admission.Create {
-		if namespace.Status.Phase != v1.NamespaceTerminating {
+		if namespace.Status.Phase != corev1.NamespaceTerminating {
 			return nil
 		}
 

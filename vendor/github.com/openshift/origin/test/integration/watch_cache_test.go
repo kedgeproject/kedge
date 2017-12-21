@@ -15,7 +15,6 @@ import (
 	coreclient "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/typed/core/internalversion"
 
 	configapi "github.com/openshift/origin/pkg/cmd/server/api"
-	serverkube "github.com/openshift/origin/pkg/cmd/server/kubernetes/master"
 	testutil "github.com/openshift/origin/test/util"
 	testserver "github.com/openshift/origin/test/util/server"
 )
@@ -114,35 +113,35 @@ func testWatchCacheWithConfig(t *testing.T, master *configapi.MasterConfig, expe
 }
 
 func TestDefaultWatchCacheSize(t *testing.T) {
-	testutil.RequireEtcd(t)
-	defer testutil.DumpEtcdOnFailure(t)
-
 	master, err := testserver.DefaultMasterOptions()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	defer testserver.CleanupMasterEtcd(t, master)
 
 	// test that the origin default really applies and that we don't fall back to kube's default
 	etcdOptions := apiserveroptions.NewEtcdOptions(&storagebackend.Config{})
 	kubeDefaultCacheSize := etcdOptions.DefaultWatchCacheSize
 	if kubeDefaultCacheSize != 100 {
-		t.Fatalf("upstream DefaultWatchCacheSize changed from 100 to %q", kubeDefaultCacheSize)
+		t.Fatalf("upstream DefaultWatchCacheSize changed to %d", kubeDefaultCacheSize)
 	}
-	testWatchCacheWithConfig(t, master, serverkube.DefaultWatchCacheSize, kubeDefaultCacheSize)
+	if master.KubernetesMasterConfig.APIServerArguments == nil {
+		master.KubernetesMasterConfig.APIServerArguments = configapi.ExtendedArguments{}
+	}
+	master.KubernetesMasterConfig.APIServerArguments["watch-cache-sizes"] = []string{"namespaces#100"}
+	testWatchCacheWithConfig(t, master, 100, 0)
 }
 
 func TestWatchCacheSizeWithFlag(t *testing.T) {
-	testutil.RequireEtcd(t)
-	defer testutil.DumpEtcdOnFailure(t)
-
 	master, err := testserver.DefaultMasterOptions()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	defer testserver.CleanupMasterEtcd(t, master)
 	if master.KubernetesMasterConfig.APIServerArguments == nil {
 		master.KubernetesMasterConfig.APIServerArguments = configapi.ExtendedArguments{}
 	}
 	master.KubernetesMasterConfig.APIServerArguments["watch-cache-sizes"] = []string{"namespaces#2000"}
 
-	testWatchCacheWithConfig(t, master, 2000, serverkube.DefaultWatchCacheSize)
+	testWatchCacheWithConfig(t, master, 2000, 0)
 }

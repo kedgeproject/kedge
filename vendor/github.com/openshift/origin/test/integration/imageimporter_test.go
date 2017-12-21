@@ -21,10 +21,10 @@ import (
 	restclient "k8s.io/client-go/rest"
 	kapi "k8s.io/kubernetes/pkg/api"
 
-	"github.com/openshift/origin/pkg/client"
-	"github.com/openshift/origin/pkg/dockerregistry"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
+	imageclient "github.com/openshift/origin/pkg/image/generated/internalclientset"
 	"github.com/openshift/origin/pkg/image/importer"
+	dockerregistry "github.com/openshift/origin/pkg/image/importer/dockerv1client"
 	testutil "github.com/openshift/origin/test/util"
 	testserver "github.com/openshift/origin/test/util/server"
 
@@ -32,15 +32,13 @@ import (
 )
 
 func TestImageStreamImport(t *testing.T) {
-	t.Skip("This test was disabled until https://github.com/openshift/origin/issues/16323 is fixed!")
-	testutil.RequireEtcd(t)
-	defer testutil.DumpEtcdOnFailure(t)
-	_, clusterAdminKubeConfig, err := testserver.StartTestMaster()
+	masterConfig, clusterAdminKubeConfig, err := testserver.StartTestMaster()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	defer testserver.CleanupMasterEtcd(t, masterConfig)
 
-	c, err := testutil.GetClusterAdminClient(clusterAdminKubeConfig)
+	clusterAdminConfig, err := testutil.GetClusterAdminClientConfig(clusterAdminKubeConfig)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -48,9 +46,10 @@ func TestImageStreamImport(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	clusterAdminImageClient := imageclient.NewForConfigOrDie(clusterAdminConfig)
 
 	// can't give invalid image specs, should be invalid
-	isi, err := c.ImageStreams(testutil.Namespace()).Import(&imageapi.ImageStreamImport{
+	isi, err := clusterAdminImageClient.ImageStreamImports(testutil.Namespace()).Create(&imageapi.ImageStreamImport{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "doesnotexist",
 		},
@@ -61,16 +60,16 @@ func TestImageStreamImport(t *testing.T) {
 			},
 		},
 	})
-	if err == nil || isi != nil || !errors.IsInvalid(err) {
+	if err == nil || !errors.IsInvalid(err) {
 		t.Fatalf("unexpected responses: %#v %#v %#v", err, isi, isi.Status.Import)
 	}
 	// does not create stream
-	if _, err := c.ImageStreams(testutil.Namespace()).Get("doesnotexist", metav1.GetOptions{}); err == nil || !errors.IsNotFound(err) {
+	if _, err := clusterAdminImageClient.ImageStreams(testutil.Namespace()).Get("doesnotexist", metav1.GetOptions{}); err == nil || !errors.IsNotFound(err) {
 		t.Fatal(err)
 	}
 
 	// import without committing
-	isi, err = c.ImageStreams(testutil.Namespace()).Import(&imageapi.ImageStreamImport{
+	isi, err = clusterAdminImageClient.ImageStreamImports(testutil.Namespace()).Create(&imageapi.ImageStreamImport{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "doesnotexist",
 		},
@@ -84,12 +83,12 @@ func TestImageStreamImport(t *testing.T) {
 		t.Fatalf("unexpected responses: %v %#v %#v", err, isi, isi.Status.Import)
 	}
 	// does not create stream
-	if _, err := c.ImageStreams(testutil.Namespace()).Get("doesnotexist", metav1.GetOptions{}); err == nil || !errors.IsNotFound(err) {
+	if _, err := clusterAdminImageClient.ImageStreams(testutil.Namespace()).Get("doesnotexist", metav1.GetOptions{}); err == nil || !errors.IsNotFound(err) {
 		t.Fatal(err)
 	}
 
 	// import with commit
-	isi, err = c.ImageStreams(testutil.Namespace()).Import(&imageapi.ImageStreamImport{
+	isi, err = clusterAdminImageClient.ImageStreamImports(testutil.Namespace()).Create(&imageapi.ImageStreamImport{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "doesnotexist",
 		},
@@ -127,7 +126,7 @@ func TestImageStreamImport(t *testing.T) {
 	}
 
 	// stream should not have changed
-	stream2, err := c.ImageStreams(testutil.Namespace()).Get("doesnotexist", metav1.GetOptions{})
+	stream2, err := clusterAdminImageClient.ImageStreams(testutil.Namespace()).Get("doesnotexist", metav1.GetOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,10 +183,8 @@ func mockRegistryHandler(t *testing.T, requireAuth bool, count *int) http.Handle
 	})
 }
 
-func testImageStreamImport(t *testing.T, c *client.Client, imageSize int64, imagestreamimport *imageapi.ImageStreamImport) {
-	imageStreams := c.ImageStreams(testutil.Namespace())
-
-	isi, err := imageStreams.Import(imagestreamimport)
+func testImageStreamImport(t *testing.T, c imageclient.Interface, imageSize int64, imagestreamimport *imageapi.ImageStreamImport) {
+	isi, err := c.Image().ImageStreamImports(testutil.Namespace()).Create(imagestreamimport)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -233,9 +230,6 @@ func testImageStreamImportWithPath(t *testing.T, reponame string) {
 	for _, size := range descriptors {
 		imageSize += size
 	}
-
-	testutil.RequireEtcd(t)
-	defer testutil.DumpEtcdOnFailure(t)
 
 	// start regular HTTP servers
 	requireAuth := false
@@ -290,12 +284,13 @@ func testImageStreamImportWithPath(t *testing.T, reponame string) {
 	url, _ := url.Parse(server.URL)
 
 	// start a master
-	_, clusterAdminKubeConfig, err := testserver.StartTestMaster()
+	masterConfig, clusterAdminKubeConfig, err := testserver.StartTestMaster()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	defer testserver.CleanupMasterEtcd(t, masterConfig)
 
-	c, err := testutil.GetClusterAdminClient(clusterAdminKubeConfig)
+	clusterAdminClientConfig, err := testutil.GetClusterAdminClientConfig(clusterAdminKubeConfig)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -304,8 +299,9 @@ func testImageStreamImportWithPath(t *testing.T, reponame string) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	clusterAdminImageClient := imageclient.NewForConfigOrDie(clusterAdminClientConfig)
 
-	testImageStreamImport(t, c, imageSize, &imageapi.ImageStreamImport{
+	testImageStreamImport(t, clusterAdminImageClient, imageSize, &imageapi.ImageStreamImport{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "test",
 		},
@@ -325,7 +321,7 @@ func testImageStreamImportWithPath(t *testing.T, reponame string) {
 		t.Fatalf("unexpected number of blob stats %d (expected %d)", countStat, len(descriptors))
 	}
 
-	testImageStreamImport(t, c, imageSize, &imageapi.ImageStreamImport{
+	testImageStreamImport(t, clusterAdminImageClient, imageSize, &imageapi.ImageStreamImport{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "test1",
 		},
@@ -357,8 +353,6 @@ func TestImageStreamImportOfMultiSegmentDockerReference(t *testing.T) {
 }
 
 func TestImageStreamImportAuthenticated(t *testing.T) {
-	testutil.RequireEtcd(t)
-	defer testutil.DumpEtcdOnFailure(t)
 	// start regular HTTP servers
 	count := 0
 	server := httptest.NewServer(mockRegistryHandler(t, true, &count))
@@ -381,18 +375,20 @@ func TestImageStreamImportAuthenticated(t *testing.T) {
 	url3, _ := url.Parse(server3.URL)
 
 	// start a master
-	_, clusterAdminKubeConfig, err := testserver.StartTestMaster()
+	masterConfig, clusterAdminKubeConfig, err := testserver.StartTestMaster()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	defer testserver.CleanupMasterEtcd(t, masterConfig)
 	kc, err := testutil.GetClusterAdminKubeClient(clusterAdminKubeConfig)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	c, err := testutil.GetClusterAdminClient(clusterAdminKubeConfig)
+	clusterAdminClientConfig, err := testutil.GetClusterAdminClientConfig(clusterAdminKubeConfig)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	clusterAdminImageClient := imageclient.NewForConfigOrDie(clusterAdminClientConfig)
 	err = testutil.CreateNamespace(clusterAdminKubeConfig, testutil.Namespace())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -426,7 +422,7 @@ func TestImageStreamImportAuthenticated(t *testing.T) {
 
 	// import expecting auth errors
 	importSpec := specFn(true, url1.Host, url2.Host)
-	isi, err := c.ImageStreams(testutil.Namespace()).Import(importSpec)
+	isi, err := clusterAdminImageClient.ImageStreamImports(testutil.Namespace()).Create(importSpec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -460,7 +456,7 @@ func TestImageStreamImportAuthenticated(t *testing.T) {
 		importSpec := specFn(true, host, url2.Host)
 
 		// import expecting regular image to pass
-		isi, err = c.ImageStreams(testutil.Namespace()).Import(importSpec)
+		isi, err = clusterAdminImageClient.ImageStreamImports(testutil.Namespace()).Create(importSpec)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -484,7 +480,7 @@ func TestImageStreamImportAuthenticated(t *testing.T) {
 			t.Fatalf("unexpected image output: %#v", isi.Status.Images[0].Image)
 		}
 
-		is, err := c.ImageStreams(testutil.Namespace()).Get("test", metav1.GetOptions{})
+		is, err := clusterAdminImageClient.ImageStreams(testutil.Namespace()).Get("test", metav1.GetOptions{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -524,8 +520,6 @@ func TestImageStreamImportAuthenticated(t *testing.T) {
 // Verifies that individual errors for particular tags are handled properly when pulling all tags from a
 // repository.
 func TestImageStreamImportTagsFromRepository(t *testing.T) {
-	testutil.RequireEtcd(t)
-	defer testutil.DumpEtcdOnFailure(t)
 	// start regular HTTP servers
 	count := 0
 	server := httptest.NewServer(mockRegistryHandler(t, false, &count))
@@ -533,20 +527,17 @@ func TestImageStreamImportTagsFromRepository(t *testing.T) {
 	url, _ := url.Parse(server.URL)
 
 	// start a master
-	_, clusterAdminKubeConfig, err := testserver.StartTestMaster()
+	masterConfig, clusterAdminKubeConfig, err := testserver.StartTestMaster()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	/*
-		_, err := testutil.GetClusterAdminKubeClient(clusterAdminKubeConfig)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-	*/
-	c, err := testutil.GetClusterAdminClient(clusterAdminKubeConfig)
+	defer testserver.CleanupMasterEtcd(t, masterConfig)
+
+	clusterAdminClientConfig, err := testutil.GetClusterAdminClientConfig(clusterAdminKubeConfig)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	clusterAdminImageClient := imageclient.NewForConfigOrDie(clusterAdminClientConfig)
 	err = testutil.CreateNamespace(clusterAdminKubeConfig, testutil.Namespace())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -565,7 +556,7 @@ func TestImageStreamImportTagsFromRepository(t *testing.T) {
 	}
 
 	// import expecting regular image to pass
-	isi, err := c.ImageStreams(testutil.Namespace()).Import(importSpec)
+	isi, err := clusterAdminImageClient.ImageStreamImports(testutil.Namespace()).Create(importSpec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -607,7 +598,7 @@ func TestImageStreamImportTagsFromRepository(t *testing.T) {
 		}
 	}
 
-	is, err := c.ImageStreams(testutil.Namespace()).Get("test", metav1.GetOptions{})
+	is, err := clusterAdminImageClient.ImageStreams(testutil.Namespace()).Get("test", metav1.GetOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -625,8 +616,6 @@ func TestImageStreamImportTagsFromRepository(t *testing.T) {
 // test controller interval), updates the image stream only when there are changes, and if an
 // error occurs writes the error only once (instead of every interval)
 func TestImageStreamImportScheduled(t *testing.T) {
-	testutil.RequireEtcd(t)
-	defer testutil.DumpEtcdOnFailure(t)
 	written := make(chan struct{}, 1)
 	count := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -662,15 +651,17 @@ func TestImageStreamImportScheduled(t *testing.T) {
 			t.Fatalf("unexpected request %s: %#v", r.URL.Path, r)
 		}
 	}))
-	_, clusterAdminKubeConfig, err := testserver.StartTestMaster()
+	masterConfig, clusterAdminKubeConfig, err := testserver.StartTestMaster()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	defer testserver.CleanupMasterEtcd(t, masterConfig)
 
-	c, err := testutil.GetClusterAdminClient(clusterAdminKubeConfig)
+	clusterAdminClientConfig, err := testutil.GetClusterAdminClientConfig(clusterAdminKubeConfig)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	clusterAdminImageClient := imageclient.NewForConfigOrDie(clusterAdminClientConfig)
 	err = testutil.CreateNamespace(clusterAdminKubeConfig, testutil.Namespace())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -679,7 +670,7 @@ func TestImageStreamImportScheduled(t *testing.T) {
 	url, _ := url.Parse(server.URL)
 
 	// import with commit
-	isi, err := c.ImageStreams(testutil.Namespace()).Import(&imageapi.ImageStreamImport{
+	isi, err := clusterAdminImageClient.ImageStreamImports(testutil.Namespace()).Create(&imageapi.ImageStreamImport{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "test",
 		},
@@ -718,7 +709,7 @@ func TestImageStreamImportScheduled(t *testing.T) {
 	<-written
 
 	is := isi.Status.Import
-	w, err := c.ImageStreams(is.Namespace).Watch(metav1.ListOptions{ResourceVersion: is.ResourceVersion})
+	w, err := clusterAdminImageClient.ImageStreams(is.Namespace).Watch(metav1.ListOptions{ResourceVersion: is.ResourceVersion})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -804,8 +795,6 @@ func TestImageStreamImportScheduled(t *testing.T) {
 }
 
 func TestImageStreamImportDockerHub(t *testing.T) {
-	t.Skip("This test was disabled until https://github.com/openshift/origin/issues/16323 is fixed!")
-
 	rt, _ := restclient.TransportFor(&restclient.Config{})
 	importCtx := importer.NewContext(rt, nil).WithCredentials(importer.NoCredentials)
 
@@ -825,7 +814,7 @@ func TestImageStreamImportDockerHub(t *testing.T) {
 
 	err := retryWhenUnreachable(t, func() error {
 		i := importer.NewImageStreamImporter(importCtx, 3, nil, nil)
-		if err := i.Import(gocontext.Background(), imports); err != nil {
+		if err := i.Import(gocontext.Background(), imports, &imageapi.ImageStream{}); err != nil {
 			return err
 		}
 
@@ -881,7 +870,7 @@ func TestImageStreamImportQuayIO(t *testing.T) {
 
 	err := retryWhenUnreachable(t, func() error {
 		i := importer.NewImageStreamImporter(importCtx, 3, nil, nil)
-		if err := i.Import(gocontext.Background(), imports); err != nil {
+		if err := i.Import(gocontext.Background(), imports, &imageapi.ImageStream{}); err != nil {
 			return err
 		}
 
@@ -934,7 +923,7 @@ func TestImageStreamImportRedHatRegistry(t *testing.T) {
 	}
 
 	i := importer.NewImageStreamImporter(importCtx, 3, nil, nil)
-	if err := i.Import(gocontext.Background(), imports); err != nil {
+	if err := i.Import(gocontext.Background(), imports, &imageapi.ImageStream{}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -961,7 +950,7 @@ func TestImageStreamImportRedHatRegistry(t *testing.T) {
 	importCtx = importer.NewContext(rt, nil).WithCredentials(importer.NoCredentials)
 	err := retryWhenUnreachable(t, func() error {
 		i = importer.NewImageStreamImporter(importCtx, 3, nil, nil)
-		if err := i.Import(context, imports); err != nil {
+		if err := i.Import(context, imports, &imageapi.ImageStream{}); err != nil {
 			return err
 		}
 

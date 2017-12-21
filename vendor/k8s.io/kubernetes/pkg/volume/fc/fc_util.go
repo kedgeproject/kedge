@@ -89,19 +89,12 @@ func findDisk(wwn, lun string, io ioHandler) (string, string) {
 	return "", ""
 }
 
-func createMultipathConf(path string, io ioHandler) {
-	if _, err := os.Lstat(path); err != nil {
-		data := []byte(`defaults {
-	find_multipaths yes
-	user_friendly_names yes
-}
-
-
-blacklist {
-}
-`)
-		io.WriteFile(path, data, 0664)
-	}
+// Removes a scsi device based upon /dev/sdX name
+func removeFromScsiSubsystem(deviceName string, io ioHandler) {
+	fileName := "/sys/block/" + deviceName + "/device/delete"
+	glog.V(4).Infof("fc: remove device from scsi-subsystem: path: %s", fileName)
+	data := []byte("1")
+	io.WriteFile(fileName, data, 0666)
 }
 
 // rescan scsi bus
@@ -148,8 +141,6 @@ func searchDisk(wwns []string, lun string, io ioHandler) (string, string) {
 			break
 		}
 		// rescan and search again
-		// create multipath conf if it is not there
-		createMultipathConf("/etc/multipath.conf", io)
 		// rescan scsi bus
 		scsiHostRescan(io)
 		rescaned = true
@@ -176,14 +167,14 @@ func (util *FCUtil) AttachDisk(b fcDiskMounter) (string, error) {
 	}
 	// mount it
 	globalPDPath := util.MakeGlobalPDName(*b.fcDisk)
+	if err := os.MkdirAll(globalPDPath, 0750); err != nil {
+		return devicePath, fmt.Errorf("fc: failed to mkdir %s, error", globalPDPath)
+	}
+
 	noMnt, err := b.mounter.IsLikelyNotMountPoint(globalPDPath)
 	if !noMnt {
 		glog.Infof("fc: %s already mounted", globalPDPath)
 		return devicePath, nil
-	}
-
-	if err := os.MkdirAll(globalPDPath, 0750); err != nil {
-		return devicePath, fmt.Errorf("fc: failed to mkdir %s, error", globalPDPath)
 	}
 
 	err = b.mounter.FormatAndMount(devicePath, globalPDPath, b.fsType, nil)
@@ -194,9 +185,13 @@ func (util *FCUtil) AttachDisk(b fcDiskMounter) (string, error) {
 	return devicePath, err
 }
 
-func (util *FCUtil) DetachDisk(c fcDiskUnmounter, mntPath string) error {
-	if err := c.mounter.Unmount(mntPath); err != nil {
-		return fmt.Errorf("fc detach disk: failed to unmount: %s\nError: %v", mntPath, err)
+func (util *FCUtil) DetachDisk(c fcDiskUnmounter, devName string) error {
+	// Remove scsi device from the node.
+	if !strings.HasPrefix(devName, "/dev/") {
+		return fmt.Errorf("fc detach disk: invalid device name: %s", devName)
 	}
+	arr := strings.Split(devName, "/")
+	dev := arr[len(arr)-1]
+	removeFromScsiSubsystem(dev, c.io)
 	return nil
 }

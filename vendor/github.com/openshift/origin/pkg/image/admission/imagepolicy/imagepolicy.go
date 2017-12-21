@@ -18,53 +18,53 @@ import (
 
 	"github.com/openshift/origin/pkg/api/latest"
 	"github.com/openshift/origin/pkg/api/meta"
-	"github.com/openshift/origin/pkg/client"
 	oadmission "github.com/openshift/origin/pkg/cmd/server/admission"
 	configlatest "github.com/openshift/origin/pkg/cmd/server/api/latest"
 	"github.com/openshift/origin/pkg/image/admission/imagepolicy/api"
 	"github.com/openshift/origin/pkg/image/admission/imagepolicy/api/validation"
 	"github.com/openshift/origin/pkg/image/admission/imagepolicy/rules"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
+	imageclient "github.com/openshift/origin/pkg/image/generated/internalclientset"
+	imageinternalclient "github.com/openshift/origin/pkg/image/generated/internalclientset/typed/image/internalversion"
 	"github.com/openshift/origin/pkg/project/cache"
 )
 
-func init() {
-	admission.RegisterPlugin(api.PluginName, func(input io.Reader) (admission.Interface, error) {
-		obj, err := configlatest.ReadYAML(input)
-		if err != nil {
-			return nil, err
-		}
-		if obj == nil {
-			return nil, nil
-		}
-		config, ok := obj.(*api.ImagePolicyConfig)
-		if !ok {
-			return nil, fmt.Errorf("unexpected config object: %#v", obj)
-		}
-		if errs := validation.Validate(config); len(errs) > 0 {
-			return nil, errs.ToAggregate()
-		}
-		glog.V(5).Infof("%s admission controller loaded with config: %#v", api.PluginName, config)
-		return newImagePolicyPlugin(config)
-	})
+func Register(plugins *admission.Plugins) {
+	plugins.Register(api.PluginName,
+		func(input io.Reader) (admission.Interface, error) {
+			obj, err := configlatest.ReadYAML(input)
+			if err != nil {
+				return nil, err
+			}
+			if obj == nil {
+				return nil, nil
+			}
+			config, ok := obj.(*api.ImagePolicyConfig)
+			if !ok {
+				return nil, fmt.Errorf("unexpected config object: %#v", obj)
+			}
+			if errs := validation.Validate(config); len(errs) > 0 {
+				return nil, errs.ToAggregate()
+			}
+			glog.V(5).Infof("%s admission controller loaded with config: %#v", api.PluginName, config)
+			return newImagePolicyPlugin(config)
+		})
 }
 
 type imagePolicyPlugin struct {
 	*admission.Handler
 	config *api.ImagePolicyConfig
-	client client.Interface
+	client imageinternalclient.ImageInterface
 
 	accepter rules.Accepter
 
 	integratedRegistryMatcher integratedRegistryMatcher
 
-	resolveGroupResources []schema.GroupResource
-
 	projectCache *cache.ProjectCache
 	resolver     imageResolver
 }
 
-var _ = oadmission.WantsOpenshiftClient(&imagePolicyPlugin{})
+var _ = oadmission.WantsOpenshiftInternalImageClient(&imagePolicyPlugin{})
 var _ = oadmission.WantsDefaultRegistryFunc(&imagePolicyPlugin{})
 
 type integratedRegistryMatcher struct {
@@ -107,12 +107,12 @@ func newImagePolicyPlugin(parsed *api.ImagePolicyConfig) (*imagePolicyPlugin, er
 	}, nil
 }
 
-func (a *imagePolicyPlugin) SetDefaultRegistryFunc(fn imageapi.DefaultRegistryFunc) {
+func (a *imagePolicyPlugin) SetDefaultRegistryFunc(fn func() (string, bool)) {
 	a.integratedRegistryMatcher.RegistryMatcher = rules.RegistryNameMatcher(fn)
 }
 
-func (a *imagePolicyPlugin) SetOpenshiftClient(c client.Interface) {
-	a.client = c
+func (a *imagePolicyPlugin) SetOpenshiftInternalImageClient(c imageclient.Interface) {
+	a.client = c.Image()
 }
 
 func (a *imagePolicyPlugin) SetProjectCache(c *cache.ProjectCache) {
@@ -127,7 +127,7 @@ func (a *imagePolicyPlugin) Validate() error {
 	if a.projectCache == nil {
 		return fmt.Errorf("%s needs a project cache", api.PluginName)
 	}
-	imageResolver, err := newImageResolutionCache(a.client.Images(), a.client, a.client, a.client, a.integratedRegistryMatcher)
+	imageResolver, err := newImageResolutionCache(a.client, a.integratedRegistryMatcher)
 	if err != nil {
 		return fmt.Errorf("unable to create image policy controller: %v", err)
 	}
@@ -189,7 +189,7 @@ func (a *imagePolicyPlugin) Admit(attr admission.Attributes) error {
 		return nil
 	}
 
-	m, err := meta.GetImageReferenceMutator(attr.GetObject())
+	m, err := meta.GetImageReferenceMutator(attr.GetObject(), attr.GetOldObject())
 	if err != nil {
 		return apierrs.NewForbidden(gr, attr.GetName(), fmt.Errorf("unable to apply image policy against objects of type %T: %v", attr.GetObject(), err))
 	}
@@ -214,12 +214,9 @@ func (a *imagePolicyPlugin) Admit(attr admission.Attributes) error {
 }
 
 type imageResolutionCache struct {
-	images     client.ImageInterface
-	tags       client.ImageStreamTagsNamespacer
-	streams    client.ImageStreamsNamespacer
-	isImages   client.ImageStreamImagesNamespacer
-	integrated rules.RegistryMatcher
-	expiration time.Duration
+	imageClient imageinternalclient.ImageInterface
+	integrated  rules.RegistryMatcher
+	expiration  time.Duration
 
 	cache *lru.Cache
 }
@@ -230,19 +227,16 @@ type imageCacheEntry struct {
 }
 
 // newImageResolutionCache creates a new resolver that caches frequently loaded images for one minute.
-func newImageResolutionCache(images client.ImageInterface, tags client.ImageStreamTagsNamespacer, streams client.ImageStreamsNamespacer, isImages client.ImageStreamImagesNamespacer, integratedRegistry rules.RegistryMatcher) (*imageResolutionCache, error) {
+func newImageResolutionCache(imageClient imageinternalclient.ImageInterface, integratedRegistry rules.RegistryMatcher) (*imageResolutionCache, error) {
 	imageCache, err := lru.New(128)
 	if err != nil {
 		return nil, err
 	}
 	return &imageResolutionCache{
-		images:     images,
-		tags:       tags,
-		streams:    streams,
-		isImages:   isImages,
-		integrated: integratedRegistry,
-		cache:      imageCache,
-		expiration: time.Minute,
+		imageClient: imageClient,
+		integrated:  integratedRegistry,
+		cache:       imageCache,
+		expiration:  time.Minute,
 	}, nil
 }
 
@@ -298,12 +292,12 @@ func (c *imageResolutionCache) resolveImageReference(ref imageapi.DockerImageRef
 				return &rules.ImagePolicyAttributes{Name: ref, Image: cached.image}, nil
 			}
 		}
-		image, err := c.images.Get(ref.ID, metav1.GetOptions{})
+		image, err := c.imageClient.Images().Get(ref.ID, metav1.GetOptions{})
 		if err != nil {
 			return nil, err
 		}
 		c.cache.Add(ref.ID, imageCacheEntry{expires: now.Add(c.expiration), image: image})
-		return &rules.ImagePolicyAttributes{Name: ref, Image: image}, nil
+		return &rules.ImagePolicyAttributes{Name: ref, Image: image, IntegratedRegistry: c.integrated.Matches(ref.Registry)}, nil
 	}
 
 	fullReference := c.integrated.Matches(ref.Registry)
@@ -327,7 +321,7 @@ func (c *imageResolutionCache) resolveImageReference(ref imageapi.DockerImageRef
 // or returns an error.
 func (c *imageResolutionCache) resolveImageStreamTag(namespace, name, tag string, partial, forceResolveLocalNames bool) (*rules.ImagePolicyAttributes, error) {
 	attrs := &rules.ImagePolicyAttributes{IntegratedRegistry: true}
-	resolved, err := c.tags.ImageStreamTags(namespace).Get(name, tag)
+	resolved, err := c.imageClient.ImageStreamTags(namespace).Get(imageapi.JoinImageStreamTag(name, tag), metav1.GetOptions{})
 	if err != nil {
 		if partial {
 			attrs.IntegratedRegistry = false
@@ -336,7 +330,7 @@ func (c *imageResolutionCache) resolveImageStreamTag(namespace, name, tag string
 		// to the internal registry. This prevents the lookup from going to the original location, which is consistent
 		// with the intent of resolving local names.
 		if isImageStreamTagNotFound(err) {
-			if stream, err := c.streams.ImageStreams(namespace).Get(name, metav1.GetOptions{}); err == nil && (forceResolveLocalNames || stream.Spec.LookupPolicy.Local) && len(stream.Status.DockerImageRepository) > 0 {
+			if stream, err := c.imageClient.ImageStreams(namespace).Get(name, metav1.GetOptions{}); err == nil && (forceResolveLocalNames || stream.Spec.LookupPolicy.Local) && len(stream.Status.DockerImageRepository) > 0 {
 				if ref, err := imageapi.ParseDockerImageReference(stream.Status.DockerImageRepository); err == nil {
 					glog.V(4).Infof("%s/%s:%s points to a local name resolving stream, but the tag does not exist", namespace, name, tag)
 					ref.Tag = tag
@@ -373,7 +367,7 @@ func (c *imageResolutionCache) resolveImageStreamTag(namespace, name, tag string
 // resolveImageStreamImage loads an image stream image if it exists, or returns an error.
 func (c *imageResolutionCache) resolveImageStreamImage(namespace, name, id string) (*rules.ImagePolicyAttributes, error) {
 	attrs := &rules.ImagePolicyAttributes{IntegratedRegistry: true}
-	resolved, err := c.isImages.ImageStreamImages(namespace).Get(name, id)
+	resolved, err := c.imageClient.ImageStreamImages(namespace).Get(imageapi.JoinImageStreamImage(name, id), metav1.GetOptions{})
 	if err != nil {
 		return attrs, err
 	}
@@ -441,8 +435,7 @@ func (config resolutionConfig) FailOnResolutionFailure(gr schema.GroupResource) 
 
 var skipImageRewriteOnUpdate = map[schema.GroupResource]struct{}{
 	// Job template specs are immutable, they cannot be updated.
-	{Group: "extensions", Resource: "jobs"}: {},
-	{Group: "batch", Resource: "jobs"}:      {},
+	{Group: "batch", Resource: "jobs"}: {},
 	// Build specs are immutable, they cannot be updated.
 	{Group: "", Resource: "builds"}:                   {},
 	{Group: "build.openshift.io", Resource: "builds"}: {},

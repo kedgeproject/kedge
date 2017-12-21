@@ -18,8 +18,11 @@ package controller
 
 import (
 	"github.com/golang/glog"
-	"github.com/kubernetes-incubator/service-catalog/pkg/apis/servicecatalog/v1alpha1"
+	"github.com/kubernetes-incubator/service-catalog/pkg/apis/servicecatalog/v1beta1"
+
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -34,34 +37,65 @@ func (c *controller) serviceClassAdd(obj interface{}) {
 	c.serviceClassQueue.Add(key)
 }
 
-func (c *controller) reconcileServiceClassKey(key string) error {
-	serviceClass, err := c.serviceClassLister.Get(key)
-	if errors.IsNotFound(err) {
-		glog.Infof("Not doing work for ServiceClass %v because it has been deleted", key)
-		return nil
-	}
-	if err != nil {
-		glog.Errorf("Unable to retrieve ServiceClass %v from store: %v", key, err)
-		return err
-	}
-
-	return c.reconcileServiceClass(serviceClass)
-}
-
-func (c *controller) reconcileServiceClass(serviceClass *v1alpha1.ServiceClass) error {
-	glog.V(4).Infof("Processing ServiceClass %v", serviceClass.Name)
-	return nil
-}
-
 func (c *controller) serviceClassUpdate(oldObj, newObj interface{}) {
 	c.serviceClassAdd(newObj)
 }
 
 func (c *controller) serviceClassDelete(obj interface{}) {
-	serviceClass, ok := obj.(*v1alpha1.ServiceClass)
+	serviceClass, ok := obj.(*v1beta1.ClusterServiceClass)
 	if serviceClass == nil || !ok {
 		return
 	}
 
-	glog.V(4).Infof("Received delete event for ServiceClass %v", serviceClass.Name)
+	glog.V(4).Infof("Received delete event for ServiceClass %v; no further processing will occur", serviceClass.Name)
+}
+
+// reconcileServiceClassKey reconciles a ServiceClass due to controller resync
+// or an event on the ServiceClass.  Note that this is NOT the main
+// reconciliation loop for ServiceClass. ServiceClasses are primarily
+// reconciled in a separate flow when a ClusterServiceBroker is reconciled.
+func (c *controller) reconcileClusterServiceClassKey(key string) error {
+	plan, err := c.serviceClassLister.Get(key)
+	if errors.IsNotFound(err) {
+		glog.Infof("ClusterServiceClass %q: Not doing work because it has been deleted", key)
+		return nil
+	}
+	if err != nil {
+		glog.Infof("ClusterServiceClass %q: Unable to retrieve object from store: %v", key, err)
+		return err
+	}
+
+	return c.reconcileClusterServiceClass(plan)
+}
+
+func (c *controller) reconcileClusterServiceClass(serviceClass *v1beta1.ClusterServiceClass) error {
+	glog.Infof("ClusterServiceClass %q (ExternalName: %q): processing", serviceClass.Name, serviceClass.Spec.ExternalName)
+
+	if !serviceClass.Status.RemovedFromBrokerCatalog {
+		return nil
+	}
+
+	glog.Infof("ClusterServiceClass %q (ExternalName: %q): has been removed from broker catalog; determining whether there are instances remaining", serviceClass.Name, serviceClass.Spec.ExternalName)
+
+	serviceInstances, err := c.findServiceInstancesOnClusterServiceClass(serviceClass)
+	if err != nil {
+		return err
+	}
+
+	if len(serviceInstances.Items) != 0 {
+		return nil
+	}
+
+	glog.Infof("ClusterServiceClass %q (ExternalName: %q): has been removed from broker catalog and has zero instances remaining; deleting", serviceClass.Name, serviceClass.Spec.ExternalName)
+	return c.serviceCatalogClient.ClusterServiceClasses().Delete(serviceClass.Name, &metav1.DeleteOptions{})
+}
+
+func (c *controller) findServiceInstancesOnClusterServiceClass(serviceClass *v1beta1.ClusterServiceClass) (*v1beta1.ServiceInstanceList, error) {
+	fieldSet := fields.Set{
+		"spec.clusterServiceClassRef.name": serviceClass.Name,
+	}
+	fieldSelector := fields.SelectorFromSet(fieldSet).String()
+	listOpts := metav1.ListOptions{FieldSelector: fieldSelector}
+
+	return c.serviceCatalogClient.ServiceInstances(metav1.NamespaceAll).List(listOpts)
 }

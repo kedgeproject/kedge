@@ -28,7 +28,7 @@ const (
 	externalImageReference = "docker.io/openshift/origin-release:golang-1.4"
 )
 
-var _ = g.Describe("[Feature:ImagePrune] Image prune", func() {
+var _ = g.Describe("[Feature:ImagePrune][registry][Serial] Image prune", func() {
 	defer g.GinkgoRecover()
 	var oc = exutil.NewCLI("prune-images", exutil.KubeConfigPath())
 
@@ -164,10 +164,10 @@ func testPruneImages(oc *exutil.CLI, schemaVersion int) {
 	o.Expect(pruneSize < keepSize).To(o.BeTrue())
 
 	g.By(fmt.Sprintf("ensure uploaded image is of schema %d", schemaVersion))
-	imgPrune, err := oc.AsAdmin().Client().Images().Get(imgPruneName, metav1.GetOptions{})
+	imgPrune, err := oc.AsAdmin().ImageClient().Image().Images().Get(imgPruneName, metav1.GetOptions{})
 	o.Expect(err).NotTo(o.HaveOccurred())
 	o.Expect(imgPrune.DockerImageManifestMediaType).To(o.Equal(mediaType))
-	imgKeep, err := oc.AsAdmin().Client().Images().Get(imgKeepName, metav1.GetOptions{})
+	imgKeep, err := oc.AsAdmin().ImageClient().Image().Images().Get(imgKeepName, metav1.GetOptions{})
 	o.Expect(err).NotTo(o.HaveOccurred())
 	o.Expect(imgKeep.DockerImageManifestMediaType).To(o.Equal(mediaType))
 
@@ -260,7 +260,7 @@ func testPruneAllImages(oc *exutil.CLI, setAllImagesToFalse bool, schemaVersion 
 	cleanUp.AddImageStream(isName)
 	o.Expect(err).NotTo(o.HaveOccurred())
 
-	managedImage, err := oc.AsAdmin().Client().Images().Get(managedImageName, metav1.GetOptions{})
+	managedImage, err := oc.AsAdmin().ImageClient().Image().Images().Get(managedImageName, metav1.GetOptions{})
 	o.Expect(err).NotTo(o.HaveOccurred())
 
 	externalImage, blobdgst, err := importImageAndMirrorItsSmallestBlob(oc, externalImageReference, "origin-release:latest")
@@ -311,14 +311,14 @@ func testPruneAllImages(oc *exutil.CLI, setAllImagesToFalse bool, schemaVersion 
 		args = append(args, "--all=false")
 	}
 
-	g.By(fmt.Sprintf("dry-running oadm %s", strings.Join(args, " ")))
+	g.By(fmt.Sprintf("dry-running oc adm %s", strings.Join(args, " ")))
 	output, err := oc.WithoutNamespace().Run("adm").Args(args...).Output()
 
 	g.By("verify images, layers and configs about to be pruned")
 	checkAdminPruneOutput(output, true)
 
 	args = append(args, "--confirm")
-	g.By(fmt.Sprintf("running oadm %s", strings.Join(args, " ")))
+	g.By(fmt.Sprintf("running oc adm %s", strings.Join(args, " ")))
 	output, err = oc.WithoutNamespace().Run("adm").Args(args...).Output()
 
 	g.By("verify that blobs have been pruned")
@@ -353,7 +353,7 @@ func importImageAndMirrorItsSmallestBlob(oc *exutil.CLI, imageReference, destIST
 	if err != nil {
 		return nil, "", err
 	}
-	istag, err := oc.Client().ImageStreamTags(oc.Namespace()).Get(isName, tag)
+	istag, err := oc.ImageClient().Image().ImageStreamTags(oc.Namespace()).Get(destISTag, metav1.GetOptions{})
 	if err != nil {
 		return nil, "", err
 	}

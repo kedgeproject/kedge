@@ -13,18 +13,20 @@ import (
 	kapi "k8s.io/kubernetes/pkg/api"
 
 	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
-	"github.com/openshift/origin/pkg/client/testclient"
+	authfake "github.com/openshift/origin/pkg/authorization/generated/internalclientset/fake"
 	securityapi "github.com/openshift/origin/pkg/security/apis/security"
-	"github.com/openshift/origin/pkg/security/legacyclient"
+	securityfake "github.com/openshift/origin/pkg/security/generated/internalclientset/fake"
+	userfake "github.com/openshift/origin/pkg/user/generated/internalclientset/fake"
 
 	// install all APIs
 	_ "github.com/openshift/origin/pkg/api/install"
 )
 
 var (
-	groupsResource              = schema.GroupVersionResource{Group: "", Version: "", Resource: "groups"}
-	clusterRoleBindingsResource = schema.GroupVersionResource{Group: "", Version: "", Resource: "clusterrolebindings"}
-	roleBindingsResource        = schema.GroupVersionResource{Group: "", Version: "", Resource: "rolebindings"}
+	groupsResource              = schema.GroupVersionResource{Group: "user.openshift.io", Version: "", Resource: "groups"}
+	clusterRoleBindingsResource = schema.GroupVersionResource{Group: "authorization.openshift.io", Version: "", Resource: "clusterrolebindings"}
+	roleBindingsResource        = schema.GroupVersionResource{Group: "authorization.openshift.io", Version: "", Resource: "rolebindings"}
+	sccResource                 = schema.GroupVersionResource{Group: "security.openshift.io", Version: "", Resource: "securitycontextconstraints"}
 )
 
 func TestGroupReaper(t *testing.T) {
@@ -120,7 +122,7 @@ func TestGroupReaper(t *testing.T) {
 				},
 			},
 			expected: []interface{}{
-				clientgotesting.UpdateActionImpl{ActionImpl: clientgotesting.ActionImpl{Verb: "update", Resource: schema.GroupVersionResource{Resource: "securitycontextconstraints"}}, Object: &securityapi.SecurityContextConstraints{
+				clientgotesting.UpdateActionImpl{ActionImpl: clientgotesting.ActionImpl{Verb: "update", Resource: sccResource}, Object: &securityapi.SecurityContextConstraints{
 					ObjectMeta: metav1.ObjectMeta{Name: "scc-one-subject"},
 					Groups:     []string{},
 				}},
@@ -130,8 +132,9 @@ func TestGroupReaper(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		tc := testclient.NewSimpleFake(testclient.OriginObjects(test.objects)...)
-		ktc := legacyclient.NewSimpleFake(test.sccs...)
+		authFake := authfake.NewSimpleClientset(test.objects...)
+		userFake := userfake.NewSimpleClientset()
+		securityFake := securityfake.NewSimpleClientset(test.sccs...)
 
 		actual := []interface{}{}
 		oreactor := func(action clientgotesting.Action) (handled bool, ret runtime.Object, err error) {
@@ -143,12 +146,14 @@ func TestGroupReaper(t *testing.T) {
 			return false, nil, nil
 		}
 
-		tc.PrependReactor("update", "*", oreactor)
-		tc.PrependReactor("delete", "*", oreactor)
-		ktc.Fake.PrependReactor("update", "*", kreactor)
-		ktc.Fake.PrependReactor("delete", "*", kreactor)
+		authFake.PrependReactor("update", "*", oreactor)
+		userFake.PrependReactor("update", "*", oreactor)
+		authFake.PrependReactor("delete", "*", oreactor)
+		userFake.PrependReactor("delete", "*", oreactor)
+		securityFake.Fake.PrependReactor("update", "*", kreactor)
+		securityFake.Fake.PrependReactor("delete", "*", kreactor)
 
-		reaper := NewGroupReaper(tc, tc, tc, ktc)
+		reaper := NewGroupReaper(userFake, authFake, authFake, securityFake.Security().SecurityContextConstraints())
 		err := reaper.Stop("", test.group, 0, nil)
 		if err != nil {
 			t.Errorf("%s: unexpected error: %v", test.name, err)

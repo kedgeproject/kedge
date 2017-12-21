@@ -206,13 +206,10 @@ test suite.  Testing the API and high level API functions should generally
 not depend on calling into Docker. They are denoted by special test tags and
 should be in their own files so we can selectively build them.
 
-All integration tests are located under `test/integration/*`. All integration
-tests must set the `integration` build tag at the top of their source file,
-and also declare whether they need etcd with the `etcd` build tag and whether
-they need Docker with the `docker` build tag. For special function sets please
-create sub directories like `test/integration/deployimages`.
+All integration tests are located under `test/integration/*`. For special function
+sets please create sub directories like `test/integration/deployimages`.
 
-Run the integration tests with:
+Run all of the integration tests with:
 
     $ hack/test-integration.sh
 
@@ -221,16 +218,11 @@ If you need to execute a subset of integration tests, run:
 
     $ hack/test-integration.sh <regex>
 
-Where `<regex>` is some regular expression that matches the names of all
-of the tests you want to run. The regular expression is passed into `grep -E`,
-so ensure that the syntax or features you use are supported. The default
-regular expression used
-is `Test`, which matches all tests.
+Where `<regex>` is some regular expression that matches the names of all of the
+integration tests you want to run. The regular expression is passed into `go test -run`,
+so ensure that the syntax or features you use are supported.
 
-Each integration function is executed in its own process so that it cleanly
-shuts down any background
-goroutines. You will not be able to run more than a single test within a single
-process.
+Each integration test is executed in parallel using `test/integration/runner`.
 
 There is a CLI integration test suite which covers general non-Docker
 functionality of the CLI tool
@@ -614,16 +606,16 @@ introduced in Kubernetes. Make sure:
 
 1. `make clean ; hack/build-go.sh` compiles without errors and the standalone
 server starts correctly.
-1. all of our generated code is up to date by running all `hack/update-*`
+2. all of our generated code is up to date by running all `hack/update-*`
 scripts.
-1. `hack/verify-open-ports.sh` runs without errors.
-1. `hack/copy-kube-artifacts.sh` so Kubernetes tests can be fully functional.
+3. `hack/verify-open-ports.sh` runs without errors.
+4. `hack/copy-kube-artifacts.sh` so Kubernetes tests can be fully functional.
 The diff resulting from this script should be squashed into the Kube bump
 commit.
-2. `TEST_KUBE=1 hack/test-go.sh` runs without errors.
-3. `hack/test-cmd.sh` runs without errors.
-3. `hack/test-integration.sh` runs without errors.
-3. `hack/test-end-to-end.sh` runs without errors.
+5. `TEST_KUBE=1 hack/test-go.sh` runs without errors.
+6. `hack/test-cmd.sh` runs without errors.
+7. `hack/test-integration.sh` runs without errors.
+8. `hack/test-end-to-end.sh` runs without errors.
     See *Building a Release* above for setting up the environment for the
 *test-end-to-end.sh* tests.
 
@@ -633,14 +625,9 @@ can potentially break or change any part of Origin, the most affected parts are
 usually:
 
 1. https://github.com/openshift/origin/blob/master/pkg/cmd/server/start
-2.
-https://github.com/openshift/origin/blob/master/pkg/cmd/server/kubernetes/master
-.go
-3.
-https://github.com/openshift/origin/blob/master/pkg/cmd/server/origin/master.go
-4.
-https://github.com/openshift/origin/blob/master/pkg/cmd/util/clientcmd/factory.g
-o
+2. https://github.com/openshift/origin/blob/master/pkg/cmd/server/kubernetes/master.go
+3. https://github.com/openshift/origin/blob/master/pkg/cmd/server/origin/master.go
+4. https://github.com/openshift/origin/blob/master/pkg/cmd/util/clientcmd/factory.go
 5. https://github.com/openshift/origin/blob/master/pkg/cmd/cli/cli.go
 6. https://github.com/openshift/origin/blob/master/pkg/api/meta/meta.go
 

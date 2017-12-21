@@ -18,21 +18,28 @@ type REST struct {
 	*registry.Store
 }
 
+var _ rest.StandardStorage = &REST{}
+var _ rest.ShortNamesProvider = &REST{}
+
+// ShortNames implements the ShortNamesProvider interface. Returns a list of short names for a resource.
+func (r *REST) ShortNames() []string {
+	return []string{"clusterquota"}
+}
+
 // NewREST returns a RESTStorage object that will work against ClusterResourceQuota objects.
 func NewREST(optsGetter restoptions.Getter) (*REST, *StatusREST, error) {
 	store := &registry.Store{
-		Copier:            kapi.Scheme,
-		NewFunc:           func() runtime.Object { return &quotaapi.ClusterResourceQuota{} },
-		NewListFunc:       func() runtime.Object { return &quotaapi.ClusterResourceQuotaList{} },
-		PredicateFunc:     clusterresourcequota.Matcher,
-		QualifiedResource: quotaapi.Resource("clusterresourcequotas"),
+		Copier:                   kapi.Scheme,
+		NewFunc:                  func() runtime.Object { return &quotaapi.ClusterResourceQuota{} },
+		NewListFunc:              func() runtime.Object { return &quotaapi.ClusterResourceQuotaList{} },
+		DefaultQualifiedResource: quotaapi.Resource("clusterresourcequotas"),
 
 		CreateStrategy: clusterresourcequota.Strategy,
 		UpdateStrategy: clusterresourcequota.Strategy,
 		DeleteStrategy: clusterresourcequota.Strategy,
 	}
 
-	options := &generic.StoreOptions{RESTOptions: optsGetter, AttrFunc: clusterresourcequota.GetAttrs}
+	options := &generic.StoreOptions{RESTOptions: optsGetter}
 	if err := store.CompleteWithOptions(options); err != nil {
 		return nil, nil, err
 	}

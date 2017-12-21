@@ -7,6 +7,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	apirequest "k8s.io/apiserver/pkg/endpoints/request"
+	"k8s.io/apiserver/pkg/registry/rest"
 
 	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
 	authorizationvalidation "github.com/openshift/origin/pkg/authorization/apis/authorization/validation"
@@ -18,6 +19,8 @@ type REST struct {
 	clusterRARRegistry resourceaccessreview.Registry
 }
 
+var _ rest.Creater = &REST{}
+
 func NewREST(clusterRARRegistry resourceaccessreview.Registry) *REST {
 	return &REST{clusterRARRegistry}
 }
@@ -28,7 +31,7 @@ func (r *REST) New() runtime.Object {
 
 // Create transforms a LocalRAR into an ClusterRAR that is requesting a namespace.  That collapses the code paths.
 // LocalResourceAccessReview exists to allow clean expression of policy.
-func (r *REST) Create(ctx apirequest.Context, obj runtime.Object) (runtime.Object, error) {
+func (r *REST) Create(ctx apirequest.Context, obj runtime.Object, _ bool) (runtime.Object, error) {
 	localRAR, ok := obj.(*authorizationapi.LocalResourceAccessReview)
 	if !ok {
 		return nil, kapierrors.NewBadRequest(fmt.Sprintf("not a localResourceAccessReview: %#v", obj))

@@ -6,7 +6,8 @@ import (
 	kapi "k8s.io/kubernetes/pkg/api"
 )
 
-// +genclient=true
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // Route encapsulates the inputs needed to connect an alias to endpoints.
 type Route struct {
@@ -117,6 +118,8 @@ type RouteIngressCondition struct {
 	// This may be before the router exposes the route
 	LastTransitionTime *metav1.Time
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // RouteList is a collection of Routes.
 type RouteList struct {

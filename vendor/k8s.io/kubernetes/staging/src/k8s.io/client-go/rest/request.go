@@ -502,11 +502,14 @@ func (r *Request) setParam(paramName, value string) *Request {
 	return r
 }
 
-func (r *Request) SetHeader(key, value string) *Request {
+func (r *Request) SetHeader(key string, values ...string) *Request {
 	if r.headers == nil {
 		r.headers = http.Header{}
 	}
-	r.headers.Set(key, value)
+	r.headers.Del(key)
+	for _, value := range values {
+		r.headers.Add(key, value)
+	}
 	return r
 }
 
@@ -1147,6 +1150,9 @@ func (r Result) Into(obj runtime.Object) error {
 	}
 	if r.decoder == nil {
 		return fmt.Errorf("serializer for %s doesn't exist", r.contentType)
+	}
+	if len(r.body) == 0 {
+		return fmt.Errorf("0-length response")
 	}
 
 	out, _, err := r.decoder.Decode(r.body, nil, obj)

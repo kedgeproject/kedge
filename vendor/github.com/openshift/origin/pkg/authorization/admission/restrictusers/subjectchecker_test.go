@@ -7,12 +7,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	kapi "k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/apis/rbac"
 	"k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/fake"
 
 	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
-	otestclient "github.com/openshift/origin/pkg/client/testclient"
 	userapi "github.com/openshift/origin/pkg/user/apis/user"
-	usercache "github.com/openshift/origin/pkg/user/cache"
+	fakeuserclient "github.com/openshift/origin/pkg/user/generated/internalclientset/fake"
 )
 
 func mustNewSubjectChecker(t *testing.T, spec *authorizationapi.RoleBindingRestrictionSpec) SubjectChecker {
@@ -26,30 +26,22 @@ func mustNewSubjectChecker(t *testing.T, spec *authorizationapi.RoleBindingRestr
 
 func TestSubjectCheckers(t *testing.T) {
 	var (
-		userBobRef = kapi.ObjectReference{
-			Kind: authorizationapi.UserKind,
+		userBobRef = rbac.Subject{
+			Kind: rbac.UserKind,
 			Name: "Bob",
 		}
-		userAliceRef = kapi.ObjectReference{
-			Kind: authorizationapi.UserKind,
+		userAliceRef = rbac.Subject{
+			Kind: rbac.UserKind,
 			Name: "Alice",
 		}
-		groupRef = kapi.ObjectReference{
-			Kind: authorizationapi.GroupKind,
+		groupRef = rbac.Subject{
+			Kind: rbac.GroupKind,
 			Name: "group",
 		}
-		serviceaccountRef = kapi.ObjectReference{
-			Kind:      authorizationapi.ServiceAccountKind,
+		serviceaccountRef = rbac.Subject{
+			Kind:      rbac.ServiceAccountKind,
 			Namespace: "namespace",
 			Name:      "serviceaccount",
-		}
-		systemuserRef = kapi.ObjectReference{
-			Kind: authorizationapi.SystemUserKind,
-			Name: "system user",
-		}
-		systemgroupRef = kapi.ObjectReference{
-			Kind: authorizationapi.SystemGroupKind,
-			Name: "system group",
 		}
 		group = userapi.Group{
 			ObjectMeta: metav1.ObjectMeta{
@@ -58,7 +50,7 @@ func TestSubjectCheckers(t *testing.T) {
 			},
 			Users: []string{userBobRef.Name},
 		}
-		objects = []runtime.Object{
+		userObjects = []runtime.Object{
 			&userapi.User{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:   "Alice",
@@ -70,6 +62,8 @@ func TestSubjectCheckers(t *testing.T) {
 				Groups:     []string{"group"},
 			},
 			&group,
+		}
+		kubeObjects = []runtime.Object{
 			&kapi.ServiceAccount{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "namespace",
@@ -83,31 +77,9 @@ func TestSubjectCheckers(t *testing.T) {
 	testCases := []struct {
 		name        string
 		checker     SubjectChecker
-		subject     kapi.ObjectReference
+		subject     rbac.Subject
 		shouldAllow bool
 	}{
-		{
-			name: "allow system user by literal name match",
-			checker: mustNewSubjectChecker(t,
-				&authorizationapi.RoleBindingRestrictionSpec{
-					UserRestriction: &authorizationapi.UserRestriction{
-						Users: []string{systemuserRef.Name},
-					},
-				}),
-			subject:     systemuserRef,
-			shouldAllow: true,
-		},
-		{
-			name: "allow system group by literal name match",
-			checker: mustNewSubjectChecker(t,
-				&authorizationapi.RoleBindingRestrictionSpec{
-					GroupRestriction: &authorizationapi.GroupRestriction{
-						Groups: []string{systemgroupRef.Name},
-					},
-				}),
-			subject:     systemgroupRef,
-			shouldAllow: true,
-		},
 		{
 			name: "allow regular user by literal name match",
 			checker: mustNewSubjectChecker(t,
@@ -233,8 +205,8 @@ func TestSubjectCheckers(t *testing.T) {
 						},
 					},
 				}),
-			subject: kapi.ObjectReference{
-				Kind:      authorizationapi.ServiceAccountKind,
+			subject: rbac.Subject{
+				Kind:      rbac.ServiceAccountKind,
 				Namespace: "othernamespace",
 				Name:      serviceaccountRef.Name,
 			},
@@ -250,8 +222,8 @@ func TestSubjectCheckers(t *testing.T) {
 						},
 					},
 				}),
-			subject: kapi.ObjectReference{
-				Kind:      authorizationapi.ServiceAccountKind,
+			subject: rbac.Subject{
+				Kind:      rbac.ServiceAccountKind,
 				Namespace: "othernamespace",
 				Name:      serviceaccountRef.Name,
 			},
@@ -270,8 +242,8 @@ func TestSubjectCheckers(t *testing.T) {
 						},
 					},
 				}),
-			subject: kapi.ObjectReference{
-				Kind: authorizationapi.ServiceAccountKind,
+			subject: rbac.Subject{
+				Kind: rbac.ServiceAccountKind,
 				Name: serviceaccountRef.Name,
 			},
 			shouldAllow: true,
@@ -286,8 +258,8 @@ func TestSubjectCheckers(t *testing.T) {
 						},
 					},
 				}),
-			subject: kapi.ObjectReference{
-				Kind: authorizationapi.ServiceAccountKind,
+			subject: rbac.Subject{
+				Kind: rbac.ServiceAccountKind,
 				Name: serviceaccountRef.Name,
 			},
 			shouldAllow: true,
@@ -305,8 +277,8 @@ func TestSubjectCheckers(t *testing.T) {
 						},
 					},
 				}),
-			subject: kapi.ObjectReference{
-				Kind: authorizationapi.ServiceAccountKind,
+			subject: rbac.Subject{
+				Kind: rbac.ServiceAccountKind,
 				Name: serviceaccountRef.Name,
 			},
 			shouldAllow: false,
@@ -340,10 +312,12 @@ func TestSubjectCheckers(t *testing.T) {
 		},
 	}
 
-	kclient := fake.NewSimpleClientset(otestclient.UpstreamObjects(objects)...)
-	oclient := otestclient.NewSimpleFake(otestclient.OriginObjects(objects)...)
-	groupCache := usercache.NewGroupCache(&groupCache{[]userapi.Group{group}})
-	groupCache.Run()
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+
+	kclient := fake.NewSimpleClientset(kubeObjects...)
+	fakeUserClient := fakeuserclient.NewSimpleClientset(userObjects...)
+	groupCache := fakeGroupCache{groups: []userapi.Group{group}}
 	// This is a terrible, horrible, no-good, very bad hack to avoid a race
 	// condition between the test "allow regular user by group membership"
 	// and the group cache's initialisation.
@@ -355,7 +329,7 @@ func TestSubjectCheckers(t *testing.T) {
 	}
 
 	ctx, err := NewRoleBindingRestrictionContext("namespace",
-		kclient, oclient, groupCache)
+		kclient, fakeUserClient.User(), groupCache)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}

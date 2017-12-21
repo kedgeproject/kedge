@@ -19,13 +19,13 @@ import (
 )
 
 func TestClusterResourceOverridePluginWithNoLimits(t *testing.T) {
-	defer testutil.DumpEtcdOnFailure(t)
 	config := &overrideapi.ClusterResourceOverrideConfig{
 		LimitCPUToMemoryPercent:     100,
 		CPURequestToLimitPercent:    50,
 		MemoryRequestToLimitPercent: 50,
 	}
-	kubeClientset := setupClusterResourceOverrideTest(t, config)
+	kubeClientset, fn := setupClusterResourceOverrideTest(t, config)
+	defer fn()
 	podHandler := kubeClientset.Core().Pods(testutil.Namespace())
 
 	// test with no limits object present
@@ -49,13 +49,13 @@ func TestClusterResourceOverridePluginWithNoLimits(t *testing.T) {
 }
 
 func TestClusterResourceOverridePluginWithLimits(t *testing.T) {
-	defer testutil.DumpEtcdOnFailure(t)
 	config := &overrideapi.ClusterResourceOverrideConfig{
 		LimitCPUToMemoryPercent:     100,
 		CPURequestToLimitPercent:    50,
 		MemoryRequestToLimitPercent: 50,
 	}
-	kubeClientset := setupClusterResourceOverrideTest(t, config)
+	kubeClientset, fn := setupClusterResourceOverrideTest(t, config)
+	defer fn()
 	podHandler := kubeClientset.Core().Pods(testutil.Namespace())
 	limitHandler := kubeClientset.Core().LimitRanges(testutil.Namespace())
 
@@ -105,8 +105,7 @@ func TestClusterResourceOverridePluginWithLimits(t *testing.T) {
 	}
 }
 
-func setupClusterResourceOverrideTest(t *testing.T, pluginConfig *overrideapi.ClusterResourceOverrideConfig) kclientset.Interface {
-	testutil.RequireEtcd(t)
+func setupClusterResourceOverrideTest(t *testing.T, pluginConfig *overrideapi.ClusterResourceOverrideConfig) (kclientset.Interface, func()) {
 	masterConfig, err := testserver.DefaultMasterOptions()
 	if err != nil {
 		t.Fatal(err)
@@ -115,12 +114,11 @@ func setupClusterResourceOverrideTest(t *testing.T, pluginConfig *overrideapi.Cl
 	if masterConfig.KubernetesMasterConfig == nil {
 		masterConfig.KubernetesMasterConfig = &api.KubernetesMasterConfig{}
 	}
-	kubeMaster := masterConfig.KubernetesMasterConfig
-	if kubeMaster.AdmissionConfig.PluginConfig == nil {
-		kubeMaster.AdmissionConfig.PluginConfig = map[string]api.AdmissionPluginConfig{}
+	if masterConfig.AdmissionConfig.PluginConfig == nil {
+		masterConfig.AdmissionConfig.PluginConfig = map[string]api.AdmissionPluginConfig{}
 	}
 	// set our config as desired
-	kubeMaster.AdmissionConfig.PluginConfig[overrideapi.PluginName] =
+	masterConfig.AdmissionConfig.PluginConfig[overrideapi.PluginName] =
 		api.AdmissionPluginConfig{Configuration: pluginConfig}
 
 	// start up a server and return useful clients to that server
@@ -132,23 +130,21 @@ func setupClusterResourceOverrideTest(t *testing.T, pluginConfig *overrideapi.Cl
 	if err != nil {
 		t.Fatal(err)
 	}
-	clusterAdminClient, err := testutil.GetClusterAdminClient(clusterAdminKubeConfig)
-	if err != nil {
-		t.Fatal(err)
-	}
 	// need to create a project and return client for project admin
 	clusterAdminClientConfig, err := testutil.GetClusterAdminClientConfig(clusterAdminKubeConfig)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = testserver.CreateNewProject(clusterAdminClient, *clusterAdminClientConfig, testutil.Namespace(), "peon")
+	_, _, err = testserver.CreateNewProject(clusterAdminClientConfig, testutil.Namespace(), "peon")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := testserver.WaitForServiceAccounts(clusterAdminKubeClientset, testutil.Namespace(), []string{bootstrappolicy.DefaultServiceAccountName}); err != nil {
 		t.Fatal(err)
 	}
-	return clusterAdminKubeClientset
+	return clusterAdminKubeClientset, func() {
+		testserver.CleanupMasterEtcd(t, masterConfig)
+	}
 }
 
 func testClusterResourceOverridePod(name string, memory string, cpu string) *kapi.Pod {

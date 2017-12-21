@@ -55,7 +55,7 @@ For more on the underlying concepts of OpenShift, please see the [documentation 
 
 ### OpenShift API
 
-The OpenShift API is located on each server at `https://<host>:8443/oapi/v1`. These APIs are described via [Swagger v1.2](https://www.swagger.io) at `https://<host>:8443/swaggerapi/oapi/v1`. For more, [see the API documentation](https://docs.openshift.org/latest/rest_api/openshift_v1.html).
+The OpenShift API is located on each server at `https://<host>:8443/oapi/v1`. These APIs are described via [Swagger v1.2](https://www.swagger.io) at `https://<host>:8443/swaggerapi/oapi/v1`. For more, [see the API documentation](https://docs.openshift.org/latest/rest_api).
 
 ### Kubernetes
 
@@ -65,7 +65,7 @@ If you're looking for more information about using Kubernetes or the lower level
 
 * [Kubernetes Getting Started](https://kubernetes.io/docs/tutorials/kubernetes-basics/)
 * [Kubernetes Documentation](https://kubernetes.io/docs/)
-* [Kubernetes API](https://docs.openshift.org/latest/rest_api/kubernetes_v1.html)
+* [Kubernetes API](https://docs.openshift.org/latest/rest_api)
 
 
 ### What can I run on OpenShift?
@@ -106,7 +106,7 @@ Many Docker containers expect to run as root (and therefore edit all the content
 
     * Don't run as root
     * Make directories you want to write to group-writable and owned by group id 0
-    * Set the net-bind capability on your executables if they need to bind to ports &lt;1024
+    * Set the net-bind capability on your executables if they need to bind to ports < 1024
 
 If you are running your own cluster and want to run a container as root, you can grant that permission to the containers in your current project with the following command:
 

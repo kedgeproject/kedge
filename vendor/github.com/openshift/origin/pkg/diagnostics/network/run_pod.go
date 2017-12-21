@@ -15,10 +15,10 @@ import (
 	kapi "k8s.io/kubernetes/pkg/api"
 	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 
-	osclient "github.com/openshift/origin/pkg/client"
 	osclientcmd "github.com/openshift/origin/pkg/cmd/util/clientcmd"
 	"github.com/openshift/origin/pkg/diagnostics/networkpod/util"
 	"github.com/openshift/origin/pkg/diagnostics/types"
+	networktypedclient "github.com/openshift/origin/pkg/network/generated/internalclientset/typed/network/internalversion"
 )
 
 const (
@@ -27,17 +27,18 @@ const (
 
 // NetworkDiagnostic is a diagnostic that runs a network diagnostic pod and relays the results.
 type NetworkDiagnostic struct {
-	KubeClient          kclientset.Interface
-	OSClient            *osclient.Client
-	ClientFlags         *flag.FlagSet
-	Level               int
-	Factory             *osclientcmd.Factory
-	PreventModification bool
-	LogDir              string
-	PodImage            string
-	TestPodImage        string
-	TestPodProtocol     string
-	TestPodPort         int
+	KubeClient           kclientset.Interface
+	NetNamespacesClient  networktypedclient.NetNamespacesGetter
+	ClusterNetworkClient networktypedclient.ClusterNetworksGetter
+	ClientFlags          *flag.FlagSet
+	Level                int
+	Factory              *osclientcmd.Factory
+	PreventModification  bool
+	LogDir               string
+	PodImage             string
+	TestPodImage         string
+	TestPodProtocol      string
+	TestPodPort          int
 
 	pluginName    string
 	nodes         []kapi.Node
@@ -64,7 +65,7 @@ func (d *NetworkDiagnostic) CanRun() (bool, error) {
 		return false, errors.New("running the network diagnostic pod is an API change, which is prevented as you indicated")
 	} else if d.KubeClient == nil {
 		return false, errors.New("must have kube client")
-	} else if d.OSClient == nil {
+	} else if d.NetNamespacesClient == nil || d.ClusterNetworkClient == nil {
 		return false, errors.New("must have openshift client")
 	} else if _, err := d.getKubeConfig(); err != nil {
 		return false, err
@@ -78,13 +79,13 @@ func (d *NetworkDiagnostic) Check() types.DiagnosticResult {
 
 	var err error
 	var ok bool
-	d.pluginName, ok, err = util.GetOpenShiftNetworkPlugin(d.OSClient)
+	d.pluginName, ok, err = util.GetOpenShiftNetworkPlugin(d.ClusterNetworkClient)
 	if err != nil {
 		d.res.Error("DNet2001", err, fmt.Sprintf("Checking network plugin failed. Error: %s", err))
 		return d.res
 	}
 	if !ok {
-		d.res.Warn("DNet2002", nil, "Skipping network diagnostics check. Reason: Not using openshift network plugin.")
+		d.res.Info("DNet2002", "Skipping network diagnostics check. Reason: Not using openshift network plugin.")
 		return d.res
 	}
 
@@ -98,22 +99,27 @@ func (d *NetworkDiagnostic) Check() types.DiagnosticResult {
 		return d.res
 	}
 
-	d.runNetworkDiagnostic()
+	// Abort and clean up if there is an interrupt/terminate signal while running network diagnostics
+	done := make(chan bool, 1)
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-sig
+		d.res.Warn("DNet2014", nil, "Interrupt received; aborting network diagnostic.")
+		done <- true
+	}()
+	go func() {
+		d.runNetworkDiagnostic()
+		done <- true
+	}()
+	<-done
+	signal.Stop(sig)
+	d.Cleanup()
+
 	return d.res
 }
 
 func (d *NetworkDiagnostic) runNetworkDiagnostic() {
-	// Do clean up if there is an interrupt/terminate signal while running network diagnostics
-	c := make(chan os.Signal, 2)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-c
-		d.Cleanup()
-	}()
-
-	defer func() {
-		d.Cleanup()
-	}()
 	// Setup test environment
 	if err := d.TestSetup(); err != nil {
 		d.res.Error("DNet2005", err, fmt.Sprintf("Setting up test environment for network diagnostics failed: %v", err))

@@ -23,28 +23,28 @@ import (
 	scmeta "github.com/kubernetes-incubator/service-catalog/pkg/api/meta"
 	"github.com/kubernetes-incubator/service-catalog/pkg/apis/servicecatalog"
 	"github.com/kubernetes-incubator/service-catalog/pkg/registry/servicecatalog/server"
-	"github.com/kubernetes-incubator/service-catalog/pkg/storage/tpr"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	genericapirequest "k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/registry/generic"
 	"k8s.io/apiserver/pkg/registry/generic/registry"
 	"k8s.io/apiserver/pkg/registry/rest"
 	"k8s.io/apiserver/pkg/storage"
-	"k8s.io/client-go/pkg/api"
 )
 
 var (
-	errNotABroker = errors.New("not a broker")
+	errNotAClusterServiceBroker = errors.New("not a broker")
 )
 
 // NewSingular returns a new shell of a service broker, according to the given namespace and
 // name
 func NewSingular(ns, name string) runtime.Object {
-	return &servicecatalog.Broker{
+	return &servicecatalog.ClusterServiceBroker{
 		TypeMeta: metav1.TypeMeta{
-			Kind: tpr.ServiceBrokerKind.String(),
+			Kind: "ClusterServiceBroker",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: ns,
@@ -55,29 +55,29 @@ func NewSingular(ns, name string) runtime.Object {
 
 // EmptyObject returns an empty broker
 func EmptyObject() runtime.Object {
-	return &servicecatalog.Broker{}
+	return &servicecatalog.ClusterServiceBroker{}
 }
 
 // NewList returns a new shell of a broker list
 func NewList() runtime.Object {
-	return &servicecatalog.BrokerList{
+	return &servicecatalog.ClusterServiceBrokerList{
 		TypeMeta: metav1.TypeMeta{
-			Kind: tpr.ServiceBrokerListKind.String(),
+			Kind: "ClusterServiceBrokerList",
 		},
-		Items: []servicecatalog.Broker{},
+		Items: []servicecatalog.ClusterServiceBroker{},
 	}
 }
 
 // CheckObject returns a non-nil error if obj is not a broker object
 func CheckObject(obj runtime.Object) error {
-	_, ok := obj.(*servicecatalog.Broker)
+	_, ok := obj.(*servicecatalog.ClusterServiceBroker)
 	if !ok {
-		return errNotABroker
+		return errNotAClusterServiceBroker
 	}
 	return nil
 }
 
-// Match determines whether an Instance matches a field and label
+// Match determines whether an ServiceInstance matches a field and label
 // selector.
 func Match(label labels.Selector, field fields.Selector) storage.SelectionPredicate {
 	return storage.SelectionPredicate{
@@ -88,28 +88,27 @@ func Match(label labels.Selector, field fields.Selector) storage.SelectionPredic
 }
 
 // toSelectableFields returns a field set that represents the object for matching purposes.
-func toSelectableFields(broker *servicecatalog.Broker) fields.Set {
+func toSelectableFields(broker *servicecatalog.ClusterServiceBroker) fields.Set {
 	objectMetaFieldsSet := generic.ObjectMetaFieldsSet(&broker.ObjectMeta, true)
 	return generic.MergeFieldsSets(objectMetaFieldsSet, nil)
 }
 
 // GetAttrs returns labels and fields of a given object for filtering purposes.
-func GetAttrs(obj runtime.Object) (labels.Set, fields.Set, error) {
-	broker, ok := obj.(*servicecatalog.Broker)
+func GetAttrs(obj runtime.Object) (labels.Set, fields.Set, bool, error) {
+	broker, ok := obj.(*servicecatalog.ClusterServiceBroker)
 	if !ok {
-		return nil, nil, fmt.Errorf("given object is not a Broker")
+		return nil, nil, false, fmt.Errorf("given object is not a ClusterServiceBroker")
 	}
-	return labels.Set(broker.ObjectMeta.Labels), toSelectableFields(broker), nil
+	return labels.Set(broker.ObjectMeta.Labels), toSelectableFields(broker), broker.Initializers != nil, nil
 }
 
-// NewStorage creates a new rest.Storage responsible for accessing Instance
+// NewStorage creates a new rest.Storage responsible for accessing ServiceInstance
 // resources
 func NewStorage(opts server.Options) (brokers, brokersStatus rest.Storage) {
 	prefix := "/" + opts.ResourcePrefix()
 
 	storageInterface, dFunc := opts.GetStorage(
-		1000,
-		&servicecatalog.Broker{},
+		&servicecatalog.ClusterServiceBroker{},
 		prefix,
 		brokerRESTStrategies,
 		NewList,
@@ -128,8 +127,8 @@ func NewStorage(opts server.Options) (brokers, brokersStatus rest.Storage) {
 		},
 		// Used to match objects based on labels/fields for list.
 		PredicateFunc: Match,
-		// QualifiedResource should always be plural
-		QualifiedResource: api.Resource("brokers"),
+		// DefaultQualifiedResource should always be plural
+		DefaultQualifiedResource: servicecatalog.Resource("clusterservicebrokers"),
 
 		CreateStrategy:          brokerRESTStrategies,
 		UpdateStrategy:          brokerRESTStrategies,
@@ -140,8 +139,37 @@ func NewStorage(opts server.Options) (brokers, brokersStatus rest.Storage) {
 		DestroyFunc: dFunc,
 	}
 
+	options := &generic.StoreOptions{RESTOptions: opts.EtcdOptions.RESTOptions, AttrFunc: GetAttrs}
+	if err := store.CompleteWithOptions(options); err != nil {
+		panic(err) // TODO: Propagate error up
+	}
+
 	statusStore := store
 	statusStore.UpdateStrategy = brokerStatusUpdateStrategy
 
-	return &store, &statusStore
+	return &store, &StatusREST{&statusStore}
+}
+
+// StatusREST defines the REST operations for the status subresource via
+// implementation of various rest interfaces.  It supports the http verbs GET,
+// PATCH, and PUT.
+type StatusREST struct {
+	store *registry.Store
+}
+
+// New returns a new ClusterServiceBroker.
+func (r *StatusREST) New() runtime.Object {
+	return &servicecatalog.ClusterServiceBroker{}
+}
+
+// Get retrieves the object from the storage. It is required to support Patch
+// and to implement the rest.Getter interface.
+func (r *StatusREST) Get(ctx genericapirequest.Context, name string, options *metav1.GetOptions) (runtime.Object, error) {
+	return r.store.Get(ctx, name, options)
+}
+
+// Update alters the status subset of an object and implements the
+// rest.Updater interface.
+func (r *StatusREST) Update(ctx genericapirequest.Context, name string, objInfo rest.UpdatedObjectInfo) (runtime.Object, bool, error) {
+	return r.store.Update(ctx, name, objInfo)
 }

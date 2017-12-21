@@ -15,10 +15,11 @@ import (
 
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	kapi "k8s.io/kubernetes/pkg/api"
+	kapiv1 "k8s.io/kubernetes/pkg/api/v1"
 
-	osclient "github.com/openshift/origin/pkg/client"
+	"github.com/openshift/origin/pkg/dockerregistry/server/client"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
+	imageapiv1 "github.com/openshift/origin/pkg/image/apis/image/v1"
 	"github.com/openshift/origin/pkg/image/importer"
 )
 
@@ -132,7 +133,7 @@ func effectiveCreateOptions(options []distribution.BlobCreateOption) (*distribut
 	return opts, nil
 }
 
-func isImageManaged(image *imageapi.Image) bool {
+func isImageManaged(image *imageapiv1.Image) bool {
 	managed, ok := image.ObjectMeta.Annotations[imageapi.ManagedByOpenShiftAnnotation]
 	return ok && managed == "true"
 }
@@ -163,13 +164,13 @@ func wrapKStatusErrorOnGetImage(repoName string, dgst digest.Digest, err error) 
 // to remote repositories.
 func getImportContext(
 	ctx context.Context,
-	osClient osclient.ImageStreamSecretsNamespacer,
+	osClient client.ImageStreamSecretsNamespacer,
 	namespace, name string,
 ) importer.RepositoryRetriever {
 	secrets, err := osClient.ImageStreamSecrets(namespace).Secrets(name, metav1.ListOptions{})
 	if err != nil {
 		context.GetLogger(ctx).Errorf("error getting secrets for repository %s/%s: %v", namespace, name, err)
-		secrets = &kapi.SecretList{}
+		secrets = &kapiv1.SecretList{}
 	}
 	credentials := importer.NewCredentialsForSecrets(secrets.Items)
 	return importer.NewContext(secureTransport, insecureTransport).WithCredentials(credentials)
@@ -180,11 +181,11 @@ type cachedImageStreamGetter struct {
 	ctx               context.Context
 	namespace         string
 	name              string
-	isNamespacer      osclient.ImageStreamsNamespacer
-	cachedImageStream *imageapi.ImageStream
+	isNamespacer      client.ImageStreamsNamespacer
+	cachedImageStream *imageapiv1.ImageStream
 }
 
-func (g *cachedImageStreamGetter) get() (*imageapi.ImageStream, error) {
+func (g *cachedImageStreamGetter) get() (*imageapiv1.ImageStream, error) {
 	if g.cachedImageStream != nil {
 		context.GetLogger(g.ctx).Debugf("(*cachedImageStreamGetter).getImageStream: returning cached copy")
 		return g.cachedImageStream, nil
@@ -207,7 +208,7 @@ func (g *cachedImageStreamGetter) get() (*imageapi.ImageStream, error) {
 	return is, nil
 }
 
-func (g *cachedImageStreamGetter) cacheImageStream(is *imageapi.ImageStream) {
+func (g *cachedImageStreamGetter) cacheImageStream(is *imageapiv1.ImageStream) {
 	context.GetLogger(g.ctx).Debugf("(*cachedImageStreamGetter).cacheImageStream: got image stream %s/%s", is.Namespace, is.Name)
 	g.cachedImageStream = is
 }

@@ -16,6 +16,8 @@
 set -o nounset
 set -o errexit
 
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
 while [[ $# -ne 0 ]]; do
   case "$1" in
     --project)     PROJECT="$2"; shift ;;
@@ -46,26 +48,34 @@ gcloud auth activate-service-account \
 
 echo "Creating cluster ${CLUSTERNAME}"
 
-# TODO: Currently, GKE's default master version is 1.5.6, but the catalog needs
-# >=1.6.0 to run. However, the patch version keeps changing. Until the default is
-# >=1.6.0, manually grab the latest GKE master version from the list of valid
-# versions, and use that.
+# Use the latest 1.7.X version that GKE offers.
 CLUSTER_VERSION="$(gcloud container get-server-config --zone "${ZONE}" \
-  | awk 'BEGIN {p=0}; /validMasterVersions:/ {p=1; next}; p {print $2; exit}')"
+  | awk '
+    BEGIN {p=0};
+    /validMasterVersions:/ {p=1; next};
+    /validNodeVersions:/ {exit};
+    p && /1.7/ {print $2; exit}
+  ')"
 
-[[ "${CLUSTER_VERSION}" == *1.6.* ]] \
-  || error_exit "Invalid cluster version. Expected 1.6.X, got: ${CLUSTER_VERSION}"
+[[ -n "${CLUSTER_VERSION}" ]] \
+  || { echo 'Could not find valid 1.7.X cluster version on Google Container Engine.'; exit 1; }
 
 echo "Using cluster version ${CLUSTER_VERSION}"
 
 gcloud container clusters create "${CLUSTERNAME}" --project="${PROJECT}" --zone="${ZONE}" \
-    --cluster-version "${CLUSTER_VERSION}" \
+  --cluster-version "${CLUSTER_VERSION}" --no-enable-legacy-authorization \
   || { echo 'Cannot create cluster.'; exit 1; }
 
 echo "Using cluster ${CLUSTERNAME}."
 
 gcloud container clusters get-credentials "${CLUSTERNAME}" --project="${PROJECT}" --zone="${ZONE}" \
   || { echo 'Cannot get credentials for cluster.'; exit 1; }
+
+# Need to give tiller proper permissions in order to create RBAC roles.
+kubectl create clusterrolebinding tiller-cluster-admin \
+  --clusterrole=cluster-admin \
+  --serviceaccount=kube-system:default \
+  || { echo 'Cannot not create cluster-admin role for service account.'; exit 1; }
 
 helm init \
   || { echo 'Cannot initialize Helm.'; exit 1; }

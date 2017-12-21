@@ -15,6 +15,7 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
+	imageapiv1 "github.com/openshift/origin/pkg/image/apis/image/v1"
 )
 
 const (
@@ -26,7 +27,7 @@ const (
 )
 
 // ByGeneration allows for sorting tag events from latest to oldest.
-type ByGeneration []*imageapi.TagEvent
+type ByGeneration []*imageapiv1.TagEvent
 
 func (b ByGeneration) Less(i, j int) bool { return b[i].Generation > b[j].Generation }
 func (b ByGeneration) Len() int           { return len(b) }
@@ -65,7 +66,7 @@ func (bs *blobDescriptorService) Stat(ctx context.Context, dgst digest.Digest) (
 	desc, err := bs.BlobDescriptorService.Stat(ctx, dgst)
 	if err == nil {
 		// and remember the association
-		repo.cachedLayers.RememberDigest(dgst, repo.blobrepositorycachettl, imageapi.DockerImageReference{
+		repo.cachedLayers.RememberDigest(dgst, repo.config.blobRepositoryCacheTTL, imageapi.DockerImageReference{
 			Namespace: repo.namespace,
 			Name:      repo.name,
 		}.Exact())
@@ -75,7 +76,7 @@ func (bs *blobDescriptorService) Stat(ctx context.Context, dgst digest.Digest) (
 	context.GetLogger(ctx).Debugf("(*blobDescriptorService).Stat: could not stat layer link %s in repository %s: %v", dgst.String(), repo.Named().Name(), err)
 
 	// First attempt: looking for the blob locally
-	desc, err = dockerRegistry.BlobStatter().Stat(ctx, dgst)
+	desc, err = repo.app.registry.BlobStatter().Stat(ctx, dgst)
 	if err == nil {
 		context.GetLogger(ctx).Debugf("(*blobDescriptorService).Stat: blob %s exists in the global blob store", dgst.String())
 		// only non-empty layers is wise to check for existence in the image stream.
@@ -142,9 +143,10 @@ func imageStreamHasBlob(r *repository, dgst digest.Digest) bool {
 		return logFound(false)
 	}
 
-	tagEvents := []*imageapi.TagEvent{}
-	event2Name := make(map[*imageapi.TagEvent]string)
-	for name, eventList := range is.Status.Tags {
+	tagEvents := []*imageapiv1.TagEvent{}
+	event2Name := make(map[*imageapiv1.TagEvent]string)
+	for _, eventList := range is.Status.Tags {
+		name := eventList.Tag
 		for i := range eventList.Items {
 			event := &eventList.Items[i]
 			tagEvents = append(tagEvents, event)
@@ -160,7 +162,7 @@ func imageStreamHasBlob(r *repository, dgst digest.Digest) bool {
 		if _, processed := processedImages[tagEvent.Image]; processed {
 			continue
 		}
-		if imageHasBlob(r, repoCacheName, tagEvent.Image, dgst.String(), !r.pullthrough) {
+		if imageHasBlob(r, repoCacheName, tagEvent.Image, dgst.String(), !r.config.pullthrough) {
 			tagName := event2Name[tagEvent]
 			context.GetLogger(r.ctx).Debugf("blob found under istag %s/%s:%s in image %s", r.namespace, r.name, tagName, tagEvent.Image)
 			return logFound(true)
@@ -208,17 +210,10 @@ func imageHasBlob(
 		return true
 	}
 
-	if len(image.DockerImageLayers) == 0 {
-		if len(image.DockerImageManifestMediaType) > 0 {
-			// If the media type is set, we can safely assume that the best effort to fill the image layers
-			// has already been done. There are none.
-			return false
-		}
-		err = imageapi.ImageWithMetadata(image)
-		if err != nil {
-			context.GetLogger(r.ctx).Errorf("failed to get metadata for image %s: %v", imageName, err)
-			return false
-		}
+	if len(image.DockerImageLayers) == 0 && len(image.DockerImageManifestMediaType) > 0 {
+		// If the media type is set, we can safely assume that the best effort to
+		// fill the image layers has already been done. There are none.
+		return false
 	}
 
 	for _, layer := range image.DockerImageLayers {
@@ -229,9 +224,14 @@ func imageHasBlob(
 		}
 	}
 
+	meta, ok := image.DockerImageMetadata.Object.(*imageapi.DockerImage)
+	if !ok {
+		context.GetLogger(r.ctx).Errorf("image does not have metadata %s", imageName)
+		return false
+	}
+
 	// only manifest V2 schema2 has docker image config filled where dockerImage.Metadata.id is its digest
-	if image.DockerImageManifestMediaType == schema2.MediaTypeManifest &&
-		image.DockerImageMetadata.ID == blobDigest {
+	if image.DockerImageManifestMediaType == schema2.MediaTypeManifest && meta.ID == blobDigest {
 		// remember manifest config reference of schema 2 as well
 		r.rememberLayersOfImage(image, cacheName)
 		return true

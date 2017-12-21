@@ -24,7 +24,6 @@ import (
 	genericregistry "k8s.io/apiserver/pkg/registry/generic/registry"
 	"k8s.io/apiserver/pkg/registry/rest"
 	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/registry/cachesize"
 	"k8s.io/kubernetes/pkg/registry/core/resourcequota"
 )
 
@@ -35,15 +34,11 @@ type REST struct {
 // NewREST returns a RESTStorage object that will work against resource quotas.
 func NewREST(optsGetter generic.RESTOptionsGetter) (*REST, *StatusREST) {
 	store := &genericregistry.Store{
-		Copier:      api.Scheme,
-		NewFunc:     func() runtime.Object { return &api.ResourceQuota{} },
-		NewListFunc: func() runtime.Object { return &api.ResourceQuotaList{} },
-		ObjectNameFunc: func(obj runtime.Object) (string, error) {
-			return obj.(*api.ResourceQuota).Name, nil
-		},
-		PredicateFunc:     resourcequota.MatchResourceQuota,
-		QualifiedResource: api.Resource("resourcequotas"),
-		WatchCacheSize:    cachesize.GetWatchCacheSizeByResource("resourcequotas"),
+		Copier:                   api.Scheme,
+		NewFunc:                  func() runtime.Object { return &api.ResourceQuota{} },
+		NewListFunc:              func() runtime.Object { return &api.ResourceQuotaList{} },
+		PredicateFunc:            resourcequota.MatchResourceQuota,
+		DefaultQualifiedResource: api.Resource("resourcequotas"),
 
 		CreateStrategy:      resourcequota.Strategy,
 		UpdateStrategy:      resourcequota.Strategy,

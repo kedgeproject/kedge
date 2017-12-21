@@ -22,7 +22,6 @@ import (
 	genericregistry "k8s.io/apiserver/pkg/registry/generic/registry"
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/apis/extensions"
-	"k8s.io/kubernetes/pkg/registry/cachesize"
 	"k8s.io/kubernetes/pkg/registry/extensions/thirdpartyresource"
 )
 
@@ -43,15 +42,11 @@ func NewREST(optsGetter generic.RESTOptionsGetter) *REST {
 	opts.Decorator = generic.UndecoratedStorage
 
 	store := &genericregistry.Store{
-		Copier:      api.Scheme,
-		NewFunc:     func() runtime.Object { return &extensions.ThirdPartyResource{} },
-		NewListFunc: func() runtime.Object { return &extensions.ThirdPartyResourceList{} },
-		ObjectNameFunc: func(obj runtime.Object) (string, error) {
-			return obj.(*extensions.ThirdPartyResource).Name, nil
-		},
-		PredicateFunc:     thirdpartyresource.Matcher,
-		QualifiedResource: resource,
-		WatchCacheSize:    cachesize.GetWatchCacheSizeByResource(resource.Resource),
+		Copier:                   api.Scheme,
+		NewFunc:                  func() runtime.Object { return &extensions.ThirdPartyResource{} },
+		NewListFunc:              func() runtime.Object { return &extensions.ThirdPartyResourceList{} },
+		PredicateFunc:            thirdpartyresource.Matcher,
+		DefaultQualifiedResource: resource,
 
 		CreateStrategy: thirdpartyresource.Strategy,
 		UpdateStrategy: thirdpartyresource.Strategy,

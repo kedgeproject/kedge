@@ -13,16 +13,15 @@ import (
 	kapiv1 "k8s.io/kubernetes/pkg/api/v1"
 
 	projectapi "github.com/openshift/origin/pkg/project/apis/project"
+	projectclient "github.com/openshift/origin/pkg/project/generated/internalclientset"
 	"github.com/openshift/origin/pkg/project/registry/projectrequest/delegated"
 	templateapi "github.com/openshift/origin/pkg/template/apis/template"
+	templateclient "github.com/openshift/origin/pkg/template/generated/internalclientset"
 	testutil "github.com/openshift/origin/test/util"
 	testserver "github.com/openshift/origin/test/util/server"
 )
 
 func TestProjectRequestError(t *testing.T) {
-	testutil.RequireEtcd(t)
-	defer testutil.DumpEtcdOnFailure(t)
-
 	const (
 		ns                = "testns"
 		templateNamespace = "default"
@@ -32,6 +31,7 @@ func TestProjectRequestError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error creating config: %v", err)
 	}
+	defer testserver.CleanupMasterEtcd(t, masterConfig)
 
 	masterConfig.ProjectConfig.ProjectRequestTemplate = templateNamespace + "/" + templateName
 
@@ -43,7 +43,7 @@ func TestProjectRequestError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error getting client: %v", err)
 	}
-	openshiftClient, err := testutil.GetClusterAdminClient(kubeConfigFile)
+	clusterAdminClientConfig, err := testutil.GetClusterAdminClientConfig(kubeConfigFile)
 	if err != nil {
 		t.Fatalf("error getting openshift client: %v", err)
 	}
@@ -63,7 +63,7 @@ func TestProjectRequestError(t *testing.T) {
 	if err := templateapi.AddObjectsToTemplate(template, additionalObjects, kapiv1.SchemeGroupVersion); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := openshiftClient.Templates(templateNamespace).Create(template); err != nil {
+	if _, err := templateclient.NewForConfigOrDie(clusterAdminClientConfig).Templates(templateNamespace).Create(template); err != nil {
 		t.Fatal(err)
 	}
 
@@ -72,7 +72,7 @@ func TestProjectRequestError(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	policywatch, err := openshiftClient.PolicyBindings(ns).Watch(metav1.ListOptions{})
+	roleWatch, err := kubeClientset.Rbac().RoleBindings(ns).Watch(metav1.ListOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +82,7 @@ func TestProjectRequestError(t *testing.T) {
 	}
 
 	// Create project request
-	_, err = openshiftClient.ProjectRequests().Create(&projectapi.ProjectRequest{ObjectMeta: metav1.ObjectMeta{Name: ns}})
+	_, err = projectclient.NewForConfigOrDie(clusterAdminClientConfig).ProjectRequests().Create(&projectapi.ProjectRequest{ObjectMeta: metav1.ObjectMeta{Name: ns}})
 	if err == nil || err.Error() != `Internal error occurred: ConfigMap "" is invalid: metadata.name: Required value: name or generateName is required` {
 		t.Fatalf("Expected internal error creating project, got %v", err)
 	}
@@ -117,11 +117,11 @@ func TestProjectRequestError(t *testing.T) {
 		}
 		t.Errorf("expected 1 namespace to be added and deleted, got %d added / %d deleted", added, deleted)
 	}
-	if added, deleted, events := pairCreationDeletion(policywatch); added != deleted || added != 1 {
+	if added, deleted, events := pairCreationDeletion(roleWatch); added != deleted || added != 4 {
 		for _, e := range events {
 			t.Logf("%s %#v", e.Type, e.Object)
 		}
-		t.Errorf("expected 1 policybinding to be added and deleted, got %d added / %d deleted", added, deleted)
+		t.Errorf("expected 4 (1 admin + 3 SA) roleBindings to be added and deleted, got %d added / %d deleted", added, deleted)
 	}
 	if added, deleted, events := pairCreationDeletion(cmwatch); added != deleted || added != 1 {
 		for _, e := range events {

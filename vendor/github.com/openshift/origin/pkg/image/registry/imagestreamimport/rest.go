@@ -13,19 +13,23 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/diff"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/util/validation/field"
 	apirequest "k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/registry/rest"
 	kapi "k8s.io/kubernetes/pkg/api"
+	kapihelper "k8s.io/kubernetes/pkg/api/helper"
+	kapiv1 "k8s.io/kubernetes/pkg/api/v1"
+	authorizationapi "k8s.io/kubernetes/pkg/apis/authorization"
+	authorizationclient "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/typed/authorization/internalversion"
 
-	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
-	"github.com/openshift/origin/pkg/client"
+	authorizationutil "github.com/openshift/origin/pkg/authorization/util"
 	serverapi "github.com/openshift/origin/pkg/cmd/server/api"
-	"github.com/openshift/origin/pkg/dockerregistry"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
 	imageapiv1 "github.com/openshift/origin/pkg/image/apis/image/v1"
+	imageclient "github.com/openshift/origin/pkg/image/generated/internalclientset/typed/image/internalversion"
 	"github.com/openshift/origin/pkg/image/importer"
+	"github.com/openshift/origin/pkg/image/importer/dockerv1client"
 	"github.com/openshift/origin/pkg/image/registry/imagestream"
+	"github.com/openshift/origin/pkg/image/util"
 	quotautil "github.com/openshift/origin/pkg/quota/util"
 )
 
@@ -34,7 +38,7 @@ type ImporterFunc func(r importer.RepositoryRetriever) importer.Interface
 
 // ImporterDockerRegistryFunc returns an instance of a docker client that should be used per invocation of import,
 // may be nil if no legacy import capability is required.
-type ImporterDockerRegistryFunc func() dockerregistry.Client
+type ImporterDockerRegistryFunc func() dockerv1client.Client
 
 // REST implements the RESTStorage interface for ImageStreamImport
 type REST struct {
@@ -42,31 +46,33 @@ type REST struct {
 	streams           imagestream.Registry
 	internalStreams   rest.CreaterUpdater
 	images            rest.Creater
-	secrets           client.ImageStreamSecretsNamespacer
+	isClient          imageclient.ImageStreamsGetter
 	transport         http.RoundTripper
 	insecureTransport http.RoundTripper
 	clientFn          ImporterDockerRegistryFunc
 	strategy          *strategy
-	sarClient         client.SubjectAccessReviewInterface
+	sarClient         authorizationclient.SubjectAccessReviewInterface
 }
+
+var _ rest.Creater = &REST{}
 
 // NewREST returns a REST storage implementation that handles importing images. The clientFn argument is optional
 // if v1 Docker Registry importing is not required. Insecure transport is optional, and both transports should not
 // include client certs unless you wish to allow the entire cluster to import using those certs.
 func NewREST(importFn ImporterFunc, streams imagestream.Registry, internalStreams rest.CreaterUpdater,
-	images rest.Creater, secrets client.ImageStreamSecretsNamespacer,
+	images rest.Creater, isClient imageclient.ImageStreamsGetter,
 	transport, insecureTransport http.RoundTripper,
 	clientFn ImporterDockerRegistryFunc,
 	allowedImportRegistries *serverapi.AllowedRegistries,
-	registryFn imageapi.DefaultRegistryFunc,
-	sarClient client.SubjectAccessReviewInterface,
+	registryFn imageapi.RegistryHostnameRetriever,
+	sarClient authorizationclient.SubjectAccessReviewInterface,
 ) *REST {
 	return &REST{
 		importFn:          importFn,
 		streams:           streams,
 		internalStreams:   internalStreams,
 		images:            images,
-		secrets:           secrets,
+		isClient:          isClient,
 		transport:         transport,
 		insecureTransport: insecureTransport,
 		clientFn:          clientFn,
@@ -80,7 +86,7 @@ func (r *REST) New() runtime.Object {
 	return &imageapi.ImageStreamImport{}
 }
 
-func (r *REST) Create(ctx apirequest.Context, obj runtime.Object) (runtime.Object, error) {
+func (r *REST) Create(ctx apirequest.Context, obj runtime.Object, _ bool) (runtime.Object, error) {
 	isi, ok := obj.(*imageapi.ImageStreamImport)
 	if !ok {
 		return nil, kapierrors.NewBadRequest(fmt.Sprintf("obj is not an ImageStreamImport: %#v", obj))
@@ -100,33 +106,35 @@ func (r *REST) Create(ctx apirequest.Context, obj runtime.Object) (runtime.Objec
 	if !ok {
 		return nil, kapierrors.NewBadRequest("unable to get user from context")
 	}
-	isCreateImage, err := r.sarClient.Create(authorizationapi.AddUserToSAR(user,
-		&authorizationapi.SubjectAccessReview{
-			Action: authorizationapi.Action{
+	createImageSAR := authorizationutil.AddUserToSAR(user, &authorizationapi.SubjectAccessReview{
+		Spec: authorizationapi.SubjectAccessReviewSpec{
+			ResourceAttributes: &authorizationapi.ResourceAttributes{
 				Verb:     "create",
 				Group:    imageapi.GroupName,
 				Resource: "images",
 			},
 		},
-	))
+	})
+	isCreateImage, err := r.sarClient.Create(createImageSAR)
 	if err != nil {
 		return nil, err
 	}
 
-	isCreateImageStreamMapping, err := r.sarClient.Create(authorizationapi.AddUserToSAR(user,
-		&authorizationapi.SubjectAccessReview{
-			Action: authorizationapi.Action{
+	createImageStreamMappingSAR := authorizationutil.AddUserToSAR(user, &authorizationapi.SubjectAccessReview{
+		Spec: authorizationapi.SubjectAccessReviewSpec{
+			ResourceAttributes: &authorizationapi.ResourceAttributes{
 				Verb:     "create",
 				Group:    imageapi.GroupName,
 				Resource: "imagestreammapping",
 			},
 		},
-	))
+	})
+	isCreateImageStreamMapping, err := r.sarClient.Create(createImageStreamMappingSAR)
 	if err != nil {
 		return nil, err
 	}
 
-	if !isCreateImage.Allowed && !isCreateImageStreamMapping.Allowed {
+	if !isCreateImage.Status.Allowed && !isCreateImageStreamMapping.Status.Allowed {
 		if errs := r.strategy.ValidateAllowedRegistries(isi); len(errs) != 0 {
 			return nil, kapierrors.NewInvalid(imageapi.Kind("ImageStreamImport"), isi.Name, errs)
 		}
@@ -141,45 +149,6 @@ func (r *REST) Create(ctx apirequest.Context, obj runtime.Object) (runtime.Objec
 		if client := r.clientFn(); client != nil {
 			ctx = apirequest.WithValue(ctx, importer.ContextKeyV1RegistryClient, client)
 		}
-	}
-
-	// only load secrets if we need them
-	credentials := importer.NewLazyCredentialsForSecrets(func() ([]kapi.Secret, error) {
-		secrets, err := r.secrets.ImageStreamSecrets(namespace).Secrets(isi.Name, metav1.ListOptions{})
-		if err != nil {
-			return nil, err
-		}
-		return secrets.Items, nil
-	})
-	importCtx := importer.NewContext(r.transport, r.insecureTransport).WithCredentials(credentials)
-	imports := r.importFn(importCtx)
-	if err := imports.Import(ctx.(gocontext.Context), isi); err != nil {
-		return nil, kapierrors.NewInternalError(err)
-	}
-
-	// if we encountered an error loading credentials and any images could not be retrieved with an access
-	// related error, modify the message.
-	// TODO: set a status cause
-	if err := credentials.Err(); err != nil {
-		for i, image := range isi.Status.Images {
-			switch image.Status.Reason {
-			case metav1.StatusReasonUnauthorized, metav1.StatusReasonForbidden:
-				isi.Status.Images[i].Status.Message = fmt.Sprintf("Unable to load secrets for this image: %v; (%s)", err, image.Status.Message)
-			}
-		}
-		if r := isi.Status.Repository; r != nil {
-			switch r.Status.Reason {
-			case metav1.StatusReasonUnauthorized, metav1.StatusReasonForbidden:
-				r.Status.Message = fmt.Sprintf("Unable to load secrets for this repository: %v; (%s)", err, r.Status.Message)
-			}
-		}
-	}
-
-	// TODO: perform the transformation of the image stream and return it with the ISI if import is false
-	//   so that clients can see what the resulting object would look like.
-	if !isi.Spec.Import {
-		clearManifests(isi)
-		return isi, nil
 	}
 
 	create := false
@@ -209,6 +178,53 @@ func (r *REST) Create(ctx apirequest.Context, obj runtime.Object) (runtime.Objec
 			glog.V(4).Infof("DEBUG: mismatch between requested UID %s and located UID %s", inputMeta.UID, stream.UID)
 			return nil, kapierrors.NewNotFound(imageapi.Resource("imagestream"), inputMeta.Name)
 		}
+	}
+
+	// only load secrets if we need them
+	credentials := importer.NewLazyCredentialsForSecrets(func() ([]kapiv1.Secret, error) {
+		secrets, err := r.isClient.ImageStreams(namespace).Secrets(isi.Name, metav1.ListOptions{})
+		if err != nil {
+			return nil, err
+		}
+		secretsv1 := make([]kapiv1.Secret, len(secrets.Items))
+		for i, secret := range secrets.Items {
+			err := kapiv1.Convert_api_Secret_To_v1_Secret(&secret, &secretsv1[i], nil)
+			if err != nil {
+				utilruntime.HandleError(err)
+				continue
+			}
+		}
+		return secretsv1, nil
+	})
+	importCtx := importer.NewContext(r.transport, r.insecureTransport).WithCredentials(credentials)
+	imports := r.importFn(importCtx)
+	if err := imports.Import(ctx.(gocontext.Context), isi, stream); err != nil {
+		return nil, kapierrors.NewInternalError(err)
+	}
+
+	// if we encountered an error loading credentials and any images could not be retrieved with an access
+	// related error, modify the message.
+	// TODO: set a status cause
+	if err := credentials.Err(); err != nil {
+		for i, image := range isi.Status.Images {
+			switch image.Status.Reason {
+			case metav1.StatusReasonUnauthorized, metav1.StatusReasonForbidden:
+				isi.Status.Images[i].Status.Message = fmt.Sprintf("Unable to load secrets for this image: %v; (%s)", err, image.Status.Message)
+			}
+		}
+		if r := isi.Status.Repository; r != nil {
+			switch r.Status.Reason {
+			case metav1.StatusReasonUnauthorized, metav1.StatusReasonForbidden:
+				r.Status.Message = fmt.Sprintf("Unable to load secrets for this repository: %v; (%s)", err, r.Status.Message)
+			}
+		}
+	}
+
+	// TODO: perform the transformation of the image stream and return it with the ISI if import is false
+	//   so that clients can see what the resulting object would look like.
+	if !isi.Spec.Import {
+		clearManifests(isi)
+		return isi, nil
 	}
 
 	if stream.Annotations == nil {
@@ -305,11 +321,11 @@ func (r *REST) Create(ctx apirequest.Context, obj runtime.Object) (runtime.Objec
 
 	// if and only if we have changes between the original and the imported stream, trigger
 	// an import
-	hasChanges := !kapi.Semantic.DeepEqual(original, stream)
+	hasChanges := !kapihelper.Semantic.DeepEqual(original, stream)
 	if create {
 		stream.Annotations[imageapi.DockerImageRepositoryCheckAnnotation] = now.UTC().Format(time.RFC3339)
 		glog.V(4).Infof("create new stream: %#v", stream)
-		obj, err = r.internalStreams.Create(ctx, stream)
+		obj, err = r.internalStreams.Create(ctx, stream, false)
 	} else {
 		if hasAnnotation && !hasChanges {
 			glog.V(4).Infof("stream did not change: %#v", stream)
@@ -465,11 +481,11 @@ func (r *REST) importSuccessful(
 		return nil, false
 	}
 
-	updated, err := r.images.Create(ctx, image)
+	updated, err := r.images.Create(ctx, image, false)
 	switch {
 	case kapierrors.IsAlreadyExists(err):
-		if err := imageapi.ImageWithMetadata(image); err != nil {
-			glog.V(4).Infof("Unable to update image metadata during image import when image already exists %q: err", image.Name, err)
+		if err := util.ImageWithMetadata(image); err != nil {
+			glog.V(4).Infof("Unable to update image metadata during image import when image already exists %q: %v", image.Name, err)
 		}
 		updated = image
 		fallthrough
@@ -519,8 +535,4 @@ func newImportFailedCondition(err error, gen int64, now metav1.Time) imageapi.Ta
 		c.Reason, c.Message = string(s.Reason), s.Message
 	}
 	return c
-}
-
-func invalidStatus(kind, position string, errs ...*field.Error) metav1.Status {
-	return kapierrors.NewInvalid(imageapi.Kind(kind), position, errs).ErrStatus
 }

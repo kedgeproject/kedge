@@ -21,10 +21,9 @@ import (
 	etcdtesting "k8s.io/apiserver/pkg/storage/etcd/testing"
 	kapi "k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/api/v1"
+	authorizationapi "k8s.io/kubernetes/pkg/apis/authorization"
 	"k8s.io/kubernetes/pkg/registry/registrytest"
 
-	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
-	"github.com/openshift/origin/pkg/authorization/registry/subjectaccessreview"
 	"github.com/openshift/origin/pkg/image/admission/testutil"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
 	"github.com/openshift/origin/pkg/image/registry/image"
@@ -38,14 +37,12 @@ import (
 
 const testDefaultRegistryURL = "defaultregistry:5000"
 
-var testDefaultRegistry = imageapi.DefaultRegistryFunc(func() (string, bool) { return testDefaultRegistryURL, true })
+var testDefaultRegistry = func() (string, bool) { return testDefaultRegistryURL, true }
 
 type fakeSubjectAccessReviewRegistry struct {
 }
 
-var _ subjectaccessreview.Registry = &fakeSubjectAccessReviewRegistry{}
-
-func (f *fakeSubjectAccessReviewRegistry) CreateSubjectAccessReview(ctx apirequest.Context, subjectAccessReview *authorizationapi.SubjectAccessReview) (*authorizationapi.SubjectAccessReviewResponse, error) {
+func (f *fakeSubjectAccessReviewRegistry) Create(subjectAccessReview *authorizationapi.SubjectAccessReview) (*authorizationapi.SubjectAccessReview, error) {
 	return nil, nil
 }
 
@@ -57,7 +54,8 @@ func setup(t *testing.T) (etcd.KV, *etcdtesting.EtcdTestServer, *REST) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	imageStreamStorage, imageStreamStatus, internalStorage, err := imagestreametcd.NewREST(restoptions.NewSimpleGetter(etcdStorage), testDefaultRegistry, &fakeSubjectAccessReviewRegistry{}, &testutil.FakeImageStreamLimitVerifier{})
+	registry := imageapi.DefaultRegistryHostnameRetriever(testDefaultRegistry, "", "")
+	imageStreamStorage, imageStreamStatus, internalStorage, err := imagestreametcd.NewREST(restoptions.NewSimpleGetter(etcdStorage), registry, &fakeSubjectAccessReviewRegistry{}, &testutil.FakeImageStreamLimitVerifier{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +63,7 @@ func setup(t *testing.T) (etcd.KV, *etcdtesting.EtcdTestServer, *REST) {
 	imageRegistry := image.NewRegistry(imageStorage)
 	imageStreamRegistry := imagestream.NewRegistry(imageStreamStorage, imageStreamStatus, internalStorage)
 
-	storage := NewREST(imageRegistry, imageStreamRegistry, testDefaultRegistry)
+	storage := NewREST(imageRegistry, imageStreamRegistry, registry)
 
 	return etcdClient, server, storage
 }
@@ -114,7 +112,7 @@ func TestCreateConflictingNamespace(t *testing.T) {
 	mapping := validNewMappingWithName()
 	mapping.Namespace = "some-value"
 
-	ch, err := storage.Create(apirequest.WithNamespace(apirequest.NewContext(), "legal-name"), mapping)
+	ch, err := storage.Create(apirequest.WithNamespace(apirequest.NewContext(), "legal-name"), mapping, false)
 	if ch != nil {
 		t.Error("Expected a nil obj, but we got a value")
 	}
@@ -131,7 +129,7 @@ func TestCreateImageStreamNotFoundWithName(t *testing.T) {
 	_, server, storage := setup(t)
 	defer server.Terminate(t)
 
-	obj, err := storage.Create(apirequest.NewDefaultContext(), validNewMappingWithName())
+	obj, err := storage.Create(apirequest.NewDefaultContext(), validNewMappingWithName(), false)
 	if obj != nil {
 		t.Errorf("Unexpected non-nil obj %#v", obj)
 	}
@@ -173,7 +171,7 @@ func TestCreateSuccessWithName(t *testing.T) {
 	ctx := apirequest.WithUser(apirequest.NewDefaultContext(), &user.DefaultInfo{})
 
 	mapping := validNewMappingWithName()
-	_, err = storage.Create(ctx, mapping)
+	_, err = storage.Create(ctx, mapping, false)
 	if err != nil {
 		t.Fatalf("Unexpected error creating mapping: %#v", err)
 	}
@@ -260,7 +258,7 @@ func TestAddExistingImageWithNewTag(t *testing.T) {
 		Tag:   "latest",
 	}
 	ctx := apirequest.NewDefaultContext()
-	_, err = storage.Create(ctx, &mapping)
+	_, err = storage.Create(ctx, &mapping, false)
 	if err != nil {
 		t.Errorf("Unexpected error creating image stream mapping%v", err)
 	}
@@ -356,7 +354,7 @@ func TestAddExistingImageOverridingDockerImageReference(t *testing.T) {
 		Tag:   "latest",
 	}
 	ctx := apirequest.NewDefaultContext()
-	_, err = storage.Create(ctx, &mapping)
+	_, err = storage.Create(ctx, &mapping, false)
 	if err != nil {
 		t.Fatalf("Unexpected error creating mapping: %#v", err)
 	}
@@ -460,7 +458,7 @@ func TestAddExistingImageAndTag(t *testing.T) {
 		Image: *existingImage,
 		Tag:   "existingTag",
 	}
-	_, err = storage.Create(apirequest.NewDefaultContext(), &mapping)
+	_, err = storage.Create(apirequest.NewDefaultContext(), &mapping, false)
 	if !errors.IsInvalid(err) {
 		t.Fatalf("Unexpected non-error creating mapping: %#v", err)
 	}
@@ -548,7 +546,7 @@ func TestTrackingTags(t *testing.T) {
 
 	ctx := apirequest.WithUser(apirequest.NewDefaultContext(), &user.DefaultInfo{})
 
-	_, err = storage.Create(ctx, &mapping)
+	_, err = storage.Create(ctx, &mapping, false)
 	if err != nil {
 		t.Fatalf("Unexpected error creating mapping: %v", err)
 	}
@@ -588,8 +586,9 @@ func TestTrackingTags(t *testing.T) {
 // TestCreateRetryUnrecoverable ensures that an attempt to create a mapping
 // using failing registry update calls will return an error.
 func TestCreateRetryUnrecoverable(t *testing.T) {
+	registry := imageapi.DefaultRegistryHostnameRetriever(nil, "", testDefaultRegistryURL)
 	rest := &REST{
-		strategy: NewStrategy(testDefaultRegistry),
+		strategy: NewStrategy(registry),
 		imageRegistry: &fakeImageRegistry{
 			createImage: func(ctx apirequest.Context, image *imageapi.Image) error {
 				return nil
@@ -608,7 +607,7 @@ func TestCreateRetryUnrecoverable(t *testing.T) {
 			},
 		},
 	}
-	obj, err := rest.Create(apirequest.NewDefaultContext(), validNewMappingWithName())
+	obj, err := rest.Create(apirequest.NewDefaultContext(), validNewMappingWithName(), false)
 	if err == nil {
 		t.Errorf("expected an error")
 	}
@@ -621,9 +620,10 @@ func TestCreateRetryUnrecoverable(t *testing.T) {
 // that result in resource conflicts that do NOT include tag diffs causes the
 // create to be retried successfully.
 func TestCreateRetryConflictNoTagDiff(t *testing.T) {
+	registry := imageapi.DefaultRegistryHostnameRetriever(nil, "", testDefaultRegistryURL)
 	firstUpdate := true
 	rest := &REST{
-		strategy: NewStrategy(testDefaultRegistry),
+		strategy: NewStrategy(registry),
 		imageRegistry: &fakeImageRegistry{
 			createImage: func(ctx apirequest.Context, image *imageapi.Image) error {
 				return nil
@@ -650,7 +650,7 @@ func TestCreateRetryConflictNoTagDiff(t *testing.T) {
 			},
 		},
 	}
-	obj, err := rest.Create(apirequest.NewDefaultContext(), validNewMappingWithName())
+	obj, err := rest.Create(apirequest.NewDefaultContext(), validNewMappingWithName(), false)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -666,7 +666,7 @@ func TestCreateRetryConflictTagDiff(t *testing.T) {
 	firstGet := true
 	firstUpdate := true
 	rest := &REST{
-		strategy: NewStrategy(testDefaultRegistry),
+		strategy: NewStrategy(imageapi.DefaultRegistryHostnameRetriever(nil, "", testDefaultRegistryURL)),
 		imageRegistry: &fakeImageRegistry{
 			createImage: func(ctx apirequest.Context, image *imageapi.Image) error {
 				return nil
@@ -705,7 +705,7 @@ func TestCreateRetryConflictTagDiff(t *testing.T) {
 			},
 		},
 	}
-	obj, err := rest.Create(apirequest.NewDefaultContext(), validNewMappingWithName())
+	obj, err := rest.Create(apirequest.NewDefaultContext(), validNewMappingWithName(), false)
 	if err == nil {
 		t.Fatalf("expected an error")
 	}

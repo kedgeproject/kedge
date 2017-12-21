@@ -43,6 +43,7 @@ const (
 	LabelSystemRoot   = "root"
 	LabelDockerImages = "docker-images"
 	LabelRktImages    = "rkt-images"
+	LabelCrioImages   = "crio-images"
 )
 
 // The maximum number of `du` and `find` tasks that can be running at once.
@@ -87,12 +88,17 @@ type Context struct {
 	// docker root directory.
 	Docker  DockerContext
 	RktPath string
+	Crio    CrioContext
 }
 
 type DockerContext struct {
 	Root         string
 	Driver       string
 	DriverStatus map[string]string
+}
+
+type CrioContext struct {
+	Root string
 }
 
 func NewFsInfo(context Context) (FsInfo, error) {
@@ -113,6 +119,7 @@ func NewFsInfo(context Context) (FsInfo, error) {
 	// need to call this before the log line below printing out the partitions, as this function may
 	// add a "partition" for devicemapper to fsInfo.partitions
 	fsInfo.addDockerImagesLabel(context, mounts)
+	fsInfo.addCrioImagesLabel(context, mounts)
 
 	glog.Infof("Filesystem partitions: %+v", fsInfo.partitions)
 	fsInfo.addSystemRootLabel(mounts)
@@ -242,6 +249,23 @@ func (self *RealFsInfo) addDockerImagesLabel(context Context, mounts []*mount.In
 	}
 }
 
+func (self *RealFsInfo) addCrioImagesLabel(context Context, mounts []*mount.Info) {
+	if context.Crio.Root != "" {
+		crioPath := context.Crio.Root
+		crioImagePaths := map[string]struct{}{
+			"/": {},
+		}
+		for _, dir := range []string{"overlay", "overlay2"} {
+			crioImagePaths[path.Join(crioPath, dir+"-images")] = struct{}{}
+		}
+		for crioPath != "/" && crioPath != "." {
+			crioImagePaths[crioPath] = struct{}{}
+			crioPath = filepath.Dir(crioPath)
+		}
+		self.updateContainerImagesPath(LabelCrioImages, mounts, crioImagePaths)
+	}
+}
+
 func (self *RealFsInfo) addRktImagesLabel(context Context, mounts []*mount.Info) {
 	if context.RktPath != "" {
 		rktPath := context.RktPath
@@ -266,7 +290,7 @@ func getDockerImagePaths(context Context) map[string]struct{} {
 
 	// TODO(rjnagal): Detect docker root and graphdriver directories from docker info.
 	dockerRoot := context.Docker.Root
-	for _, dir := range []string{"devicemapper", "btrfs", "aufs", "overlay", "zfs"} {
+	for _, dir := range []string{"devicemapper", "btrfs", "aufs", "overlay", "overlay2", "zfs"} {
 		dockerImagePaths[path.Join(dockerRoot, dir)] = struct{}{}
 	}
 	for dockerRoot != "/" && dockerRoot != "." {
@@ -319,7 +343,6 @@ func (self *RealFsInfo) GetLabelsForDevice(device string) ([]string, error) {
 func (self *RealFsInfo) GetMountpointForDevice(dev string) (string, error) {
 	p, ok := self.partitions[dev]
 	if !ok {
-		glog.Warningf("unable to find partition %q in %#v (%#v)", dev, self.partitions, self.labels)
 		return "", fmt.Errorf("no partition info for device %q", dev)
 	}
 	return p.mountpoint, nil
@@ -456,11 +479,15 @@ func (self *RealFsInfo) GetDirFsDevice(dir string) (*DeviceInfo, error) {
 }
 
 func (self *RealFsInfo) GetDirDiskUsage(dir string, timeout time.Duration) (uint64, error) {
+	claimToken()
+	defer releaseToken()
+	return GetDirDiskUsage(dir, timeout)
+}
+
+func GetDirDiskUsage(dir string, timeout time.Duration) (uint64, error) {
 	if dir == "" {
 		return 0, fmt.Errorf("invalid directory")
 	}
-	claimToken()
-	defer releaseToken()
 	cmd := exec.Command("nice", "-n", "19", "du", "-s", dir)
 	stdoutp, err := cmd.StdoutPipe()
 	if err != nil {
@@ -497,13 +524,17 @@ func (self *RealFsInfo) GetDirDiskUsage(dir string, timeout time.Duration) (uint
 }
 
 func (self *RealFsInfo) GetDirInodeUsage(dir string, timeout time.Duration) (uint64, error) {
+	claimToken()
+	defer releaseToken()
+	return GetDirInodeUsage(dir, timeout)
+}
+
+func GetDirInodeUsage(dir string, timeout time.Duration) (uint64, error) {
 	if dir == "" {
 		return 0, fmt.Errorf("invalid directory")
 	}
 	var counter byteCounter
 	var stderr bytes.Buffer
-	claimToken()
-	defer releaseToken()
 	findCmd := exec.Command("find", dir, "-xdev", "-printf", ".")
 	findCmd.Stdout, findCmd.Stderr = &counter, &stderr
 	if err := findCmd.Start(); err != nil {

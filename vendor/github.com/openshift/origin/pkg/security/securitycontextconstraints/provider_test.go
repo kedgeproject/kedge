@@ -220,6 +220,28 @@ func TestValidatePodSecurityContextFailures(t *testing.T) {
 	failUnsafeSysctlFooPod := defaultPod()
 	failUnsafeSysctlFooPod.Annotations[api.UnsafeSysctlsPodAnnotationKey] = "foo=1"
 
+	failHostDirPod := defaultPod()
+	failHostDirPod.Spec.Volumes = []api.Volume{
+		{
+			Name: "bad volume",
+			VolumeSource: api.VolumeSource{
+				HostPath: &api.HostPathVolumeSource{},
+			},
+		},
+	}
+
+	podWithInvalidFlexVolumeDriver := defaultPod()
+	podWithInvalidFlexVolumeDriver.Spec.Volumes = []api.Volume{
+		{
+			Name: "flex-volume",
+			VolumeSource: api.VolumeSource{
+				FlexVolume: &api.FlexVolumeSource{
+					Driver: "example/unknown",
+				},
+			},
+		},
+	}
+
 	errorCases := map[string]struct {
 		pod           *api.Pod
 		scc           *securityapi.SecurityContextConstraints
@@ -300,13 +322,28 @@ func TestValidatePodSecurityContextFailures(t *testing.T) {
 			scc:           failOtherSysctlsAllowedSCC,
 			expectedError: "sysctl \"foo\" is not allowed",
 		},
+		"failHostDirSCC": {
+			pod:           failHostDirPod,
+			scc:           defaultSCC(),
+			expectedError: "hostPath volumes are not allowed to be used",
+		},
+		"fail pod with disallowed flexVolume when flex volumes are allowed": {
+			pod:           podWithInvalidFlexVolumeDriver,
+			scc:           allowFlexVolumesSCC(false, false),
+			expectedError: "Flexvolume driver is not allowed to be used",
+		},
+		"fail pod with disallowed flexVolume when all volumes are allowed": {
+			pod:           podWithInvalidFlexVolumeDriver,
+			scc:           allowFlexVolumesSCC(false, true),
+			expectedError: "Flexvolume driver is not allowed to be used",
+		},
 	}
 	for k, v := range errorCases {
 		provider, err := NewSimpleProvider(v.scc)
 		if err != nil {
 			t.Fatalf("unable to create provider %v", err)
 		}
-		errs := provider.ValidatePodSecurityContext(v.pod, field.NewPath(""))
+		errs := provider.ValidatePodSecurityContext(v.pod, field.NewPath("spec"))
 		if len(errs) == 0 {
 			t.Errorf("%s expected validation failure but did not receive errors", k)
 			continue
@@ -349,16 +386,6 @@ func TestValidateContainerSecurityContextFailures(t *testing.T) {
 	failCapsPod := defaultPod()
 	failCapsPod.Spec.Containers[0].SecurityContext.Capabilities = &api.Capabilities{
 		Add: []api.Capability{"foo"},
-	}
-
-	failHostDirPod := defaultPod()
-	failHostDirPod.Spec.Volumes = []api.Volume{
-		{
-			Name: "bad volume",
-			VolumeSource: api.VolumeSource{
-				HostPath: &api.HostPathVolumeSource{},
-			},
-		},
 	}
 
 	failHostPortPod := defaultPod()
@@ -405,11 +432,6 @@ func TestValidateContainerSecurityContextFailures(t *testing.T) {
 			pod:           failCapsPod,
 			scc:           defaultSCC(),
 			expectedError: "capability may not be added",
-		},
-		"failHostDirSCC": {
-			pod:           failHostDirPod,
-			scc:           defaultSCC(),
-			expectedError: "hostPath volumes are not allowed to be used",
 		},
 		"failHostPortSCC": {
 			pod:           failHostPortPod,
@@ -532,7 +554,19 @@ func TestValidatePodSecurityContextSuccess(t *testing.T) {
 	unsafeSysctlFooPod := defaultPod()
 	unsafeSysctlFooPod.Annotations[api.UnsafeSysctlsPodAnnotationKey] = "foo=1"
 
-	errorCases := map[string]struct {
+	flexVolumePod := defaultPod()
+	flexVolumePod.Spec.Volumes = []api.Volume{
+		{
+			Name: "flex-volume",
+			VolumeSource: api.VolumeSource{
+				FlexVolume: &api.FlexVolumeSource{
+					Driver: "example/bar",
+				},
+			},
+		},
+	}
+
+	successCases := map[string]struct {
 		pod *api.Pod
 		scc *securityapi.SecurityContextConstraints
 	}{
@@ -592,9 +626,25 @@ func TestValidatePodSecurityContextSuccess(t *testing.T) {
 			pod: unsafeSysctlFooPod,
 			scc: defaultSCC(),
 		},
+		"flex volume driver in a whitelist (all volumes are allowed)": {
+			pod: flexVolumePod,
+			scc: allowFlexVolumesSCC(false, true),
+		},
+		"flex volume driver with empty whitelist (all volumes are allowed)": {
+			pod: flexVolumePod,
+			scc: allowFlexVolumesSCC(true, true),
+		},
+		"flex volume driver in a whitelist (only flex volumes are allowed)": {
+			pod: flexVolumePod,
+			scc: allowFlexVolumesSCC(false, false),
+		},
+		"flex volume driver with empty whitelist (only flex volumes volumes are allowed)": {
+			pod: flexVolumePod,
+			scc: allowFlexVolumesSCC(true, false),
+		},
 	}
 
-	for k, v := range errorCases {
+	for k, v := range successCases {
 		provider, err := NewSimpleProvider(v.scc)
 		if err != nil {
 			t.Fatalf("unable to create provider %v", err)
@@ -608,27 +658,6 @@ func TestValidatePodSecurityContextSuccess(t *testing.T) {
 }
 
 func TestValidateContainerSecurityContextSuccess(t *testing.T) {
-	var notPriv bool = false
-	defaultPod := func() *api.Pod {
-		return &api.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Annotations: map[string]string{},
-			},
-			Spec: api.PodSpec{
-				SecurityContext: &api.PodSecurityContext{},
-				Containers: []api.Container{
-					{
-						SecurityContext: &api.SecurityContext{
-							// expected to be set by defaulting mechanisms
-							Privileged: &notPriv,
-							// fill in the rest for test cases
-						},
-					},
-				},
-			},
-		}
-	}
-
 	// fail user strat
 	userSCC := defaultSCC()
 	var uid int64 = 999
@@ -714,7 +743,7 @@ func TestValidateContainerSecurityContextSuccess(t *testing.T) {
 	seccompFooPod := defaultPod()
 	seccompFooPod.Annotations[api.SeccompContainerAnnotationKeyPrefix+seccompFooPod.Spec.Containers[0].Name] = "foo"
 
-	errorCases := map[string]struct {
+	successCases := map[string]struct {
 		pod *api.Pod
 		scc *securityapi.SecurityContextConstraints
 	}{
@@ -776,7 +805,7 @@ func TestValidateContainerSecurityContextSuccess(t *testing.T) {
 		},
 	}
 
-	for k, v := range errorCases {
+	for k, v := range successCases {
 		provider, err := NewSimpleProvider(v.scc)
 		if err != nil {
 			t.Fatalf("unable to create provider %v", err)
@@ -910,6 +939,28 @@ func defaultPod() *api.Pod {
 	}
 }
 
+func allowFlexVolumesSCC(allowAllFlexVolumes, allowAllVolumes bool) *securityapi.SecurityContextConstraints {
+	scc := defaultSCC()
+
+	allowedVolumes := []securityapi.AllowedFlexVolume{
+		{Driver: "example/foo"},
+		{Driver: "example/bar"},
+	}
+	if allowAllFlexVolumes {
+		allowedVolumes = []securityapi.AllowedFlexVolume{}
+	}
+
+	allowedVolumeType := securityapi.FSTypeFlexVolume
+	if allowAllVolumes {
+		allowedVolumeType = securityapi.FSTypeAll
+	}
+
+	scc.AllowedFlexVolumes = allowedVolumes
+	scc.Volumes = []securityapi.FSType{allowedVolumeType}
+
+	return scc
+}
+
 // TestValidateAllowedVolumes will test that for every field of VolumeSource we can create
 // a pod with that type of volume and deny it, accept it explicitly, or accept it with
 // the FSTypeAll wildcard.
@@ -947,7 +998,7 @@ func TestValidateAllowedVolumes(t *testing.T) {
 		}
 
 		// expect a denial for this SCC and test the error message to ensure it's related to the volumesource
-		errs := provider.ValidateContainerSecurityContext(pod, &pod.Spec.Containers[0], field.NewPath(""))
+		errs := provider.ValidatePodSecurityContext(pod, field.NewPath(""))
 		if len(errs) != 1 {
 			t.Errorf("expected exactly 1 error for %s but got %v", fieldVal.Name, errs)
 		} else {
@@ -958,14 +1009,14 @@ func TestValidateAllowedVolumes(t *testing.T) {
 
 		// now add the fstype directly to the scc and it should validate
 		scc.Volumes = []securityapi.FSType{fsType}
-		errs = provider.ValidateContainerSecurityContext(pod, &pod.Spec.Containers[0], field.NewPath(""))
+		errs = provider.ValidatePodSecurityContext(pod, field.NewPath(""))
 		if len(errs) != 0 {
 			t.Errorf("directly allowing volume expected no errors for %s but got %v", fieldVal.Name, errs)
 		}
 
 		// now change the scc to allow any volumes and the pod should still validate
 		scc.Volumes = []securityapi.FSType{securityapi.FSTypeAll}
-		errs = provider.ValidateContainerSecurityContext(pod, &pod.Spec.Containers[0], field.NewPath(""))
+		errs = provider.ValidatePodSecurityContext(pod, field.NewPath(""))
 		if len(errs) != 0 {
 			t.Errorf("wildcard volume expected no errors for %s but got %v", fieldVal.Name, errs)
 		}

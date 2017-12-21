@@ -46,18 +46,26 @@ const (
 	unmountCmd = "unmount"
 
 	// Option keys
-	optionFSType    = "kubernetes.io/fsType"
-	optionReadWrite = "kubernetes.io/readwrite"
-	optionKeySecret = "kubernetes.io/secret"
-	optionFSGroup   = "kubernetes.io/fsGroup"
-	optionMountsDir = "kubernetes.io/mountsDir"
+	optionFSType         = "kubernetes.io/fsType"
+	optionReadWrite      = "kubernetes.io/readwrite"
+	optionKeySecret      = "kubernetes.io/secret"
+	optionFSGroup        = "kubernetes.io/fsGroup"
+	optionMountsDir      = "kubernetes.io/mountsDir"
+	optionPVorVolumeName = "kubernetes.io/pvOrVolumeName"
+
+	optionKeyPodName      = "kubernetes.io/pod.name"
+	optionKeyPodNamespace = "kubernetes.io/pod.namespace"
+	optionKeyPodUID       = "kubernetes.io/pod.uid"
+
+	optionKeyServiceAccountName = "kubernetes.io/serviceAccount.name"
+
+	attachCapability         = "attach"
+	selinuxRelabelCapability = "selinuxRelabel"
 )
 
 const (
 	// StatusSuccess represents the successful completion of command.
 	StatusSuccess = "Success"
-	// StatusFailed represents that the command failed.
-	StatusFailure = "Failed"
 	// StatusNotSupported represents that the command is not supported.
 	StatusNotSupported = "Not supported"
 )
@@ -73,6 +81,11 @@ type DriverCall struct {
 	Timeout time.Duration
 	plugin  *flexVolumePlugin
 	args    []string
+}
+
+type driverCapabilities struct {
+	attach         bool
+	selinuxRelabel bool
 }
 
 func (plugin *flexVolumePlugin) NewDriverCall(command string) *DriverCall {
@@ -168,6 +181,8 @@ func NewOptionsForDriver(spec *volume.Spec, host volume.VolumeHost, extraOptions
 		options[optionReadWrite] = "rw"
 	}
 
+	options[optionPVorVolumeName] = spec.Name()
+
 	for key, value := range extraOptions {
 		options[key] = value
 	}
@@ -192,6 +207,10 @@ type DriverStatus struct {
 	VolumeName string `json:"volumeName,omitempty"`
 	// Represents volume is attached on the node
 	Attached bool `json:"attached,omitempty"`
+	// Returns capabilities of the driver.
+	// By default we assume all the capabilities are supported.
+	// If the plugin does not support a capability, it can return false for that capability.
+	Capabilities map[string]bool
 }
 
 // isCmdNotSupportedErr checks if the error corresponds to command not supported by
@@ -221,4 +240,24 @@ func handleCmdResponse(cmd string, output []byte) (*DriverStatus, error) {
 	}
 
 	return &status, nil
+}
+
+// getDriverCapabilities returns the reported capabilities as returned by driver's init() function
+func (ds *DriverStatus) getDriverCapabilities() *driverCapabilities {
+	driverCaps := &driverCapabilities{
+		attach:         true,
+		selinuxRelabel: true,
+	}
+
+	// Check if driver supports SELinux Relabeling of mounted volume
+	if dcap, ok := ds.Capabilities[selinuxRelabelCapability]; ok {
+		driverCaps.selinuxRelabel = dcap
+	}
+
+	// Check whether the plugin is attachable.
+	if dcap, ok := ds.Capabilities[attachCapability]; ok {
+		driverCaps.attach = dcap
+	}
+
+	return driverCaps
 }

@@ -90,6 +90,11 @@ var map_AuditConfig = map[string]string{
 	"maximumFileRetentionDays": "Maximum number of days to retain old log files based on the timestamp encoded in their filename.",
 	"maximumRetainedFiles":     "Maximum number of old log files to retain.",
 	"maximumFileSizeMegabytes": "Maximum size in megabytes of the log file before it gets rotated. Defaults to 100MB.",
+	"policyFile":               "PolicyFile is a path to the file that defines the audit policy configuration.",
+	"policyConfiguration":      "PolicyConfiguration is an embedded policy configuration object to be used as the audit policy configuration. If present, it will be used instead of the path to the policy file.",
+	"logFormat":                "Format of saved audits (legacy or json).",
+	"webHookKubeConfig":        "Path to a .kubeconfig formatted file that defines the audit webhook configuration.",
+	"webHookMode":              "Strategy for sending audit events (block or batch).",
 }
 
 func (AuditConfig) SwaggerDoc() map[string]string {
@@ -140,6 +145,16 @@ func (ClientConnectionOverrides) SwaggerDoc() map[string]string {
 	return map_ClientConnectionOverrides
 }
 
+var map_ClusterNetworkEntry = map[string]string{
+	"":                 "ClusterNetworkEntry defines an individual cluster network. The CIDRs cannot overlap with other cluster network CIDRs, CIDRs reserved for external ips, CIDRs reserved for service networks, and CIDRs reserved for ingress ips.",
+	"cidr":             "CIDR defines the total range of a cluster networks address space.",
+	"hostSubnetLength": "HostSubnetLength is the number of bits of the accompanying CIDR address to allocate to each node. eg, 8 would mean that each node would have a /24 slice of the overlay network for its pod.",
+}
+
+func (ClusterNetworkEntry) SwaggerDoc() map[string]string {
+	return map_ClusterNetworkEntry
+}
+
 var map_ControllerConfig = map[string]string{
 	"":                   "ControllerConfig holds configuration values for controllers",
 	"election":           "Election defines the configuration for electing a controller instance to make changes to the cluster. If unspecified, the ControllerTTL value is checked to determine whether the legacy direct etcd election code will be used.",
@@ -154,7 +169,7 @@ var map_ControllerElectionConfig = map[string]string{
 	"":              "ControllerElectionConfig contains configuration values for deciding how a controller will be elected to act as leader.",
 	"lockName":      "LockName is the resource name used to act as the lock for determining which controller instance should lead.",
 	"lockNamespace": "LockNamespace is the resource namespace used to act as the lock for determining which controller instance should lead. It defaults to \"kube-system\"",
-	"lockResource":  "LockResource is the group and resource name to use to coordinate for the controller lock. If unset, defaults to \"endpoints\".",
+	"lockResource":  "LockResource is the group and resource name to use to coordinate for the controller lock. If unset, defaults to \"configmaps\".",
 }
 
 func (ControllerElectionConfig) SwaggerDoc() map[string]string {
@@ -339,6 +354,8 @@ var map_ImagePolicyConfig = map[string]string{
 	"scheduledImageImportMinimumIntervalSeconds": "ScheduledImageImportMinimumIntervalSeconds is the minimum number of seconds that can elapse between when image streams scheduled for background import are checked against the upstream repository. The default value is 15 minutes.",
 	"maxScheduledImageImportsPerMinute":          "MaxScheduledImageImportsPerMinute is the maximum number of scheduled image streams that will be imported in the background per minute. The default value is 60. Set to -1 for unlimited.",
 	"allowedRegistriesForImport":                 "AllowedRegistriesForImport limits the docker registries that normal users may import images from. Set this list to the registries that you trust to contain valid Docker images and that you want applications to be able to import from. Users with permission to create Images or ImageStreamMappings via the API are not affected by this policy - typically only administrators or system integrations will have those permissions.",
+	"internalRegistryHostname":                   "InternalRegistryHostname sets the hostname for the default internal image registry. The value must be in \"hostname[:port]\" format. For backward compatibility, users can still use OPENSHIFT_DEFAULT_REGISTRY environment variable but this setting overrides the environment variable.",
+	"externalRegistryHostname":                   "ExternalRegistryHostname sets the hostname for the default external image registry. The external hostname should be set only when the image registry is exposed externally. The value is used in 'publicDockerImageRepository' field in ImageStreams. The value must be in \"hostname[:port]\" format.",
 }
 
 func (ImagePolicyConfig) SwaggerDoc() map[string]string {
@@ -488,39 +505,38 @@ func (MasterClients) SwaggerDoc() map[string]string {
 }
 
 var map_MasterConfig = map[string]string{
-	"":                            "MasterConfig holds the necessary configuration options for the OpenShift master",
-	"servingInfo":                 "ServingInfo describes how to start serving",
-	"authConfig":                  "AuthConfig configures authentication options in addition to the standard oauth token and client certificate authenticators",
-	"aggregatorConfig":            "AggregatorConfig has options for configuring the aggregator component of the API server.",
-	"corsAllowedOrigins":          "CORSAllowedOrigins",
-	"apiLevels":                   "APILevels is a list of API levels that should be enabled on startup: v1 as examples",
-	"masterPublicURL":             "MasterPublicURL is how clients can access the OpenShift API server",
-	"controllers":                 "Controllers is a list of the controllers that should be started. If set to \"none\", no controllers will start automatically. The default value is \"*\" which will start all controllers. When using \"*\", you may exclude controllers by prepending a \"-\" in front of their name. No other values are recognized at this time.",
-	"pauseControllers":            "PauseControllers instructs the master to not automatically start controllers, but instead to wait until a notification to the server is received before launching them. This field is ignored if controllerConfig.lockServiceName is specified. Deprecated: Will be removed in 3.7.",
-	"controllerLeaseTTL":          "ControllerLeaseTTL enables controller election against etcd, instructing the master to attempt to acquire a lease before controllers start and renewing it within a number of seconds defined by this value. Setting this value non-negative forces pauseControllers=true. This value defaults off (0, or omitted) and controller election can be disabled with -1. This field is ignored if controllerConfig.lockServiceName is specified. Deprecated: use controllerConfig.lockServiceName to force leader election via config, and the\n  appropriate leader election flags in controllerArguments. Will be removed in 3.9.",
-	"admissionConfig":             "AdmissionConfig contains admission control plugin configuration.",
-	"controllerConfig":            "ControllerConfig holds configuration values for controllers",
-	"disabledFeatures":            "DisabledFeatures is a list of features that should not be started.  We omitempty here because its very unlikely that anyone will want to manually disable features and we don't want to encourage it.",
-	"etcdStorageConfig":           "EtcdStorageConfig contains information about how API resources are stored in Etcd. These values are only relevant when etcd is the backing store for the cluster.",
-	"etcdClientInfo":              "EtcdClientInfo contains information about how to connect to etcd",
-	"kubeletClientInfo":           "KubeletClientInfo contains information about how to connect to kubelets",
-	"kubernetesMasterConfig":      "KubernetesMasterConfig, if present start the kubernetes master in this process",
-	"etcdConfig":                  "EtcdConfig, if present start etcd in this process",
-	"oauthConfig":                 "OAuthConfig, if present start the /oauth endpoint in this process",
-	"assetConfig":                 "AssetConfig, if present start the asset server in this process",
-	"dnsConfig":                   "DNSConfig, if present start the DNS server in this process",
-	"serviceAccountConfig":        "ServiceAccountConfig holds options related to service accounts",
-	"masterClients":               "MasterClients holds all the client connection information for controllers and other system components",
-	"imageConfig":                 "ImageConfig holds options that describe how to build image names for system components",
-	"imagePolicyConfig":           "ImagePolicyConfig controls limits and behavior for importing images",
-	"policyConfig":                "PolicyConfig holds information about where to locate critical pieces of bootstrapping policy",
-	"projectConfig":               "ProjectConfig holds information about project creation and defaults",
-	"routingConfig":               "RoutingConfig holds information about routing and route generation",
-	"networkConfig":               "NetworkConfig to be passed to the compiled in network plugin",
-	"volumeConfig":                "MasterVolumeConfig contains options for configuring volume plugins in the master node.",
-	"jenkinsPipelineConfig":       "JenkinsPipelineConfig holds information about the default Jenkins template used for JenkinsPipeline build strategy.",
-	"auditConfig":                 "AuditConfig holds information related to auditing capabilities.",
-	"templateServiceBrokerConfig": "TemplateServiceBrokerConfig holds information related to the template service broker.  The broker is enabled if TemplateServiceBrokerConfig is non-nil.",
+	"":                       "MasterConfig holds the necessary configuration options for the OpenShift master",
+	"servingInfo":            "ServingInfo describes how to start serving",
+	"authConfig":             "AuthConfig configures authentication options in addition to the standard oauth token and client certificate authenticators",
+	"aggregatorConfig":       "AggregatorConfig has options for configuring the aggregator component of the API server.",
+	"corsAllowedOrigins":     "CORSAllowedOrigins",
+	"apiLevels":              "APILevels is a list of API levels that should be enabled on startup: v1 as examples",
+	"masterPublicURL":        "MasterPublicURL is how clients can access the OpenShift API server",
+	"controllers":            "Controllers is a list of the controllers that should be started. If set to \"none\", no controllers will start automatically. The default value is \"*\" which will start all controllers. When using \"*\", you may exclude controllers by prepending a \"-\" in front of their name. No other values are recognized at this time.",
+	"pauseControllers":       "PauseControllers instructs the master to not automatically start controllers, but instead to wait until a notification to the server is received before launching them. This field is ignored if controllerConfig.lockServiceName is specified. Deprecated: Will be removed in 3.7.",
+	"controllerLeaseTTL":     "ControllerLeaseTTL enables controller election against etcd, instructing the master to attempt to acquire a lease before controllers start and renewing it within a number of seconds defined by this value. Setting this value non-negative forces pauseControllers=true. This value defaults off (0, or omitted) and controller election can be disabled with -1. This field is ignored if controllerConfig.lockServiceName is specified. Deprecated: use controllerConfig.lockServiceName to force leader election via config, and the\n  appropriate leader election flags in controllerArguments. Will be removed in 3.9.",
+	"admissionConfig":        "AdmissionConfig contains admission control plugin configuration.",
+	"controllerConfig":       "ControllerConfig holds configuration values for controllers",
+	"disabledFeatures":       "DisabledFeatures is a list of features that should not be started.",
+	"etcdStorageConfig":      "EtcdStorageConfig contains information about how API resources are stored in Etcd. These values are only relevant when etcd is the backing store for the cluster.",
+	"etcdClientInfo":         "EtcdClientInfo contains information about how to connect to etcd",
+	"kubeletClientInfo":      "KubeletClientInfo contains information about how to connect to kubelets",
+	"kubernetesMasterConfig": "KubernetesMasterConfig, if present start the kubernetes master in this process",
+	"etcdConfig":             "EtcdConfig, if present start etcd in this process",
+	"oauthConfig":            "OAuthConfig, if present start the /oauth endpoint in this process",
+	"assetConfig":            "AssetConfig, if present start the asset server in this process",
+	"dnsConfig":              "DNSConfig, if present start the DNS server in this process",
+	"serviceAccountConfig":   "ServiceAccountConfig holds options related to service accounts",
+	"masterClients":          "MasterClients holds all the client connection information for controllers and other system components",
+	"imageConfig":            "ImageConfig holds options that describe how to build image names for system components",
+	"imagePolicyConfig":      "ImagePolicyConfig controls limits and behavior for importing images",
+	"policyConfig":           "PolicyConfig holds information about where to locate critical pieces of bootstrapping policy",
+	"projectConfig":          "ProjectConfig holds information about project creation and defaults",
+	"routingConfig":          "RoutingConfig holds information about routing and route generation",
+	"networkConfig":          "NetworkConfig to be passed to the compiled in network plugin",
+	"volumeConfig":           "MasterVolumeConfig contains options for configuring volume plugins in the master node.",
+	"jenkinsPipelineConfig":  "JenkinsPipelineConfig holds information about the default Jenkins template used for JenkinsPipeline build strategy.",
+	"auditConfig":            "AuditConfig holds information related to auditing capabilities.",
 }
 
 func (MasterConfig) SwaggerDoc() map[string]string {
@@ -530,8 +546,9 @@ func (MasterConfig) SwaggerDoc() map[string]string {
 var map_MasterNetworkConfig = map[string]string{
 	"":                       "MasterNetworkConfig to be passed to the compiled in network plugin",
 	"networkPluginName":      "NetworkPluginName is the name of the network plugin to use",
-	"clusterNetworkCIDR":     "ClusterNetworkCIDR is the CIDR string to specify the global overlay network's L3 space",
-	"hostSubnetLength":       "HostSubnetLength is the number of bits to allocate to each host's subnet e.g. 8 would mean a /24 network on the host",
+	"clusterNetworkCIDR":     "ClusterNetworkCIDR is the CIDR string to specify the global overlay network's L3 space.  Deprecated, but maintained for backwards compatibility, use ClusterNetworks instead.",
+	"clusterNetworks":        "ClusterNetworks is a list of ClusterNetwork objects that defines the global overlay network's L3 space by specifying a set of CIDR and netmasks that the SDN can allocate addressed from.  If this is specified, then ClusterNetworkCIDR and HostSubnetLength may not be set.",
+	"hostSubnetLength":       "HostSubnetLength is the number of bits to allocate to each host's subnet e.g. 8 would mean a /24 network on the host.  Deprecated, but maintained for backwards compatibility, use ClusterNetworks instead.",
 	"serviceNetworkCIDR":     "ServiceNetwork is the CIDR string to specify the service networks",
 	"externalIPNetworkCIDRs": "ExternalIPNetworkCIDRs controls what values are acceptable for the service external IP field. If empty, no externalIP may be set. It may contain a list of CIDRs which are checked for access. If a CIDR is prefixed with !, IPs in that CIDR will be rejected. Rejections will be applied first, then the IP checked against one of the allowed CIDRs. You should ensure this range does not overlap with your nodes, pods, or service CIDRs for security reasons.",
 	"ingressIPNetworkCIDR":   "IngressIPNetworkCIDR controls the range to assign ingress ips from for services of type LoadBalancer on bare metal. If empty, ingress ips will not be assigned. It may contain a single CIDR that will be allocated from. For security reasons, you should ensure that this range does not overlap with the CIDRs reserved for external ips, nodes, pods, or services.",
@@ -892,15 +909,6 @@ var map_StringSourceSpec = map[string]string{
 
 func (StringSourceSpec) SwaggerDoc() map[string]string {
 	return map_StringSourceSpec
-}
-
-var map_TemplateServiceBrokerConfig = map[string]string{
-	"":                   "TemplateServiceBrokerConfig holds information related to the template service broker",
-	"templateNamespaces": "TemplateNamespaces indicates the namespace(s) in which the template service broker looks for templates to serve to the catalog.",
-}
-
-func (TemplateServiceBrokerConfig) SwaggerDoc() map[string]string {
-	return map_TemplateServiceBrokerConfig
 }
 
 var map_TokenConfig = map[string]string{

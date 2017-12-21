@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
+	cadvisorapiv2 "github.com/google/cadvisor/info/v2"
 	"github.com/opencontainers/runc/libcontainer/cgroups"
 	"github.com/opencontainers/runc/libcontainer/cgroups/fs"
 	"github.com/opencontainers/runc/libcontainer/configs"
@@ -219,6 +220,7 @@ func NewContainerManager(mountUtil mount.Interface, cadvisorInterface cadvisor.I
 	var capacity = v1.ResourceList{}
 	// It is safe to invoke `MachineInfo` on cAdvisor before logically initializing cAdvisor here because
 	// machine info is computed and cached once as part of cAdvisor object creation.
+	// But `RootFsInfo` and `ImagesFsInfo` are not available at this moment so they will be called later during manager starts
 	if info, err := cadvisorInterface.MachineInfo(); err == nil {
 		capacity = cadvisor.CapacityFromMachineInfo(info)
 	} else {
@@ -312,6 +314,8 @@ func setupKernelTunables(option KernelTunableBehavior) error {
 		utilsysctl.VmPanicOnOOM:       utilsysctl.VmPanicOnOOMInvokeOOMKiller,
 		utilsysctl.KernelPanic:        utilsysctl.KernelPanicRebootTimeout,
 		utilsysctl.KernelPanicOnOops:  utilsysctl.KernelPanicOnOopsAlways,
+		utilsysctl.RootMaxKeys:        utilsysctl.RootMaxKeysSetting,
+		utilsysctl.RootMaxBytes:       utilsysctl.RootMaxBytesSetting,
 	}
 
 	sysctl := utilsysctl.New()
@@ -366,7 +370,7 @@ func (cm *containerManagerImpl) setupNode(activePods ActivePodsFunc) error {
 		}
 		err = cm.qosContainerManager.Start(cm.getNodeAllocatableAbsolute, activePods)
 		if err != nil {
-			return fmt.Errorf("failed to initialise top level QOS containers: %v", err)
+			return fmt.Errorf("failed to initialize top level QOS containers: %v", err)
 		}
 	}
 
@@ -377,70 +381,25 @@ func (cm *containerManagerImpl) setupNode(activePods ActivePodsFunc) error {
 
 	systemContainers := []*systemContainer{}
 	if cm.ContainerRuntime == "docker" {
-		dockerAPIVersion := getDockerAPIVersion(cm.cadvisorInterface)
-		if cm.EnableCRI {
-			// If kubelet uses CRI, dockershim will manage the cgroups and oom
-			// score for the docker processes.
-			// In the future, NodeSpec should mandate the cgroup that the
-			// runtime processes need to be in. For now, we still check the
-			// cgroup for docker periodically, so that kubelet can recognize
-			// the cgroup for docker and serve stats for the runtime.
-			// TODO(#27097): Fix this after NodeSpec is clearly defined.
-			cm.periodicTasks = append(cm.periodicTasks, func() {
-				glog.V(4).Infof("[ContainerManager]: Adding periodic tasks for docker CRI integration")
-				cont, err := getContainerNameForProcess(dockerProcessName, dockerPidFile)
-				if err != nil {
-					glog.Error(err)
-					return
-				}
-				glog.V(2).Infof("[ContainerManager]: Discovered runtime cgroups name: %s", cont)
-				cm.Lock()
-				defer cm.Unlock()
-				cm.RuntimeCgroupsName = cont
-			})
-		} else if cm.RuntimeCgroupsName != "" {
-			cont := newSystemCgroups(cm.RuntimeCgroupsName)
-			memoryLimit := (int64(cm.capacity.Memory().Value() * DockerMemoryLimitThresholdPercent / 100))
-			if memoryLimit < MinDockerMemoryLimit {
-				glog.Warningf("Memory limit %d for container %s is too small, reset it to %d", memoryLimit, cm.RuntimeCgroupsName, MinDockerMemoryLimit)
-				memoryLimit = MinDockerMemoryLimit
+		// With the docker-CRI integration, dockershim will manage the cgroups
+		// and oom score for the docker processes.
+		// In the future, NodeSpec should mandate the cgroup that the
+		// runtime processes need to be in. For now, we still check the
+		// cgroup for docker periodically, so that kubelet can recognize
+		// the cgroup for docker and serve stats for the runtime.
+		// TODO(#27097): Fix this after NodeSpec is clearly defined.
+		cm.periodicTasks = append(cm.periodicTasks, func() {
+			glog.V(4).Infof("[ContainerManager]: Adding periodic tasks for docker CRI integration")
+			cont, err := getContainerNameForProcess(dockerProcessName, dockerPidFile)
+			if err != nil {
+				glog.Error(err)
+				return
 			}
-
-			glog.V(2).Infof("Configure resource-only container %s with memory limit: %d", cm.RuntimeCgroupsName, memoryLimit)
-			allowAllDevices := true
-			dockerContainer := &fs.Manager{
-				Cgroups: &configs.Cgroup{
-					Parent: "/",
-					Name:   cm.RuntimeCgroupsName,
-					Resources: &configs.Resources{
-						Memory:          memoryLimit,
-						MemorySwap:      -1,
-						AllowAllDevices: &allowAllDevices,
-					},
-				},
-			}
-			cont.ensureStateFunc = func(manager *fs.Manager) error {
-				return EnsureDockerInContainer(dockerAPIVersion, qos.DockerOOMScoreAdj, dockerContainer)
-			}
-			systemContainers = append(systemContainers, cont)
-		} else {
-			cm.periodicTasks = append(cm.periodicTasks, func() {
-				glog.V(10).Infof("Adding docker daemon periodic tasks")
-				if err := EnsureDockerInContainer(dockerAPIVersion, qos.DockerOOMScoreAdj, nil); err != nil {
-					glog.Error(err)
-					return
-				}
-				cont, err := getContainerNameForProcess(dockerProcessName, dockerPidFile)
-				if err != nil {
-					glog.Error(err)
-					return
-				}
-				glog.V(2).Infof("Discovered runtime cgroups name: %s", cont)
-				cm.Lock()
-				defer cm.Unlock()
-				cm.RuntimeCgroupsName = cont
-			})
-		}
+			glog.V(2).Infof("[ContainerManager]: Discovered runtime cgroups name: %s", cont)
+			cm.Lock()
+			defer cm.Unlock()
+			cm.RuntimeCgroupsName = cont
+		})
 	}
 
 	if cm.SystemCgroupsName != "" {
@@ -575,6 +534,44 @@ func (cm *containerManagerImpl) Start(node *v1.Node, activePods ActivePodsFunc) 
 		}, 5*time.Minute, wait.NeverStop)
 	}
 
+	// Local storage filesystem information from `RootFsInfo` and `ImagesFsInfo` is available at a later time
+	// depending on the time when cadvisor manager updates container stats. Therefore use a go routine to keep
+	// retrieving the information until it is available.
+	stopChan := make(chan struct{})
+	go wait.Until(func() {
+		if err := cm.setFsCapacity(); err != nil {
+			glog.Errorf("[ContainerManager]: %v", err)
+			return
+		}
+		close(stopChan)
+	}, time.Second, stopChan)
+	return nil
+}
+
+func (cm *containerManagerImpl) setFsCapacity() error {
+	rootfs, err := cm.cadvisorInterface.RootFsInfo()
+	if err != nil {
+		return fmt.Errorf("Fail to get rootfs information %v", err)
+	}
+	hasDedicatedImageFs, _ := cm.cadvisorInterface.HasDedicatedImageFs()
+	var imagesfs cadvisorapiv2.FsInfo
+	if hasDedicatedImageFs {
+		imagesfs, err = cm.cadvisorInterface.ImagesFsInfo()
+		if err != nil {
+			return fmt.Errorf("Fail to get imagefs information %v", err)
+		}
+	}
+
+	cm.Lock()
+	for rName, rCap := range cadvisor.StorageScratchCapacityFromFsInfo(rootfs) {
+		cm.capacity[rName] = rCap
+	}
+	if hasDedicatedImageFs {
+		for rName, rCap := range cadvisor.StorageOverlayCapacityFromFsInfo(imagesfs) {
+			cm.capacity[rName] = rCap
+		}
+	}
+	cm.Unlock()
 	return nil
 }
 
@@ -833,6 +830,8 @@ func getDockerAPIVersion(cadvisor cadvisor.Interface) *utilversion.Version {
 	return dockerAPIVersion
 }
 
-func (m *containerManagerImpl) GetCapacity() v1.ResourceList {
-	return m.capacity
+func (cm *containerManagerImpl) GetCapacity() v1.ResourceList {
+	cm.RLock()
+	defer cm.RUnlock()
+	return cm.capacity
 }

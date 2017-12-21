@@ -4,15 +4,30 @@
 
 # If invoked with arguments, executes the test directly.
 function os::test::extended::focus () {
-	if [[ $# -ne 0 ]]; then
-		os::log::info "Running custom: $*"
-		os::test::extended::test_list "$@"
-		if [[ "${TEST_COUNT}" -eq 0 ]]; then
-			os::log::error "No tests would be run"
-			exit 1
-		fi
-		extended.test "$@"
-		exit $?
+	if [[ "$@[@]" =~ "ginkgo.focus" ]]; then
+		os::log::fatal "the --ginkgo.focus flag is no longer supported, use FOCUS=foo <suite.sh> instead."
+		exit 1
+	fi
+	if [[ -n "${FOCUS:-}" ]]; then
+		exitstatus=0
+
+		# first run anything that isn't explicitly declared [Serial], and matches the $FOCUS, in a parallel mode.
+		os::log::info "Running parallel tests N=${PARALLEL_NODES:-<default>} with focus ${FOCUS}"
+		TEST_REPORT_FILE_NAME=focus_parallel TEST_PARALLEL="${PARALLEL_NODES:-5}" os::test::extended::run -- -ginkgo.skip "\[Serial\]" -test.timeout 6h ${TEST_EXTENDED_ARGS-} || exitstatus=$?
+
+		# Then run everything that requires serial and matches the $FOCUS, serially.
+		# there is bit of overlap here because not all serial tests declare [Serial], so they might have run in the
+		# parallel section above.  Hopefully your focus was precise enough to exclude them, and we should be adding
+		# the [Serial] tag to them as needed.
+		os::log::info ""
+		os::log::info "Running serial tests with focus ${FOCUS}"
+		t=$FOCUS
+		FOCUS="\[Serial\].*?${t}"
+		TEST_REPORT_FILE_NAME=focus_serial os::test::extended::run -- -test.timeout 6h ${TEST_EXTENDED_ARGS-} || exitstatus=$?
+		FOCUS="${t}.*?\[Serial\]"
+		TEST_REPORT_FILE_NAME=focus_serial2 os::test::extended::run -- -test.timeout 6h ${TEST_EXTENDED_ARGS-} || exitstatus=$?
+
+		exit $exitstatus
 	fi
 }
 
@@ -26,7 +41,6 @@ function os::test::extended::setup () {
 	os::util::ensure::built_binary_exists 'extended.test' 'test/extended/extended.test'
 	os::util::ensure::built_binary_exists 'oadm'
 	os::util::ensure::built_binary_exists 'oc'
-	os::util::ensure::built_binary_exists 'junitmerge'
 
 	# ensure proper relative directories are set
 	export KUBE_REPO_ROOT="${OS_ROOT}/vendor/k8s.io/kubernetes"
@@ -35,9 +49,9 @@ function os::test::extended::setup () {
 
 	# Allow setting $JUNIT_REPORT to toggle output behavior
 	if [[ -n "${JUNIT_REPORT:-}" ]]; then
-		export JUNIT_REPORT_OUTPUT="${LOG_DIR}/raw_test_output.log"
 		# the Ginkgo tests also generate jUnit but expect different envars
-		export TEST_REPORT_DIR="${ARTIFACT_DIR}"
+		export TEST_REPORT_DIR="${ARTIFACT_DIR}/junit"
+		mkdir -p $TEST_REPORT_DIR
 	fi
 
 	function cleanup() {
@@ -96,11 +110,11 @@ function os::test::extended::setup () {
 		CONFIG_VERSION="${CONTROLLER_VERSION}"
 	fi
 	os::start::configure_server "${CONFIG_VERSION}"
-	#turn on audit logging for extended tests ... mimic what is done in os::start::configure_server, but don't
+	# turn on audit logging for extended tests ... mimic what is done in os::start::configure_server, but don't
 	# put change there - only want this for extended tests
 	os::log::info "Turn on audit logging"
 	cp "${SERVER_CONFIG_DIR}/master/master-config.yaml" "${SERVER_CONFIG_DIR}/master/master-config.orig2.yaml"
-	openshift ex config patch "${SERVER_CONFIG_DIR}/master/master-config.orig2.yaml" --patch="{\"auditConfig\": {\"enabled\": true}}"  > "${SERVER_CONFIG_DIR}/master/master-config.yaml"
+	openshift ex config patch "${SERVER_CONFIG_DIR}/master/master-config.orig2.yaml" --patch="{\"auditConfig\": {\"enabled\": true, \"auditFilePath\": \"${LOG_DIR}/audit.log\"}}"  > "${SERVER_CONFIG_DIR}/master/master-config.yaml"
 
 	cp "${SERVER_CONFIG_DIR}/master/master-config.yaml" "${SERVER_CONFIG_DIR}/master/master-config.orig2.yaml"
 	openshift ex config patch "${SERVER_CONFIG_DIR}/master/master-config.orig2.yaml" --patch="{\"templateServiceBrokerConfig\": {\"templateNamespaces\": [\"openshift\"]}}"  > "${SERVER_CONFIG_DIR}/master/master-config.yaml"
@@ -134,6 +148,9 @@ function os::test::extended::setup () {
 
 	os::log::info "Creating quickstart templates"
 	oc create -n openshift -f "${OS_ROOT}/examples/quickstarts" --config="${ADMIN_KUBECONFIG}"
+
+	os::log::info "Creating db-templates templates"
+	oc create -n openshift -f "${OS_ROOT}/examples/db-templates" --config="${ADMIN_KUBECONFIG}"
 }
 
 # Run extended tests or print out a list of tests that need to be run
@@ -225,18 +242,3 @@ function os::test::extended::test_list () {
 	export TEST_COUNT=${#selected_tests[@]}
 }
 readonly -f os::test::extended::test_list
-
-# Merge all of the JUnit output files in the TEST_REPORT_DIR into a single file.
-# This works around a gap in Jenkins JUnit reporter output that double counts skipped
-# files until https://github.com/jenkinsci/junit-plugin/pull/54 is merged.
-function os::test::extended::merge_junit () {
-	if [[ -z "${JUNIT_REPORT:-}" ]]; then
-		return
-	fi
-	local output
-	output="$( mktemp )"
-	"$( os::util::find::built_binary junitmerge )" "${TEST_REPORT_DIR}"/*.xml > "${output}"
-	rm "${TEST_REPORT_DIR}"/*.xml
-	mv "${output}" "${TEST_REPORT_DIR}/junit.xml"
-}
-readonly -f os::test::extended::merge_junit

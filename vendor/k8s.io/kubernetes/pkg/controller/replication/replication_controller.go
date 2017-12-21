@@ -36,9 +36,11 @@ import (
 	clientv1 "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/integer"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/api/v1"
+	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 	"k8s.io/kubernetes/pkg/client/clientset_generated/clientset"
 	coreinformers "k8s.io/kubernetes/pkg/client/informers/informers_generated/externalversions/core/v1"
 	corelisters "k8s.io/kubernetes/pkg/client/listers/core/v1"
@@ -60,8 +62,8 @@ var controllerKind = v1.SchemeGroupVersion.WithKind("ReplicationController")
 
 // ReplicationManager is responsible for synchronizing ReplicationController objects stored
 // in the system with actual running pods.
-// TODO: this really should be called ReplicationController. The only reason why it's a Manager
-// is to distinguish this type from API object "ReplicationController". We should fix this.
+// NOTE: using this name to distinguish this type from API object "ReplicationController"; will
+//       not fix it right now. Refer to #41459 for more detail.
 type ReplicationManager struct {
 	kubeClient clientset.Interface
 	podControl controller.PodControlInterface
@@ -147,10 +149,10 @@ func (rm *ReplicationManager) Run(workers int, stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer rm.queue.ShutDown()
 
-	glog.Infof("Starting RC Manager")
+	glog.Infof("Starting RC controller")
+	defer glog.Infof("Shutting down RC controller")
 
-	if !cache.WaitForCacheSync(stopCh, rm.podListerSynced, rm.rcListerSynced) {
-		utilruntime.HandleError(fmt.Errorf("timed out waiting for caches to sync"))
+	if !controller.WaitForCacheSync("RC", stopCh, rm.podListerSynced, rm.rcListerSynced) {
 		return
 	}
 
@@ -159,7 +161,6 @@ func (rm *ReplicationManager) Run(workers int, stopCh <-chan struct{}) {
 	}
 
 	<-stopCh
-	glog.Infof("Shutting down RC Manager")
 }
 
 // getPodControllers returns a list of ReplicationControllers matching the given pod.
@@ -214,7 +215,7 @@ func (rm *ReplicationManager) updateRC(old, cur interface{}) {
 	// this function), but in general extra resyncs shouldn't be
 	// that bad as rcs that haven't met expectations yet won't
 	// sync, and all the listing is done using local stores.
-	if oldRC.Spec.Replicas != curRC.Spec.Replicas {
+	if *(oldRC.Spec.Replicas) != *(curRC.Spec.Replicas) {
 		glog.V(4).Infof("Replication controller %v updated. Desired pod count change: %d->%d", curRC.Name, *(oldRC.Spec.Replicas), *(curRC.Spec.Replicas))
 	}
 	rm.enqueueController(cur)
@@ -313,7 +314,7 @@ func (rm *ReplicationManager) updatePod(old, cur interface{}) {
 		// a Pod transitioned to Ready.
 		// Note that this still suffers from #29229, we are just moving the problem one level
 		// "closer" to kubelet (from the deployment to the ReplicationController controller).
-		if !v1.IsPodReady(oldPod) && v1.IsPodReady(curPod) && rc.Spec.MinReadySeconds > 0 {
+		if !podutil.IsPodReady(oldPod) && podutil.IsPodReady(curPod) && rc.Spec.MinReadySeconds > 0 {
 			glog.V(2).Infof("ReplicationController %q will be enqueued after %ds for availability check", rc.Name, rc.Spec.MinReadySeconds)
 			// Add a second to avoid milliseconds skew in AddAfter.
 			// See https://github.com/kubernetes/kubernetes/issues/39785#issuecomment-279959133 for more info.
@@ -447,32 +448,56 @@ func (rm *ReplicationManager) manageReplicas(filteredPods []*v1.Pod, rc *v1.Repl
 		errCh := make(chan error, diff)
 		rm.expectations.ExpectCreations(rcKey, diff)
 		var wg sync.WaitGroup
-		wg.Add(diff)
 		glog.V(2).Infof("Too few %q/%q replicas, need %d, creating %d", rc.Namespace, rc.Name, *(rc.Spec.Replicas), diff)
-		for i := 0; i < diff; i++ {
-			go func() {
-				defer wg.Done()
-				var err error
-				boolPtr := func(b bool) *bool { return &b }
-				controllerRef := &metav1.OwnerReference{
-					APIVersion:         controllerKind.GroupVersion().String(),
-					Kind:               controllerKind.Kind,
-					Name:               rc.Name,
-					UID:                rc.UID,
-					BlockOwnerDeletion: boolPtr(true),
-					Controller:         boolPtr(true),
-				}
-				err = rm.podControl.CreatePodsWithControllerRef(rc.Namespace, rc.Spec.Template, rc, controllerRef)
-				if err != nil {
+		// Batch the pod creates. Batch sizes start at SlowStartInitialBatchSize
+		// and double with each successful iteration in a kind of "slow start".
+		// This handles attempts to start large numbers of pods that would
+		// likely all fail with the same error. For example a project with a
+		// low quota that attempts to create a large number of pods will be
+		// prevented from spamming the API service with the pod create requests
+		// after one of its pods fails.  Conveniently, this also prevents the
+		// event spam that those failures would generate.
+		for batchSize := integer.IntMin(diff, controller.SlowStartInitialBatchSize); diff > 0; batchSize = integer.IntMin(2*batchSize, diff) {
+			errorCount := len(errCh)
+			wg.Add(batchSize)
+			for i := 0; i < batchSize; i++ {
+				go func() {
+					defer wg.Done()
+					var err error
+					boolPtr := func(b bool) *bool { return &b }
+					controllerRef := &metav1.OwnerReference{
+						APIVersion:         controllerKind.GroupVersion().String(),
+						Kind:               controllerKind.Kind,
+						Name:               rc.Name,
+						UID:                rc.UID,
+						BlockOwnerDeletion: boolPtr(true),
+						Controller:         boolPtr(true),
+					}
+					err = rm.podControl.CreatePodsWithControllerRef(rc.Namespace, rc.Spec.Template, rc, controllerRef)
+					if err != nil {
+						// Decrement the expected number of creates because the informer won't observe this pod
+						glog.V(2).Infof("Failed creation, decrementing expectations for controller %q/%q", rc.Namespace, rc.Name)
+						rm.expectations.CreationObserved(rcKey)
+						errCh <- err
+						utilruntime.HandleError(err)
+					}
+				}()
+			}
+			wg.Wait()
+			// any skipped pods that we never attempted to start shouldn't be expected.
+			skippedPods := diff - batchSize
+			if errorCount < len(errCh) && skippedPods > 0 {
+				glog.V(2).Infof("Slow-start failure. Skipping creation of %d pods, decrementing expectations for controller %q/%q", skippedPods, rc.Namespace, rc.Name)
+				for i := 0; i < skippedPods; i++ {
 					// Decrement the expected number of creates because the informer won't observe this pod
-					glog.V(2).Infof("Failed creation, decrementing expectations for controller %q/%q", rc.Namespace, rc.Name)
 					rm.expectations.CreationObserved(rcKey)
-					errCh <- err
-					utilruntime.HandleError(err)
 				}
-			}()
+				// The skipped pods will be retried later. The next controller resync will
+				// retry the slow start process.
+				break
+			}
+			diff -= batchSize
 		}
-		wg.Wait()
 
 		select {
 		case err := <-errCh:

@@ -33,16 +33,17 @@ import (
 	"k8s.io/kubernetes/pkg/kubectl/resource"
 	kprinters "k8s.io/kubernetes/pkg/printers"
 
-	"github.com/openshift/origin/pkg/client"
-	"github.com/openshift/origin/pkg/cmd/cli/config"
-	"github.com/openshift/origin/pkg/cmd/cli/describe"
-	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
-	deploycmd "github.com/openshift/origin/pkg/deploy/cmd"
-	imageutil "github.com/openshift/origin/pkg/image/util"
+	deployapi "github.com/openshift/origin/pkg/apps/apis/apps"
+	deploycmd "github.com/openshift/origin/pkg/apps/cmd"
+	imageclient "github.com/openshift/origin/pkg/image/generated/internalclientset"
+	"github.com/openshift/origin/pkg/oc/cli/config"
+	"github.com/openshift/origin/pkg/oc/cli/describe"
 	routegen "github.com/openshift/origin/pkg/route/generator"
 )
 
 type ring0Factory struct {
+	*OpenshiftCLIClientBuilder
+
 	clientConfig            kclientcmd.ClientConfig
 	imageResolutionOptions  FlagBinder
 	kubeClientAccessFactory kcmdutil.ClientAccessFactory
@@ -50,27 +51,32 @@ type ring0Factory struct {
 
 type ClientAccessFactory interface {
 	kcmdutil.ClientAccessFactory
+	CLIClientBuilder
 
-	Clients() (*client.Client, kclientset.Interface, error)
 	OpenShiftClientConfig() kclientcmd.ClientConfig
 	ImageResolutionOptions() FlagBinder
 }
 
 func NewClientAccessFactory(optionalClientConfig kclientcmd.ClientConfig) ClientAccessFactory {
 	flags := pflag.NewFlagSet("", pflag.ContinueOnError)
-
 	clientConfig := optionalClientConfig
 	if optionalClientConfig == nil {
 		// TODO: there should be two client configs, one for OpenShift, and one for Kubernetes
 		clientConfig = DefaultClientConfig(flags)
 		clientConfig = defaultingClientConfig{clientConfig}
 	}
-
-	return &ring0Factory{
-		clientConfig:            clientConfig,
-		imageResolutionOptions:  &imageResolutionOptions{},
-		kubeClientAccessFactory: kcmdutil.NewClientAccessFactoryFromDiscovery(flags, clientConfig, &discoveryFactory{clientConfig: clientConfig}),
+	factory := &ring0Factory{
+		clientConfig:           clientConfig,
+		imageResolutionOptions: &imageResolutionOptions{},
 	}
+	factory.kubeClientAccessFactory = kcmdutil.NewClientAccessFactoryFromDiscovery(
+		flags,
+		clientConfig,
+		&discoveryFactory{clientConfig: clientConfig},
+	)
+	factory.OpenshiftCLIClientBuilder = &OpenshiftCLIClientBuilder{config: clientConfig}
+
+	return factory
 }
 
 type discoveryFactory struct {
@@ -89,7 +95,7 @@ func (f *discoveryFactory) DiscoveryClient() (discovery.CachedDiscoveryInterface
 	cfg.Burst = 100
 
 	// at this point we've negotiated and can get the client
-	oclient, err := client.New(cfg)
+	kubeClient, err := kclientset.NewForConfig(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +103,7 @@ func (f *discoveryFactory) DiscoveryClient() (discovery.CachedDiscoveryInterface
 	// TODO: k8s dir is different, I guess we should align
 	// cacheDir := computeDiscoverCacheDir(filepath.Join(homedir.HomeDir(), ".kube", "cache", "discovery"), cfg.Host)
 	cacheDir := computeDiscoverCacheDir(filepath.Join(homedir.HomeDir(), ".kube"), cfg.Host)
-	return kcmdutil.NewCachedDiscoveryClient(client.NewDiscoveryClient(oclient.RESTClient), cacheDir, time.Duration(10*time.Minute)), nil
+	return kcmdutil.NewCachedDiscoveryClient(newLegacyDiscoveryClient(kubeClient.Discovery().RESTClient()), cacheDir, time.Duration(10*time.Minute)), nil
 }
 
 func DefaultClientConfig(flags *pflag.FlagSet) kclientcmd.ClientConfig {
@@ -122,25 +128,6 @@ func DefaultClientConfig(flags *pflag.FlagSet) kclientcmd.ClientConfig {
 	clientConfig := kclientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, overrides)
 
 	return clientConfig
-}
-
-func (f *ring0Factory) Clients() (*client.Client, kclientset.Interface, error) {
-	kubeClientSet, err := f.ClientSet()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	cfg, err := f.clientConfig.ClientConfig()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	openShiftClient, err := client.New(cfg)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return openShiftClient, kubeClientSet, nil
 }
 
 func (f *ring0Factory) OpenShiftClientConfig() kclientcmd.ClientConfig {
@@ -264,15 +251,7 @@ func (f *ring0Factory) SuggestedPodTemplateResources() []schema.GroupResource {
 	return f.kubeClientAccessFactory.SuggestedPodTemplateResources()
 }
 
-// Saves current resource name (or alias if any) in PrintOptions. Once saved, it will not be overwritten by the
-// kubernetes resource alias look-up, as it will notice a non-empty value in `options.Kind`
 func (f *ring0Factory) Printer(mapping *meta.RESTMapping, options kprinters.PrintOptions) (kprinters.ResourcePrinter, error) {
-	if mapping != nil {
-		options.Kind = mapping.Resource
-		if alias, ok := resourceShortFormFor(mapping.Resource); ok {
-			options.Kind = alias
-		}
-	}
 	return describe.NewHumanReadablePrinter(f.JSONEncoder(), f.Decoder(true), options), nil
 }
 
@@ -306,7 +285,7 @@ func (o *imageResolutionOptions) Bind(f *pflag.FlagSet) {
 	if o.Bound() {
 		return
 	}
-	f.StringVarP(&o.Source, "source", "", "istag", "The image source type; valid types are 'imagestreamtag', 'istag', 'imagestreamimage', 'isimage', and 'docker'")
+	f.StringVarP(&o.Source, "source", "", "docker", "The image source type; valid types are 'imagestreamtag', 'istag', 'imagestreamimage', 'isimage', and 'docker'")
 	o.bound = true
 }
 
@@ -316,10 +295,14 @@ func (f *ring0Factory) ImageResolutionOptions() FlagBinder {
 
 func (f *ring0Factory) ResolveImage(image string) (string, error) {
 	options := f.imageResolutionOptions.(*imageResolutionOptions)
-	if imageutil.IsDocker(options.Source) {
+	if isDockerImageSource(options.Source) {
 		return f.kubeClientAccessFactory.ResolveImage(image)
 	}
-	oc, _, err := f.Clients()
+	config, err := f.OpenShiftClientConfig().ClientConfig()
+	if err != nil {
+		return "", err
+	}
+	imageClient, err := imageclient.NewForConfig(config)
 	if err != nil {
 		return "", err
 	}
@@ -327,7 +310,8 @@ func (f *ring0Factory) ResolveImage(image string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return imageutil.ResolveImagePullSpec(oc, oc, options.Source, image, namespace)
+
+	return resolveImagePullSpec(imageClient.Image(), options.Source, image, namespace)
 }
 
 func (f *ring0Factory) Resumer(info *resource.Info) ([]byte, error) {

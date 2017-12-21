@@ -19,9 +19,19 @@ package server
 import (
 	"os"
 
+	"github.com/golang/glog"
 	"github.com/kubernetes-incubator/service-catalog/pkg/registry/servicecatalog/server"
 	"github.com/spf13/pflag"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	genericserveroptions "k8s.io/apiserver/pkg/server/options"
+)
+
+const (
+	// Store generated SSL certificates in a place that won't collide with the
+	// k8s core API server.
+	certDirectory = "/var/run/kubernetes-service-catalog"
+
+	storageTypeFlagName = "storageType"
 )
 
 // ServiceCatalogServerOptions contains the aggregation of configuration structs for
@@ -31,28 +41,46 @@ type ServiceCatalogServerOptions struct {
 	StorageTypeString string
 	// the runtime configuration of our server
 	GenericServerRunOptions *genericserveroptions.ServerRunOptions
+	// the admission options
+	AdmissionOptions *genericserveroptions.AdmissionOptions
 	// the https configuration. certs, etc
 	SecureServingOptions *genericserveroptions.SecureServingOptions
 	// authn for the API
 	AuthenticationOptions *genericserveroptions.DelegatingAuthenticationOptions
 	// authz for the API
 	AuthorizationOptions *genericserveroptions.DelegatingAuthorizationOptions
-	// InsecureOptions are options for serving insecurely.
-	InsecureServingOptions *genericserveroptions.ServingOptions
 	// audit options for api server
-	AuditOptions *genericserveroptions.AuditLogOptions
+	AuditOptions *genericserveroptions.AuditOptions
 	// EtcdOptions are options for serving with etcd as the backing store
 	EtcdOptions *EtcdOptions
-	// TPROptions are options for serving with TPR as the backing store
-	TPROptions *TPROptions
 	// DisableAuth disables delegating authentication and authorization for testing scenarios
 	DisableAuth bool
-	StopCh      <-chan struct{}
 	// StandaloneMode if true asserts that we will not depend on a kube-apiserver
 	StandaloneMode bool
 }
 
-func (s *ServiceCatalogServerOptions) addFlags(flags *pflag.FlagSet) {
+// NewServiceCatalogServerOptions creates a new instances of
+// ServiceCatalogServerOptions with all sub-options filled in.
+func NewServiceCatalogServerOptions() *ServiceCatalogServerOptions {
+	opts := &ServiceCatalogServerOptions{
+		GenericServerRunOptions: genericserveroptions.NewServerRunOptions(),
+		AdmissionOptions:        genericserveroptions.NewAdmissionOptions(),
+		SecureServingOptions:    genericserveroptions.NewSecureServingOptions(),
+		AuthenticationOptions:   genericserveroptions.NewDelegatingAuthenticationOptions(),
+		AuthorizationOptions:    genericserveroptions.NewDelegatingAuthorizationOptions(),
+		AuditOptions:            genericserveroptions.NewAuditOptions(),
+		EtcdOptions:             NewEtcdOptions(),
+		StandaloneMode:          standaloneMode(),
+	}
+	// register all admission plugins
+	registerAllAdmissionPlugins(opts.AdmissionOptions.Plugins)
+	// Set generated SSL cert path correctly
+	opts.SecureServingOptions.ServerCert.CertDirectory = certDirectory
+	return opts
+}
+
+// AddFlags adds to the flag set the flags to configure the API Server.
+func (s *ServiceCatalogServerOptions) AddFlags(flags *pflag.FlagSet) {
 	flags.StringVar(
 		&s.StorageTypeString,
 		"storage-type",
@@ -68,12 +96,11 @@ func (s *ServiceCatalogServerOptions) addFlags(flags *pflag.FlagSet) {
 	)
 
 	s.GenericServerRunOptions.AddUniversalFlags(flags)
+	s.AdmissionOptions.AddFlags(flags)
 	s.SecureServingOptions.AddFlags(flags)
 	s.AuthenticationOptions.AddFlags(flags)
 	s.AuthorizationOptions.AddFlags(flags)
-	s.InsecureServingOptions.AddFlags(flags)
 	s.EtcdOptions.addFlags(flags)
-	s.TPROptions.addFlags(flags)
 	s.AuditOptions.AddFlags(flags)
 }
 
@@ -81,6 +108,32 @@ func (s *ServiceCatalogServerOptions) addFlags(flags *pflag.FlagSet) {
 // invalid storage type
 func (s *ServiceCatalogServerOptions) StorageType() (server.StorageType, error) {
 	return server.StorageTypeFromString(s.StorageTypeString)
+}
+
+// Validate checks all subOptions flags have been set and that they
+// have not been set in a conflictory manner.
+func (s *ServiceCatalogServerOptions) Validate() error {
+	errors := []error{}
+	// TODO uncomment after 1.8 rebase expecting
+	// https://github.com/kubernetes/kubernetes/pull/50308/files
+	// errors = append(errors, s.AdmissionOptions.Validate()...)
+	errors = append(errors, s.SecureServingOptions.Validate()...)
+	errors = append(errors, s.AuthenticationOptions.Validate()...)
+	errors = append(errors, s.AuthorizationOptions.Validate()...)
+	// etcd options
+	if "etcd" == s.StorageTypeString {
+		etcdErrs := s.EtcdOptions.Validate()
+		if len(etcdErrs) > 0 {
+			glog.Errorln("Error validating etcd options, do you have `--etcd-servers localhost` set?")
+		}
+		errors = append(errors, etcdErrs...)
+	}
+	// TODO add alternative storage validation
+	// errors = append(errors, s.CRDOptions.Validate()...)
+	// TODO uncomment after 1.8 rebase expecting
+	// https://github.com/kubernetes/kubernetes/pull/47043
+	// errors = append(errors, s.AuditOptions.Validate()...)
+	return utilerrors.NewAggregate(errors)
 }
 
 // standaloneMode returns true if the env var SERVICE_CATALOG_STANALONE=true

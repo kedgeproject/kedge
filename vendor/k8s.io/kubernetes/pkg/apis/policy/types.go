@@ -28,12 +28,19 @@ type PodDisruptionBudgetSpec struct {
 	// absence of the evicted pod.  So for example you can prevent all voluntary
 	// evictions by specifying "100%".
 	// +optional
-	MinAvailable intstr.IntOrString
+	MinAvailable *intstr.IntOrString
 
 	// Label query over pods whose evictions are managed by the disruption
 	// budget.
 	// +optional
 	Selector *metav1.LabelSelector
+
+	// An eviction is allowed if at most "maxUnavailable" pods selected by
+	// "selector" are unavailable after the eviction, i.e. even in absence of
+	// the evicted pod. For example, one can prevent all voluntary evictions
+	// by specifying 0. This is a mutually exclusive setting with "minAvailable".
+	// +optional
+	MaxUnavailable *intstr.IntOrString
 }
 
 // PodDisruptionBudgetStatus represents information about the status of a
@@ -70,7 +77,7 @@ type PodDisruptionBudgetStatus struct {
 	ExpectedPods int32
 }
 
-// +genclient=true
+// +genclient
 
 // PodDisruptionBudget is an object to define the max disruption that can be caused to a collection of pods
 type PodDisruptionBudget struct {
@@ -94,8 +101,8 @@ type PodDisruptionBudgetList struct {
 	Items []PodDisruptionBudget
 }
 
-// +genclient=true
-// +noMethods=true
+// +genclient
+// +genclient:noVerbs
 
 // Eviction evicts a pod from its node subject to certain policies and safety constraints.
 // This is a subresource of Pod.  A request to cause such an eviction is

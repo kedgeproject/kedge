@@ -50,7 +50,7 @@ func TestSerialLatestOnlyIsRunnableNewBuilds(t *testing.T) {
 	}
 }
 
-func TestSerialLatestOnlyIsRunnableMixed(t *testing.T) {
+func TestSerialLatestOnlyIsRunnableMixedRunning(t *testing.T) {
 	allNewBuilds := []buildapi.Build{
 		addBuild("build-1", "sample-bc", buildapi.BuildPhaseComplete, buildapi.BuildRunPolicySerialLatestOnly),
 		addBuild("build-2", "sample-bc", buildapi.BuildPhaseCancelled, buildapi.BuildRunPolicySerialLatestOnly),
@@ -105,16 +105,6 @@ func TestSerialLatestOnlyIsRunnableBuildsWithErrors(t *testing.T) {
 
 	// No type-check as this error is returned as kerrors.aggregate
 	if _, err := policy.IsRunnable(&builds[1]); err == nil {
-		t.Errorf("expected error for build-2")
-	}
-
-	err = policy.OnComplete(&builds[0])
-	if err != nil {
-		t.Errorf("expected no error, got %v", err)
-	}
-
-	// No type-check as this error is returned as kerrors.aggregate
-	if err := policy.OnComplete(&builds[1]); err == nil {
 		t.Errorf("expected error for build-2")
 	}
 }

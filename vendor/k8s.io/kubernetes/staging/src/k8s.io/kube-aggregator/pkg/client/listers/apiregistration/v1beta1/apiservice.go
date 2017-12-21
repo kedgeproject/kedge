@@ -20,10 +20,8 @@ package v1beta1
 
 import (
 	"k8s.io/apimachinery/pkg/api/errors"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/cache"
-	apiregistration "k8s.io/kube-aggregator/pkg/apis/apiregistration"
 	v1beta1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1"
 )
 
@@ -56,13 +54,12 @@ func (s *aPIServiceLister) List(selector labels.Selector) (ret []*v1beta1.APISer
 
 // Get retrieves the APIService from the index for a given name.
 func (s *aPIServiceLister) Get(name string) (*v1beta1.APIService, error) {
-	key := &v1beta1.APIService{ObjectMeta: v1.ObjectMeta{Name: name}}
-	obj, exists, err := s.indexer.Get(key)
+	obj, exists, err := s.indexer.GetByKey(name)
 	if err != nil {
 		return nil, err
 	}
 	if !exists {
-		return nil, errors.NewNotFound(apiregistration.Resource("apiservice"), name)
+		return nil, errors.NewNotFound(v1beta1.Resource("apiservice"), name)
 	}
 	return obj.(*v1beta1.APIService), nil
 }

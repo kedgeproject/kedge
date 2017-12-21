@@ -7,44 +7,55 @@ import (
 	o "github.com/onsi/gomega"
 
 	exutil "github.com/openshift/origin/test/extended/util"
+	"k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var _ = g.Describe("[builds][Slow] completed builds should have digest of the image in their status", func() {
+var _ = g.Describe("[Feature:Builds][Slow] completed builds should have digest of the image in their status", func() {
 	defer g.GinkgoRecover()
 	var (
 		imageStreamFixture = exutil.FixturePath("..", "integration", "testdata", "test-image-stream.json")
-		stiBuildFixture    = exutil.FixturePath("testdata", "test-s2i-build.json")
-		dockerBuildFixture = exutil.FixturePath("testdata", "test-docker-build.json")
+		stiBuildFixture    = exutil.FixturePath("testdata", "builds", "test-s2i-build.json")
+		dockerBuildFixture = exutil.FixturePath("testdata", "builds", "test-docker-build.json")
 		oc                 = exutil.NewCLI("build-sti-labels", exutil.KubeConfigPath())
 	)
 
-	g.BeforeEach(func() {
-		g.By("waiting for builder service account")
-		err := exutil.WaitForBuilderAccount(oc.AdminKubeClient().Core().ServiceAccounts(oc.Namespace()))
-		o.Expect(err).NotTo(o.HaveOccurred())
+	g.Context("", func() {
 
-		g.By("creating test imagestream")
-		err = oc.Run("create").Args("-f", imageStreamFixture).Execute()
-		o.Expect(err).NotTo(o.HaveOccurred())
-	})
+		g.BeforeEach(func() {
+			g.By("waiting for builder service account")
+			err := exutil.WaitForBuilderAccount(oc.AdminKubeClient().Core().ServiceAccounts(oc.Namespace()))
+			o.Expect(err).NotTo(o.HaveOccurred())
 
-	g.Describe("S2I build", func() {
-		g.Describe("started with normal log level", func() {
-			testBuildDigest(oc, stiBuildFixture, 0)
+			g.By("creating test imagestream")
+			err = oc.Run("create").Args("-f", imageStreamFixture).Execute()
+			o.Expect(err).NotTo(o.HaveOccurred())
 		})
 
-		g.Describe("started with log level >5", func() {
-			testBuildDigest(oc, stiBuildFixture, 7)
-		})
-	})
-
-	g.Describe("Docker build", func() {
-		g.Describe("started with normal log level", func() {
-			testBuildDigest(oc, dockerBuildFixture, 0)
+		g.AfterEach(func() {
+			if g.CurrentGinkgoTestDescription().Failed {
+				exutil.DumpPodStates(oc)
+				exutil.DumpPodLogsStartingWith("", oc)
+			}
 		})
 
-		g.Describe("started with log level >5", func() {
-			testBuildDigest(oc, dockerBuildFixture, 7)
+		g.Describe("S2I build", func() {
+			g.Describe("started with normal log level", func() {
+				testBuildDigest(oc, stiBuildFixture, 0)
+			})
+
+			g.Describe("started with log level >5", func() {
+				testBuildDigest(oc, stiBuildFixture, 7)
+			})
+		})
+
+		g.Describe("Docker build", func() {
+			g.Describe("started with normal log level", func() {
+				testBuildDigest(oc, dockerBuildFixture, 0)
+			})
+
+			g.Describe("started with log level >5", func() {
+				testBuildDigest(oc, dockerBuildFixture, 7)
+			})
 		})
 	})
 })
@@ -62,7 +73,7 @@ func testBuildDigest(oc *exutil.CLI, buildFixture string, buildLogLevel uint) {
 		g.By("checking that the image digest has been saved to the build status")
 		o.Expect(br.Build.Status.Output.To).NotTo(o.BeNil())
 
-		ist, err := oc.Client().ImageStreamTags(oc.Namespace()).Get("test", "latest")
+		ist, err := oc.ImageClient().Image().ImageStreamTags(oc.Namespace()).Get("test:latest", v1.GetOptions{})
 		o.Expect(err).NotTo(o.HaveOccurred())
 		o.Expect(br.Build.Status.Output.To.ImageDigest).To(o.Equal(ist.Image.Name))
 	})

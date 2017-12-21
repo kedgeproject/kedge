@@ -39,8 +39,8 @@ func GetEnv(key string) (string, bool) {
 	return val, true
 }
 
-var argumentEnvironment = regexp.MustCompile("(?ms)^(.+)\\=(.*)$")
-var validArgumentEnvironment = regexp.MustCompile("(?ms)^(\\w+)\\=(.*)$")
+var argumentEnvironment = regexp.MustCompile(`(?ms)^(.+)\=(.*)$`)
+var validArgumentEnvironment = regexp.MustCompile(`(?ms)^(\w+)\=(.*)$`)
 
 func IsEnvironmentArgument(s string) bool {
 	return argumentEnvironment.MatchString(s)
@@ -89,7 +89,7 @@ func parseIntoEnvVar(spec []string, defaultReader io.Reader, envVarType string) 
 				return nil, nil, err
 			}
 			env = append(env, fileEnv...)
-		case strings.Index(envSpec, "=") != -1:
+		case strings.Contains(envSpec, "="):
 			parts := strings.SplitN(envSpec, "=", 2)
 			if len(parts) != 2 {
 				return nil, nil, fmt.Errorf("invalid %s: %v", envVarType, envSpec)
@@ -122,6 +122,15 @@ func ParseEnv(spec []string, defaultReader io.Reader) ([]kapi.EnvVar, []string, 
 	return parseIntoEnvVar(spec, defaultReader, "environment variable")
 }
 
+func ParseAnnotation(spec []string, defaultReader io.Reader) (map[string]string, []string, error) {
+	vars, remove, err := parseIntoEnvVar(spec, defaultReader, "annotation")
+	annotations := make(map[string]string)
+	for _, v := range vars {
+		annotations[v.Name] = v.Value
+	}
+	return annotations, remove, err
+}
+
 func readEnv(r io.Reader, envVarType string) ([]kapi.EnvVar, error) {
 	env := []kapi.EnvVar{}
 	scanner := bufio.NewScanner(r)
@@ -130,7 +139,7 @@ func readEnv(r io.Reader, envVarType string) ([]kapi.EnvVar, error) {
 		if pos := strings.Index(envSpec, "#"); pos != -1 {
 			envSpec = envSpec[:pos]
 		}
-		if strings.Index(envSpec, "=") != -1 {
+		if strings.Contains(envSpec, "=") {
 			parts := strings.SplitN(envSpec, "=", 2)
 			if len(parts) != 2 {
 				return nil, fmt.Errorf("invalid %s: %v", envVarType, envSpec)

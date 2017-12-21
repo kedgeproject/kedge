@@ -8,6 +8,7 @@ import (
 	"unicode"
 
 	"github.com/openshift/origin/pkg/cmd/util/term"
+	ktemplates "k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 
 	"github.com/spf13/cobra"
 	flag "github.com/spf13/pflag"
@@ -17,14 +18,14 @@ type FlagExposer interface {
 	ExposeFlags(cmd *cobra.Command, flags ...string) FlagExposer
 }
 
-func ActsAsRootCommand(cmd *cobra.Command, filters []string, groups ...CommandGroup) FlagExposer {
+func ActsAsRootCommand(cmd *cobra.Command, filters []string, groups ...ktemplates.CommandGroup) FlagExposer {
 	if cmd == nil {
 		panic("nil root command")
 	}
 	templater := &templater{
 		RootCmd:       cmd,
-		UsageTemplate: MainUsageTemplate(),
-		HelpTemplate:  MainHelpTemplate(),
+		UsageTemplate: mainUsageTemplate(),
+		HelpTemplate:  ktemplates.MainHelpTemplate(),
 		CommandGroups: groups,
 		Filtered:      filters,
 	}
@@ -33,10 +34,25 @@ func ActsAsRootCommand(cmd *cobra.Command, filters []string, groups ...CommandGr
 	return templater
 }
 
+func mainUsageTemplate() string {
+	sections := []string{
+		"\n\n",
+		ktemplates.SectionVars,
+		ktemplates.SectionAliases,
+		ktemplates.SectionUsage,
+		ktemplates.SectionExamples,
+		ktemplates.SectionSubcommands,
+		ktemplates.SectionFlags,
+		ktemplates.SectionTipsHelp,
+		ktemplates.SectionTipsGlobalOptions,
+	}
+	return strings.TrimRightFunc(strings.Join(sections, ""), unicode.IsSpace)
+}
+
 func UseOptionsTemplates(cmd *cobra.Command) {
 	templater := &templater{
-		UsageTemplate: OptionsUsageTemplate(),
-		HelpTemplate:  OptionsHelpTemplate(),
+		UsageTemplate: ktemplates.OptionsUsageTemplate(),
+		HelpTemplate:  ktemplates.OptionsHelpTemplate(),
 	}
 	cmd.SetUsageFunc(templater.UsageFunc())
 	cmd.SetHelpFunc(templater.HelpFunc())
@@ -46,7 +62,7 @@ type templater struct {
 	UsageTemplate string
 	HelpTemplate  string
 	RootCmd       *cobra.Command
-	CommandGroups
+	ktemplates.CommandGroups
 	Filtered []string
 }
 
@@ -110,13 +126,13 @@ func (templater *templater) templateFuncs(exposedFlags ...string) template.FuncM
 	}
 }
 
-func (templater *templater) cmdGroups(c *cobra.Command, all []*cobra.Command) []CommandGroup {
+func (templater *templater) cmdGroups(c *cobra.Command, all []*cobra.Command) []ktemplates.CommandGroup {
 	if len(templater.CommandGroups) > 0 && c == templater.RootCmd {
 		all = filter(all, templater.Filtered...)
-		return AddAdditionalCommands(templater.CommandGroups, "Other Commands:", all)
+		return ktemplates.AddAdditionalCommands(templater.CommandGroups, "Other Commands:", all)
 	}
 	all = filter(all, "options")
-	return []CommandGroup{
+	return []ktemplates.CommandGroup{
 		{
 			Message:  "Available Commands:",
 			Commands: all,
@@ -144,15 +160,6 @@ func (t *templater) rootCmdName(c *cobra.Command) string {
 
 func (t *templater) isRootCmd(c *cobra.Command) bool {
 	return t.rootCmd(c) == c
-}
-
-func (t *templater) parents(c *cobra.Command) []*cobra.Command {
-	parents := []*cobra.Command{c}
-	for current := c; !t.isRootCmd(current) && current.HasParent(); {
-		current = current.Parent()
-		parents = append(parents, current)
-	}
-	return parents
 }
 
 func (t *templater) rootCmd(c *cobra.Command) *cobra.Command {
@@ -227,15 +234,6 @@ func flagsUsages(f *flag.FlagSet) string {
 func rpad(s string, padding int) string {
 	template := fmt.Sprintf("%%-%ds", padding)
 	return fmt.Sprintf(template, s)
-}
-
-func indentLines(s string, indentation int) string {
-	r := []string{}
-	for _, line := range strings.Split(s, "\n") {
-		indented := strings.Repeat(" ", indentation) + line
-		r = append(r, indented)
-	}
-	return strings.Join(r, "\n")
 }
 
 func appendIfNotPresent(s, stringToAppend string) string {

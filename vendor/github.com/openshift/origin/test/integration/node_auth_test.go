@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	"strconv"
@@ -12,12 +13,14 @@ import (
 	kubeletclient "k8s.io/kubernetes/pkg/kubelet/client"
 
 	"github.com/openshift/origin/pkg/authorization/authorizer/scope"
-	"github.com/openshift/origin/pkg/cmd/admin/policy"
+	authorizationclient "github.com/openshift/origin/pkg/authorization/generated/internalclientset"
 	configapi "github.com/openshift/origin/pkg/cmd/server/api"
 	"github.com/openshift/origin/pkg/cmd/server/bootstrappolicy"
-	"github.com/openshift/origin/pkg/cmd/server/origin"
-	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
 	oauthapi "github.com/openshift/origin/pkg/oauth/apis/oauth"
+	oauthapiserver "github.com/openshift/origin/pkg/oauth/apiserver"
+	oauthclient "github.com/openshift/origin/pkg/oauth/generated/internalclientset/typed/oauth/internalversion"
+	"github.com/openshift/origin/pkg/oc/admin/policy"
+	userclient "github.com/openshift/origin/pkg/user/generated/internalclientset/typed/user/internalversion"
 	testutil "github.com/openshift/origin/test/util"
 	testserver "github.com/openshift/origin/test/util/server"
 )
@@ -29,20 +32,15 @@ type testRequest struct {
 }
 
 func TestNodeAuth(t *testing.T) {
-	testutil.RequireEtcd(t)
-	defer testutil.DumpEtcdOnFailure(t)
 	// Server config
 	masterConfig, nodeConfig, adminKubeConfigFile, err := testserver.StartTestAllInOne()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	defer testserver.CleanupMasterEtcd(t, masterConfig)
 
 	// Cluster admin clients and client configs
 	adminClient, err := testutil.GetClusterAdminKubeClient(adminKubeConfigFile)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	originAdminClient, err := testutil.GetClusterAdminClient(adminKubeConfigFile)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -53,64 +51,6 @@ func TestNodeAuth(t *testing.T) {
 
 	// Client configs for lesser users
 	masterKubeletClientConfig := configapi.GetKubeletClientConfig(*masterConfig)
-
-	anonymousConfig := clientcmd.AnonymousClientConfig(adminConfig)
-
-	badTokenConfig := clientcmd.AnonymousClientConfig(adminConfig)
-	badTokenConfig.BearerToken = "bad-token"
-
-	bobClient, _, bobConfig, err := testutil.GetClientForUser(*adminConfig, "bob")
-	_, _, aliceConfig, err := testutil.GetClientForUser(*adminConfig, "alice")
-	sa1Client, _, sa1Config, err := testutil.GetClientForServiceAccount(adminClient, *adminConfig, "default", "sa1")
-	_, _, sa2Config, err := testutil.GetClientForServiceAccount(adminClient, *adminConfig, "default", "sa2")
-
-	// Grant Bob system:node-reader, which should let them read metrics and stats
-	addBob := &policy.RoleModificationOptions{
-		RoleName:            bootstrappolicy.NodeReaderRoleName,
-		RoleBindingAccessor: policy.NewClusterRoleBindingAccessor(originAdminClient),
-		Subjects:            []kapi.ObjectReference{{Kind: "User", Name: "bob"}},
-	}
-	if err := addBob.AddRole(); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	// create a scoped token for bob that is only good for getting user info
-	bobUser, err := bobClient.Users().Get("~", metav1.GetOptions{})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	whoamiOnlyBobToken := &oauthapi.OAuthAccessToken{
-		ObjectMeta: metav1.ObjectMeta{Name: "whoami-token-plus-some-padding-here-to-make-the-limit"},
-		ClientName: origin.OpenShiftCLIClientID,
-		ExpiresIn:  200,
-		Scopes:     []string{scope.UserInfo},
-		UserName:   bobUser.Name,
-		UserUID:    string(bobUser.UID),
-	}
-	if _, err := originAdminClient.OAuthAccessTokens().Create(whoamiOnlyBobToken); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	_, _, bobWhoamiOnlyConfig, err := testutil.GetClientForUser(*adminConfig, "bob")
-	bobWhoamiOnlyConfig.BearerToken = whoamiOnlyBobToken.Name
-
-	// Grant sa1 system:cluster-reader, which should let them read metrics and stats
-	addSA1 := &policy.RoleModificationOptions{
-		RoleName:            bootstrappolicy.ClusterReaderRoleName,
-		RoleBindingAccessor: policy.NewClusterRoleBindingAccessor(originAdminClient),
-		Subjects:            []kapi.ObjectReference{{Kind: "ServiceAccount", Namespace: "default", Name: "sa1"}},
-	}
-	if err := addSA1.AddRole(); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	// Wait for policy cache
-	if err := testutil.WaitForClusterPolicyUpdate(bobClient, "get", kapi.Resource("nodes/metrics"), true); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := testutil.WaitForClusterPolicyUpdate(sa1Client, "get", kapi.Resource("nodes/metrics"), true); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
 	_, nodePort, err := net.SplitHostPort(nodeConfig.ServingInfo.BindAddress)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -119,12 +59,69 @@ func TestNodeAuth(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	nodeTLS := configapi.UseTLS(nodeConfig.ServingInfo)
+	masterKubeletClientConfig.Port = uint(nodePortInt)
+
+	anonymousConfig := restclient.AnonymousClientConfig(adminConfig)
+
+	badTokenConfig := restclient.AnonymousClientConfig(adminConfig)
+	badTokenConfig.BearerToken = "bad-token"
+
+	bobKubeClient, bobConfig, err := testutil.GetClientForUser(adminConfig, "bob")
+	_, aliceConfig, err := testutil.GetClientForUser(adminConfig, "alice")
+	sa1KubeClient, sa1Config, err := testutil.GetClientForServiceAccount(adminClient, *adminConfig, "default", "sa1")
+	_, sa2Config, err := testutil.GetClientForServiceAccount(adminClient, *adminConfig, "default", "sa2")
+
+	// Grant Bob system:node-reader, which should let them read metrics and stats
+	addBob := &policy.RoleModificationOptions{
+		RoleName:            bootstrappolicy.NodeReaderRoleName,
+		RoleBindingAccessor: policy.NewClusterRoleBindingAccessor(authorizationclient.NewForConfigOrDie(adminConfig)),
+		Subjects:            []kapi.ObjectReference{{Kind: "User", Name: "bob"}},
+	}
+	if err := addBob.AddRole(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// create a scoped token for bob that is only good for getting user info
+	bobUser, err := userclient.NewForConfigOrDie(bobConfig).Users().Get("~", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	whoamiOnlyBobToken := &oauthapi.OAuthAccessToken{
+		ObjectMeta: metav1.ObjectMeta{Name: "whoami-token-plus-some-padding-here-to-make-the-limit"},
+		ClientName: oauthapiserver.OpenShiftCLIClientID,
+		ExpiresIn:  200,
+		Scopes:     []string{scope.UserInfo},
+		UserName:   bobUser.Name,
+		UserUID:    string(bobUser.UID),
+	}
+	if _, err := oauthclient.NewForConfigOrDie(adminConfig).OAuthAccessTokens().Create(whoamiOnlyBobToken); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	_, bobWhoamiOnlyConfig, err := testutil.GetClientForUser(adminConfig, "bob")
+	bobWhoamiOnlyConfig.BearerToken = whoamiOnlyBobToken.Name
+
+	// Grant sa1 system:cluster-reader, which should let them read metrics and stats
+	addSA1 := &policy.RoleModificationOptions{
+		RoleName:            bootstrappolicy.ClusterReaderRoleName,
+		RoleBindingAccessor: policy.NewClusterRoleBindingAccessor(authorizationclient.NewForConfigOrDie(adminConfig)),
+		Subjects:            []kapi.ObjectReference{{Kind: "ServiceAccount", Namespace: "default", Name: "sa1"}},
+	}
+	if err := addSA1.AddRole(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Wait for policy cache
+	if err := testutil.WaitForClusterPolicyUpdate(bobKubeClient.Authorization(), "get", kapi.Resource("nodes/metrics"), true); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := testutil.WaitForClusterPolicyUpdate(sa1KubeClient.Authorization(), "get", kapi.Resource("nodes/metrics"), true); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	kubeletClientConfig := func(config *restclient.Config) *kubeletclient.KubeletClientConfig {
 		return &kubeletclient.KubeletClientConfig{
 			Port:            uint(nodePortInt),
-			EnableHttps:     nodeTLS,
+			EnableHttps:     true,
 			TLSClientConfig: config.TLSClientConfig,
 			BearerToken:     config.BearerToken,
 		}
@@ -137,10 +134,10 @@ func TestNodeAuth(t *testing.T) {
 		NodeAdmin           bool
 	}{
 		"bad token": {
-			KubeletClientConfig: kubeletClientConfig(&badTokenConfig),
+			KubeletClientConfig: kubeletClientConfig(badTokenConfig),
 		},
 		"anonymous": {
-			KubeletClientConfig: kubeletClientConfig(&anonymousConfig),
+			KubeletClientConfig: kubeletClientConfig(anonymousConfig),
 			Forbidden:           true,
 		},
 		"cluster admin": {
@@ -240,7 +237,7 @@ func TestNodeAuth(t *testing.T) {
 		}
 
 		for _, r := range requests {
-			req, err := http.NewRequest(r.Method, "https://"+nodeConfig.NodeName+":10250"+r.Path, nil)
+			req, err := http.NewRequest(r.Method, fmt.Sprintf("https://%s:%d", nodeConfig.NodeName, nodePortInt)+r.Path, nil)
 			if err != nil {
 				t.Errorf("%s: %s: unexpected error: %v", k, r.Path, err)
 				continue

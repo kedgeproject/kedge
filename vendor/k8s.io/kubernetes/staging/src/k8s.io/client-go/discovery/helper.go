@@ -65,7 +65,6 @@ func ServerSupportsVersion(client DiscoveryInterface, requiredGV schema.GroupVer
 		return nil
 	}
 
-	// fall back to an empty GroupVersion.  Most client commands no longer respect a GroupVersion anyway
 	return fmt.Errorf("server does not support API version %q", requiredGV)
 }
 

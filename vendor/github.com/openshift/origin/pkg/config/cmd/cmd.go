@@ -3,14 +3,19 @@ package cmd
 import (
 	"fmt"
 	"io"
+	"os"
+	"path"
+	goruntime "runtime"
 	"strings"
 
+	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
 	kapi "k8s.io/kubernetes/pkg/api"
@@ -19,7 +24,8 @@ import (
 	"k8s.io/kubernetes/pkg/kubectl/resource"
 
 	"github.com/openshift/origin/pkg/api/latest"
-	"github.com/openshift/origin/pkg/client"
+	"github.com/openshift/origin/pkg/version"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 type Runner interface {
@@ -51,7 +57,8 @@ type IgnoreErrorFunc func(e error) bool
 
 // Bulk provides helpers for iterating over a list of items
 type Bulk struct {
-	Mapper Mapper
+	Mapper        Mapper
+	DynamicMapper Mapper
 
 	// PreferredSerializationOrder take a list of GVKs to decide how to serialize out the individual list items
 	// It allows partial values, so you specify just groups or versions as a for instance
@@ -78,7 +85,13 @@ func (b *Bulk) Run(list *kapi.List, namespace string) []error {
 
 	errs := []error{}
 	for i, item := range list.Items {
-		info, err := b.Mapper.InfoForObject(item, b.getPreferredSerializationOrder())
+		var info *resource.Info
+		var err error
+		if _, ok := item.(*unstructured.Unstructured); ok {
+			info, err = b.DynamicMapper.InfoForObject(item, b.getPreferredSerializationOrder())
+		} else {
+			info, err = b.Mapper.InfoForObject(item, b.getPreferredSerializationOrder())
+		}
 		if err != nil {
 			errs = append(errs, err)
 			if after(info, err) {
@@ -128,7 +141,7 @@ func ClientMapperFromConfig(config *rest.Config) resource.ClientMapperFunc {
 		configCopy := *config
 
 		if latest.OriginKind(mapping.GroupVersionKind) {
-			if err := client.SetOpenShiftDefaults(&configCopy); err != nil {
+			if err := SetLegacyOpenShiftDefaults(&configCopy); err != nil {
 				return nil, err
 			}
 			configCopy.APIPath = "/apis"
@@ -280,11 +293,34 @@ func (b *BulkAction) BindForAction(flags *pflag.FlagSet) {
 
 // BindForOutput sets flags on this action for when setting -o will not execute the action (the point of the action is
 // primarily to generate the output). Passing -o is asking for output, not execution.
-func (b *BulkAction) BindForOutput(flags *pflag.FlagSet) {
-	flags.StringVarP(&b.Output, "output", "o", "", "Output results as yaml or json instead of executing, or use name for succint output (resource/name).")
-	flags.BoolVar(&b.DryRun, "dry-run", false, "If true, show the result of the operation without performing it.")
-	flags.Bool("no-headers", false, "Omit table headers for default output.")
-	flags.MarkHidden("no-headers")
+func (b *BulkAction) BindForOutput(flags *pflag.FlagSet, skippedFlags ...string) {
+	skipped := sets.NewString(skippedFlags...)
+
+	if !skipped.Has("output") {
+		flags.StringVarP(&b.Output, "output", "o", "", "Output results as yaml or json instead of executing, or use name for succint output (resource/name).")
+	}
+	if !skipped.Has("dry-run") {
+		flags.BoolVar(&b.DryRun, "dry-run", false, "If true, show the result of the operation without performing it.")
+	}
+	if !skipped.Has("no-headers") {
+		flags.Bool("no-headers", false, "Omit table headers for default output.")
+		flags.MarkHidden("no-headers")
+	}
+
+	// we really want to call the AddNonDeprecatedPrinterFlags method, but that is broken since it doesn't bind vars
+	if !skipped.Has("show-labels") {
+		flags.Bool("show-labels", false, "When printing, show all labels as the last column (default hide labels column)")
+	}
+	if !skipped.Has("template") {
+		flags.String("template", "", "Template string or path to template file to use when -o=go-template, -o=go-template-file. The template format is golang templates [http://golang.org/pkg/text/template/#pkg-overview].")
+		cobra.MarkFlagFilename(flags, "template")
+	}
+	if !skipped.Has("sort-by") {
+		flags.String("sort-by", "", "If non-empty, sort list types using this field specification.  The field specification is expressed as a JSONPath expression (e.g. '{.metadata.name}'). The field in the API resource specified by this JSONPath expression must be an integer or a string.")
+	}
+	if !skipped.Has("show-all") {
+		flags.BoolP("show-all", "a", false, "When printing, show all resources (default hide terminated pods.)")
+	}
 }
 
 // Compact sets the output to a minimal set
@@ -355,4 +391,37 @@ func (b *BulkAction) Run(list *kapi.List, namespace string) []error {
 		}
 	}
 	return errs
+}
+
+// SetLegacyOpenShiftDefaults sets the default settings on the passed client configuration for legacy usage
+func SetLegacyOpenShiftDefaults(config *rest.Config) error {
+	if len(config.UserAgent) == 0 {
+		config.UserAgent = defaultOpenShiftUserAgent()
+	}
+	if config.GroupVersion == nil {
+		// Clients default to the preferred code API version
+		groupVersionCopy := latest.Version
+		config.GroupVersion = &groupVersionCopy
+	}
+	if config.APIPath == "" || config.APIPath == "/api" {
+		config.APIPath = "/oapi"
+	}
+	if config.NegotiatedSerializer == nil {
+		config.NegotiatedSerializer = kapi.Codecs
+	}
+	return nil
+}
+
+func defaultOpenShiftUserAgent() string {
+	commit := version.Get().GitCommit
+	if len(commit) > 7 {
+		commit = commit[:7]
+	}
+	if len(commit) == 0 {
+		commit = "unknown"
+	}
+	version := version.Get().GitVersion
+	seg := strings.SplitN(version, "-", 2)
+	version = seg[0]
+	return fmt.Sprintf("%s/%s (%s/%s) openshift/%s", path.Base(os.Args[0]), version, goruntime.GOOS, goruntime.GOARCH, commit)
 }

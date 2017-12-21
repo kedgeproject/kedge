@@ -16,18 +16,13 @@ import (
 )
 
 func TestGCDefaults(t *testing.T) {
-	testutil.RequireEtcd(t)
-	defer testutil.DumpEtcdOnFailure(t)
-	_, clusterAdminKubeConfig, err := testserver.StartTestMaster()
+	masterConfig, clusterAdminKubeConfig, err := testserver.StartTestMaster()
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer testserver.CleanupMasterEtcd(t, masterConfig)
 
 	clusterAdminConfig, err := testutil.GetClusterAdminClientConfig(clusterAdminKubeConfig)
-	if err != nil {
-		t.Fatal(err)
-	}
-	originClient, err := testutil.GetClusterAdminClient(clusterAdminKubeConfig)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,14 +30,13 @@ func TestGCDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	newBuildClient, err := buildclient.NewForConfig(clusterAdminConfig)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	ns := "some-ns-old"
-	if _, err := testserver.CreateNewProject(originClient, *clusterAdminConfig, ns, "adminUser"); err != nil {
+	if _, _, err := testserver.CreateNewProject(clusterAdminConfig, ns, "adminUser"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -75,7 +69,7 @@ func TestGCDefaults(t *testing.T) {
 	// the buildconfig or the orphaning step won't find anything to orphan, then the delete will complete, the configmap
 	// creation will be observed, there will be no parent, and the configmap will be deleted.
 	// There is no API to determine if the configmap was observed.
-	time.Sleep(1 * time.Second)
+	time.Sleep(3 * time.Second)
 
 	// this looks weird, but we want no new dependencies on the old client
 	if err := newBuildClient.Build().RESTClient().Delete().AbsPath("/oapi/v1/namespaces/" + ns + "/buildconfigs/" + buildConfig.Name).Do().Error(); err != nil {
@@ -84,7 +78,7 @@ func TestGCDefaults(t *testing.T) {
 
 	// the /oapi endpoints should orphan by default
 	// wait for a bit and make sure that the build is still there
-	time.Sleep(2 * time.Second)
+	time.Sleep(6 * time.Second)
 	childConfigMap, err = kubeClient.Core().ConfigMaps(ns).Get(childConfigMap.Name, metav1.GetOptions{})
 	if err != nil {
 		t.Error(err)

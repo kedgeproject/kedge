@@ -11,10 +11,11 @@ import (
 	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 	kubecmd "k8s.io/kubernetes/pkg/kubectl/cmd"
 
-	osclient "github.com/openshift/origin/pkg/client"
 	osclientcmd "github.com/openshift/origin/pkg/cmd/util/clientcmd"
 	"github.com/openshift/origin/pkg/cmd/util/variable"
-	sdnapi "github.com/openshift/origin/pkg/sdn/apis/network"
+	"github.com/openshift/origin/pkg/network"
+	networkapi "github.com/openshift/origin/pkg/network/apis/network"
+	networktypedclient "github.com/openshift/origin/pkg/network/generated/internalclientset/typed/network/internalversion"
 	"github.com/openshift/origin/pkg/util/netutils"
 )
 
@@ -36,20 +37,26 @@ const (
 	NetworkDiagDefaultTestPodPort     = 8080
 )
 
-var (
-	NetworkDiagDefaultPodImage     = variable.DefaultImagePrefix
-	NetworkDiagDefaultTestPodImage = variable.DefaultImagePrefix + "-deployer"
-)
+func GetNetworkDiagDefaultPodImage() string {
+	imageTemplate := variable.NewDefaultImageTemplate()
+	imageTemplate.Format = variable.DefaultImagePrefix + ":${version}"
+	return imageTemplate.ExpandOrDie("")
+}
 
-func GetOpenShiftNetworkPlugin(osClient *osclient.Client) (string, bool, error) {
-	cn, err := osClient.ClusterNetwork().Get(sdnapi.ClusterNetworkDefault, metav1.GetOptions{})
+func GetNetworkDiagDefaultTestPodImage() string {
+	imageTemplate := variable.NewDefaultImageTemplate()
+	return imageTemplate.ExpandOrDie("deployer")
+}
+
+func GetOpenShiftNetworkPlugin(clusterNetworkClient networktypedclient.ClusterNetworksGetter) (string, bool, error) {
+	cn, err := clusterNetworkClient.ClusterNetworks().Get(networkapi.ClusterNetworkDefault, metav1.GetOptions{})
 	if err != nil {
 		if kerrors.IsNotFound(err) {
 			return "", false, nil
 		}
 		return "", false, err
 	}
-	return cn.PluginName, sdnapi.IsOpenShiftNetworkPlugin(cn.PluginName), nil
+	return cn.PluginName, network.IsOpenShiftNetworkPlugin(cn.PluginName), nil
 }
 
 func GetNodes(kubeClient kclientset.Interface) ([]kapi.Node, error) {
@@ -154,7 +161,7 @@ func GetGlobalAndNonGlobalPods(pods []kapi.Pod, vnidMap map[string]uint32) ([]ka
 	globalPods := []kapi.Pod{}
 	nonGlobalPods := []kapi.Pod{}
 	for _, pod := range pods {
-		if vnidMap[pod.Namespace] == sdnapi.GlobalVNID {
+		if vnidMap[pod.Namespace] == network.GlobalVNID {
 			globalPods = append(globalPods, pod)
 		} else {
 			nonGlobalPods = append(nonGlobalPods, pod)
@@ -172,7 +179,7 @@ func ExpectedConnectionStatus(ns1, ns2 string, vnidMap map[string]uint32) bool {
 	} // else multitenant
 
 	// Check if one of the pods belongs to global network
-	if vnidMap[ns1] == sdnapi.GlobalVNID || vnidMap[ns2] == sdnapi.GlobalVNID {
+	if vnidMap[ns1] == network.GlobalVNID || vnidMap[ns2] == network.GlobalVNID {
 		return true
 	}
 

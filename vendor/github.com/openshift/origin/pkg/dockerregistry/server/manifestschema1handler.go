@@ -12,9 +12,8 @@ import (
 	"github.com/docker/distribution/reference"
 	"github.com/docker/libtrust"
 
-	"k8s.io/apimachinery/pkg/util/sets"
-
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
+	imageapiv1 "github.com/openshift/origin/pkg/image/apis/image/v1"
 )
 
 func unmarshalManifestSchema1(content []byte, signatures [][]byte) (distribution.Manifest, error) {
@@ -45,62 +44,61 @@ func unmarshalManifestSchema1(content []byte, signatures [][]byte) (distribution
 }
 
 type manifestSchema1Handler struct {
-	repo     *repository
-	manifest *schema1.SignedManifest
+	repo       *repository
+	manifest   *schema1.SignedManifest
+	blobsCache map[digest.Digest]distribution.Descriptor
 }
 
 var _ ManifestHandler = &manifestSchema1Handler{}
 
-func (h *manifestSchema1Handler) FillImageMetadata(ctx context.Context, image *imageapi.Image) error {
-	signatures, err := h.manifest.Signatures()
-	if err != nil {
-		return err
-	}
+func (h *manifestSchema1Handler) Config(ctx context.Context) ([]byte, error) {
+	return nil, nil
+}
 
-	for _, signDigest := range signatures {
-		image.DockerImageSignatures = append(image.DockerImageSignatures, signDigest)
-	}
-
-	if err := imageapi.ImageWithMetadata(image); err != nil {
-		return err
-	}
-
-	refs := h.manifest.References()
-
-	blobSet := sets.NewString()
-	image.DockerImageMetadata.Size = int64(0)
-
-	blobs := h.repo.Blobs(ctx)
-	for i := range image.DockerImageLayers {
-		layer := &image.DockerImageLayers[i]
-		// DockerImageLayers represents h.manifest.Manifest.FSLayers in reversed order
-		desc, err := blobs.Stat(ctx, refs[len(image.DockerImageLayers)-i-1].Digest)
-		if err != nil {
-			context.GetLogger(ctx).Errorf("failed to stat blob %s of image %s", layer.Name, image.DockerImageReference)
-			return err
-		}
-		// The MediaType appeared in manifest schema v2. We need to fill it
-		// manually in the old images if it is not already filled.
-		if len(layer.MediaType) == 0 {
-			if len(desc.MediaType) > 0 {
-				layer.MediaType = desc.MediaType
-			} else {
-				layer.MediaType = schema1.MediaTypeManifestLayer
-			}
-		}
-		layer.LayerSize = desc.Size
-		// count empty layer just once (empty layer may actually have non-zero size)
-		if !blobSet.Has(layer.Name) {
-			image.DockerImageMetadata.Size += desc.Size
-			blobSet.Insert(layer.Name)
-		}
-	}
-
-	return nil
+func (h *manifestSchema1Handler) Digest() (digest.Digest, error) {
+	return digest.FromBytes(h.manifest.Canonical), nil
 }
 
 func (h *manifestSchema1Handler) Manifest() distribution.Manifest {
 	return h.manifest
+}
+
+func (h *manifestSchema1Handler) statBlob(ctx context.Context, dgst digest.Digest) (distribution.Descriptor, error) {
+	desc, ok := h.blobsCache[dgst]
+	if ok {
+		return desc, nil
+	}
+
+	desc, err := h.repo.Blobs(ctx).Stat(ctx, dgst)
+	if err != nil {
+		return desc, err
+	}
+
+	if h.blobsCache == nil {
+		h.blobsCache = make(map[digest.Digest]distribution.Descriptor)
+	}
+	h.blobsCache[dgst] = desc
+
+	return desc, nil
+}
+
+func (h *manifestSchema1Handler) Layers(ctx context.Context) (string, []imageapiv1.ImageLayer, error) {
+	layers := make([]imageapiv1.ImageLayer, len(h.manifest.FSLayers))
+	for i, fslayer := range h.manifest.FSLayers {
+		desc, err := h.statBlob(ctx, fslayer.BlobSum)
+		if err != nil {
+			return "", nil, err
+		}
+
+		// In a schema1 manifest the layers are ordered from the youngest to
+		// the oldest. But we want to have layers in different order.
+		revidx := (len(h.manifest.FSLayers) - 1) - i // n-1, n-2, ..., 1, 0
+
+		layers[revidx].Name = fslayer.BlobSum.String()
+		layers[revidx].LayerSize = desc.Size
+		layers[revidx].MediaType = schema1.MediaTypeManifestLayer
+	}
+	return imageapi.DockerImageLayersOrderAscending, layers, nil
 }
 
 func (h *manifestSchema1Handler) Payload() (mediaType string, payload []byte, canonical []byte, err error) {
@@ -116,9 +114,8 @@ func (h *manifestSchema1Handler) Verify(ctx context.Context, skipDependencyVerif
 	// and since we use pullthroughBlobStore all the layer existence checks will be
 	// successful. This means that the docker client will not attempt to send them
 	// to us as it will assume that the registry has them.
-	repo := h.repo
 
-	if len(path.Join(h.repo.registryAddr, h.manifest.Name)) > reference.NameTotalLengthMax {
+	if len(path.Join(h.repo.config.registryAddr, h.manifest.Name)) > reference.NameTotalLengthMax {
 		errs = append(errs,
 			distribution.ErrManifestNameInvalid{
 				Name:   h.manifest.Name,
@@ -160,7 +157,7 @@ func (h *manifestSchema1Handler) Verify(ctx context.Context, skipDependencyVerif
 	}
 
 	for _, fsLayer := range h.manifest.References() {
-		_, err := repo.Blobs(ctx).Stat(ctx, fsLayer.Digest)
+		_, err := h.statBlob(ctx, fsLayer.Digest)
 		if err != nil {
 			if err != distribution.ErrBlobUnknown {
 				errs = append(errs, err)
@@ -176,8 +173,4 @@ func (h *manifestSchema1Handler) Verify(ctx context.Context, skipDependencyVerif
 		return errs
 	}
 	return nil
-}
-
-func (h *manifestSchema1Handler) Digest() (digest.Digest, error) {
-	return digest.FromBytes(h.manifest.Canonical), nil
 }

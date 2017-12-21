@@ -18,26 +18,30 @@ limitations under the License.
 
 package internalversion
 
-// BindingListerExpansion allows custom methods to be added to
-// BindingLister.
-type BindingListerExpansion interface{}
+// ClusterServiceBrokerListerExpansion allows custom methods to be added to
+// ClusterServiceBrokerLister.
+type ClusterServiceBrokerListerExpansion interface{}
 
-// BindingNamespaceListerExpansion allows custom methods to be added to
-// BindingNamespaeLister.
-type BindingNamespaceListerExpansion interface{}
+// ClusterServiceClassListerExpansion allows custom methods to be added to
+// ClusterServiceClassLister.
+type ClusterServiceClassListerExpansion interface{}
 
-// BrokerListerExpansion allows custom methods to be added to
-// BrokerLister.
-type BrokerListerExpansion interface{}
+// ClusterServicePlanListerExpansion allows custom methods to be added to
+// ClusterServicePlanLister.
+type ClusterServicePlanListerExpansion interface{}
 
-// InstanceListerExpansion allows custom methods to be added to
-// InstanceLister.
-type InstanceListerExpansion interface{}
+// ServiceBindingListerExpansion allows custom methods to be added to
+// ServiceBindingLister.
+type ServiceBindingListerExpansion interface{}
 
-// InstanceNamespaceListerExpansion allows custom methods to be added to
-// InstanceNamespaeLister.
-type InstanceNamespaceListerExpansion interface{}
+// ServiceBindingNamespaceListerExpansion allows custom methods to be added to
+// ServiceBindingNamespaceLister.
+type ServiceBindingNamespaceListerExpansion interface{}
 
-// ServiceClassListerExpansion allows custom methods to be added to
-// ServiceClassLister.
-type ServiceClassListerExpansion interface{}
+// ServiceInstanceListerExpansion allows custom methods to be added to
+// ServiceInstanceLister.
+type ServiceInstanceListerExpansion interface{}
+
+// ServiceInstanceNamespaceListerExpansion allows custom methods to be added to
+// ServiceInstanceNamespaceLister.
+type ServiceInstanceNamespaceListerExpansion interface{}

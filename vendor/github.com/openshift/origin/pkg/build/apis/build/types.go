@@ -98,7 +98,10 @@ var (
 	WhitelistEnvVarNames = [2]string{"BUILD_LOGLEVEL", "GIT_SSL_NO_VERIFY"}
 )
 
-// +genclient=true
+// +genclient
+// +genclient:method=UpdateDetails,verb=update,subresource=details
+// +genclient:method=Clone,verb=create,subresource=clone,input=BuildRequest
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // Build encapsulates the inputs needed to produce a new deployable image, as well as
 // the status of the execution and a reference to the Pod which executed the build.
@@ -442,6 +445,10 @@ const (
 	// output is an invalid reference.
 	StatusReasonInvalidOutputReference StatusReason = "InvalidOutputReference"
 
+	// StatusReasonInvalidImageReference is an error condition when the build
+	// references an invalid image.
+	StatusReasonInvalidImageReference StatusReason = "InvalidImageReference"
+
 	// StatusReasonCancelBuildFailed is an error condition when cancelling a build
 	// fails.
 	StatusReasonCancelBuildFailed StatusReason = "CancelBuildFailed"
@@ -505,6 +512,10 @@ const (
 	// StatusReasonGenericBuildFailed is the reason associated with a broad
 	// range of build failures.
 	StatusReasonGenericBuildFailed StatusReason = "GenericBuildFailed"
+
+	// StatusCannotRetrieveServiceAccount is the reason associated with a failure
+	// to look up the service account associated with the BuildConfig.
+	StatusReasonCannotRetrieveServiceAccount StatusReason = "CannotRetrieveServiceAccount"
 )
 
 // NOTE: These messages might change.
@@ -512,6 +523,7 @@ const (
 	StatusMessageCannotCreateBuildPodSpec        = "Failed to create pod spec."
 	StatusMessageCannotCreateBuildPod            = "Failed creating build pod."
 	StatusMessageInvalidOutputRef                = "Output image could not be resolved."
+	StatusMessageInvalidImageRef                 = "Referenced image could not be resolved."
 	StatusMessageCancelBuildFailed               = "Failed to cancel build."
 	StatusMessageBuildPodDeleted                 = "The pod for this build was deleted before the build completed."
 	StatusMessageExceededRetryTimeout            = "Build did not complete and retrying timed out."
@@ -528,6 +540,7 @@ const (
 	StatusMessageFailedContainer                 = "The pod for this build has at least one container with a non-zero exit status."
 	StatusMessageGenericBuildFailed              = "Generic Build failure - check logs for details."
 	StatusMessageUnresolvableEnvironmentVariable = "Unable to resolve build environment variable reference."
+	StatusMessageCannotRetrieveServiceAccount    = "Unable to look up the service account associated with this build."
 )
 
 // BuildStatusOutput contains the status of the built image.
@@ -715,7 +728,6 @@ type BuildStrategy struct {
 	CustomStrategy *CustomBuildStrategy
 
 	// JenkinsPipelineStrategy holds the parameters to the Jenkins Pipeline build strategy.
-	// This strategy is in tech preview.
 	JenkinsPipelineStrategy *JenkinsPipelineBuildStrategy
 }
 
@@ -841,24 +853,9 @@ type SourceBuildStrategy struct {
 
 	// ForcePull describes if the builder should pull the images from registry prior to building.
 	ForcePull bool
-
-	// RuntimeImage is an optional image that is used to run an application
-	// without unneeded dependencies installed. The building of the application
-	// is still done in the builder image but, post build, you can copy the
-	// needed artifacts in the runtime image for use.
-	// This field and the feature it enables are in tech preview.
-	RuntimeImage *kapi.ObjectReference
-
-	// RuntimeArtifacts specifies a list of source/destination pairs that will be
-	// copied from the builder to a runtime image. sourcePath can be a file or
-	// directory. destinationDir must be a directory. destinationDir can also be
-	// empty or equal to ".", in this case it just refers to the root of WORKDIR.
-	// This field and the feature it enables are in tech preview.
-	RuntimeArtifacts []ImageSourcePath
 }
 
 // JenkinsPipelineStrategy holds parameters specific to a Jenkins Pipeline build.
-// This strategy is in tech preview.
 type JenkinsPipelineBuildStrategy struct {
 	// JenkinsfilePath is the optional path of the Jenkinsfile that will be used to configure the pipeline
 	// relative to the root of the context (contextDir). If both JenkinsfilePath & Jenkinsfile are
@@ -989,7 +986,9 @@ type ImageLabel struct {
 	Value string
 }
 
-// +genclient=true
+// +genclient
+// +genclient:method=Instantiate,verb=create,subresource=instantiate,input=BuildRequest,result=Build
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // BuildConfig is a template which can be used to create new builds.
 type BuildConfig struct {
@@ -1139,6 +1138,8 @@ const (
 	ConfigChangeBuildTriggerType BuildTriggerType = "ConfigChange"
 )
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 // BuildList is a collection of Builds.
 type BuildList struct {
 	metav1.TypeMeta
@@ -1147,6 +1148,8 @@ type BuildList struct {
 	// Items is a list of builds
 	Items []Build
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // BuildConfigList is a collection of BuildConfigs.
 type BuildConfigList struct {
@@ -1188,6 +1191,8 @@ type GitRefInfo struct {
 	GitSourceRevision
 }
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 // BuildLog is the (unused) resource associated with the build log redirector
 type BuildLog struct {
 	metav1.TypeMeta
@@ -1198,7 +1203,18 @@ type DockerStrategyOptions struct {
 	// Args contains any build arguments that are to be passed to Docker.  See
 	// https://docs.docker.com/engine/reference/builder/#/arg for more details
 	BuildArgs []kapi.EnvVar
+
+	// NoCache overrides the docker-strategy noCache option in the build config
+	NoCache *bool
 }
+
+// SourceStrategyOptions contains extra strategy options for Source builds
+type SourceStrategyOptions struct {
+	// Incremental overrides the source-strategy incremental option in the build config
+	Incremental *bool
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // BuildRequest is the resource used to pass parameters to build generator
 type BuildRequest struct {
@@ -1233,7 +1249,12 @@ type BuildRequest struct {
 
 	// DockerStrategyOptions contains additional docker-strategy specific options for the build
 	DockerStrategyOptions *DockerStrategyOptions
+
+	// SourceStrategyOptions contains additional source-strategy specific options for the build
+	SourceStrategyOptions *SourceStrategyOptions
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 type BinaryBuildRequestOptions struct {
 	metav1.TypeMeta
@@ -1261,6 +1282,8 @@ type BinaryBuildRequestOptions struct {
 	// CommitterEmail of the source control user
 	CommitterEmail string
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // BuildLogOptions is the REST options for a build log
 type BuildLogOptions struct {

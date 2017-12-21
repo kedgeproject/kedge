@@ -11,15 +11,19 @@ import (
 	kapisext "k8s.io/kubernetes/pkg/apis/extensions"
 	kclientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 
+	deployapi "github.com/openshift/origin/pkg/apps/apis/apps"
+	appstypedclient "github.com/openshift/origin/pkg/apps/generated/internalclientset/typed/apps/internalversion"
 	authapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
-	"github.com/openshift/origin/pkg/client"
+	oauthorizationtypedclient "github.com/openshift/origin/pkg/authorization/generated/internalclientset/typed/authorization/internalversion"
 	configapi "github.com/openshift/origin/pkg/cmd/server/api"
-	deployapi "github.com/openshift/origin/pkg/deploy/apis/apps"
 	hostdiag "github.com/openshift/origin/pkg/diagnostics/host"
 	"github.com/openshift/origin/pkg/diagnostics/types"
+	oauthtypedclient "github.com/openshift/origin/pkg/oauth/generated/internalclientset/typed/oauth/internalversion"
+	projecttypedclient "github.com/openshift/origin/pkg/project/generated/internalclientset/typed/project/internalversion"
 	routesapi "github.com/openshift/origin/pkg/route/apis/route"
+	routetypedclient "github.com/openshift/origin/pkg/route/generated/internalclientset/typed/route/internalversion"
 	securityapi "github.com/openshift/origin/pkg/security/apis/security"
-	"github.com/openshift/origin/pkg/security/legacyclient"
+	securitytypedclient "github.com/openshift/origin/pkg/security/generated/internalclientset/typed/security/internalversion"
 )
 
 // AggregatedLogging is a Diagnostic to check the configurations
@@ -27,11 +31,16 @@ import (
 // for aggregating container logs
 // https://github.com/openshift/origin-aggregated-logging
 type AggregatedLogging struct {
-	masterConfig     *configapi.MasterConfig
-	MasterConfigFile string
-	OsClient         *client.Client
-	KubeClient       kclientset.Interface
-	result           types.DiagnosticResult
+	masterConfig      *configapi.MasterConfig
+	MasterConfigFile  string
+	OAuthClientClient oauthtypedclient.OAuthClientsGetter
+	ProjectClient     projecttypedclient.ProjectsGetter
+	RouteClient       routetypedclient.RoutesGetter
+	CRBClient         oauthorizationtypedclient.ClusterRoleBindingsGetter
+	DCClient          appstypedclient.DeploymentConfigsGetter
+	SCCClient         securitytypedclient.SecurityContextConstraintsGetter
+	KubeClient        kclientset.Interface
+	result            types.DiagnosticResult
 }
 
 const (
@@ -48,20 +57,40 @@ const (
 var loggingSelector = labels.Set{loggingInfraKey: "support"}
 
 //NewAggregatedLogging returns the AggregatedLogging Diagnostic
-func NewAggregatedLogging(masterConfigFile string, kclient kclientset.Interface, osclient *client.Client) *AggregatedLogging {
-	return &AggregatedLogging{nil, masterConfigFile, osclient, kclient, types.NewDiagnosticResult(AggregatedLoggingName)}
+func NewAggregatedLogging(
+	masterConfigFile string,
+	kclient kclientset.Interface,
+	oauthClientClient oauthtypedclient.OAuthClientsGetter,
+	projectClient projecttypedclient.ProjectsGetter,
+	routeClient routetypedclient.RoutesGetter,
+	crbClient oauthorizationtypedclient.ClusterRoleBindingsGetter,
+	dcClient appstypedclient.DeploymentConfigsGetter,
+	sccClient securitytypedclient.SecurityContextConstraintsGetter,
+) *AggregatedLogging {
+	return &AggregatedLogging{
+		masterConfig:      nil,
+		MasterConfigFile:  masterConfigFile,
+		OAuthClientClient: oauthClientClient,
+		ProjectClient:     projectClient,
+		RouteClient:       routeClient,
+		CRBClient:         crbClient,
+		DCClient:          dcClient,
+		SCCClient:         sccClient,
+		KubeClient:        kclient,
+		result:            types.NewDiagnosticResult(AggregatedLoggingName),
+	}
 }
 
 func (d *AggregatedLogging) getScc(name string) (*securityapi.SecurityContextConstraints, error) {
-	return legacyclient.NewFromClient(d.KubeClient.Core().RESTClient()).Get(name, metav1.GetOptions{})
+	return d.SCCClient.SecurityContextConstraints().Get(name, metav1.GetOptions{})
 }
 
 func (d *AggregatedLogging) getClusterRoleBinding(name string) (*authapi.ClusterRoleBinding, error) {
-	return d.OsClient.ClusterRoleBindings().Get(name, metav1.GetOptions{})
+	return d.CRBClient.ClusterRoleBindings().Get(name, metav1.GetOptions{})
 }
 
 func (d *AggregatedLogging) routes(project string, options metav1.ListOptions) (*routesapi.RouteList, error) {
-	return d.OsClient.Routes(project).List(options)
+	return d.RouteClient.Routes(project).List(options)
 }
 
 func (d *AggregatedLogging) serviceAccounts(project string, options metav1.ListOptions) (*kapi.ServiceAccountList, error) {
@@ -88,7 +117,7 @@ func (d *AggregatedLogging) pods(project string, options metav1.ListOptions) (*k
 	return d.KubeClient.Core().Pods(project).List(options)
 }
 func (d *AggregatedLogging) deploymentconfigs(project string, options metav1.ListOptions) (*deployapi.DeploymentConfigList, error) {
-	return d.OsClient.DeploymentConfigs(project).List(options)
+	return d.DCClient.DeploymentConfigs(project).List(options)
 }
 
 func (d *AggregatedLogging) Info(id string, message string) {
@@ -119,7 +148,7 @@ func (d *AggregatedLogging) CanRun() (bool, error) {
 	if len(d.MasterConfigFile) == 0 {
 		return false, errors.New("No master config file was provided")
 	}
-	if d.OsClient == nil {
+	if d.OAuthClientClient == nil || d.ProjectClient == nil || d.RouteClient == nil || d.CRBClient == nil || d.DCClient == nil {
 		return false, errors.New("Config must include a cluster-admin context to run this diagnostic")
 	}
 	if d.KubeClient == nil {
@@ -137,7 +166,7 @@ func (d *AggregatedLogging) CanRun() (bool, error) {
 }
 
 func (d *AggregatedLogging) Check() types.DiagnosticResult {
-	project := retrieveLoggingProject(d.result, d.masterConfig, d.OsClient)
+	project := retrieveLoggingProject(d.result, d.masterConfig, d.ProjectClient, d.RouteClient)
 	if len(project) != 0 {
 		checkServiceAccounts(d, d, project)
 		checkClusterRoleBindings(d, d, project)
@@ -146,7 +175,7 @@ func (d *AggregatedLogging) Check() types.DiagnosticResult {
 		checkDaemonSets(d, d, project)
 		checkServices(d, d, project)
 		checkRoutes(d, d, project)
-		checkKibana(d.result, d.OsClient, d.KubeClient, project)
+		checkKibana(d.result, d.RouteClient, d.OAuthClientClient, d.KubeClient, project)
 	}
 	return d.result
 }
@@ -164,7 +193,7 @@ and updating the annotation:
 
 `
 
-func retrieveLoggingProject(r types.DiagnosticResult, masterCfg *configapi.MasterConfig, osClient *client.Client) string {
+func retrieveLoggingProject(r types.DiagnosticResult, masterCfg *configapi.MasterConfig, projectClient projecttypedclient.ProjectsGetter, routeClient routetypedclient.RoutesGetter) string {
 	r.Debug("AGL0010", fmt.Sprintf("masterConfig.AssetConfig.LoggingPublicURL: '%s'", masterCfg.AssetConfig.LoggingPublicURL))
 	projectName := ""
 	if len(masterCfg.AssetConfig.LoggingPublicURL) == 0 {
@@ -178,7 +207,7 @@ func retrieveLoggingProject(r types.DiagnosticResult, masterCfg *configapi.Maste
 		return projectName
 	}
 
-	routeList, err := osClient.Routes(metav1.NamespaceAll).List(metav1.ListOptions{LabelSelector: loggingSelector.AsSelector().String()})
+	routeList, err := routeClient.Routes(metav1.NamespaceAll).List(metav1.ListOptions{LabelSelector: loggingSelector.AsSelector().String()})
 	if err != nil {
 		r.Error("AGL0012", err, fmt.Sprintf("There was an error while trying to find the route associated with '%s' which is probably transient: %s", loggingUrl, err))
 		return projectName
@@ -200,7 +229,7 @@ func retrieveLoggingProject(r types.DiagnosticResult, masterCfg *configapi.Maste
 		r.Error("AGL0014", errors.New(message), message)
 		return ""
 	}
-	project, err := osClient.Projects().Get(projectName, metav1.GetOptions{})
+	project, err := projectClient.Projects().Get(projectName, metav1.GetOptions{})
 	if err != nil {
 		r.Error("AGL0018", err, fmt.Sprintf("There was an error retrieving project '%s' which is most likely a transient error: %s", projectName, err))
 		return ""

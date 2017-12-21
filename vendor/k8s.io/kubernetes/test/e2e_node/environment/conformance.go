@@ -82,7 +82,7 @@ func check(options ...string) []error {
 			errs = appendNotNil(errs, kernel())
 		default:
 			fmt.Printf("Unrecognized option %s", c)
-			errs = append(errs, errors.New(fmt.Sprintf("Unrecognized option %s", c)))
+			errs = append(errs, fmt.Errorf("Unrecognized option %s", c))
 		}
 	}
 	return errs
@@ -99,7 +99,7 @@ func containerRuntime() error {
 	}
 
 	// Setup cadvisor to check the container environment
-	c, err := cadvisor.New(0 /*don't start the http server*/, "docker", "/var/lib/kubelet")
+	c, err := cadvisor.New(0 /*don't start the http server*/, cadvisor.NewImageFsInfoProvider("docker", ""), "/var/lib/kubelet")
 	if err != nil {
 		return printError("Container Runtime Check: %s Could not start cadvisor %v", failed, err)
 	}

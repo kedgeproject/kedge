@@ -11,20 +11,27 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apiserver/pkg/admission"
-	kapi "k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/apis/rbac"
 	kadmission "k8s.io/kubernetes/pkg/kubeapiserver/admission"
 
-	authorizationapi "github.com/openshift/origin/pkg/authorization/apis/authorization"
-	oclient "github.com/openshift/origin/pkg/client"
+	authorizationclient "github.com/openshift/origin/pkg/authorization/generated/internalclientset"
+	authorizationtypedclient "github.com/openshift/origin/pkg/authorization/generated/internalclientset/typed/authorization/internalversion"
 	oadmission "github.com/openshift/origin/pkg/cmd/server/admission"
+	userapi "github.com/openshift/origin/pkg/user/apis/user"
 	usercache "github.com/openshift/origin/pkg/user/cache"
+	userinformer "github.com/openshift/origin/pkg/user/generated/informers/internalversion"
+	userclient "github.com/openshift/origin/pkg/user/generated/internalclientset"
 )
 
-func init() {
-	admission.RegisterPlugin("openshift.io/RestrictSubjectBindings",
+func Register(plugins *admission.Plugins) {
+	plugins.Register("openshift.io/RestrictSubjectBindings",
 		func(config io.Reader) (admission.Interface, error) {
 			return NewRestrictUsersAdmission()
 		})
+}
+
+type GroupCache interface {
+	GroupsFor(string) ([]*userapi.Group, error)
 }
 
 // restrictUsersAdmission implements admission.Interface and enforces
@@ -33,13 +40,15 @@ func init() {
 type restrictUsersAdmission struct {
 	*admission.Handler
 
-	oclient    oclient.Interface
-	kclient    kclientset.Interface
-	groupCache *usercache.GroupCache
+	roleBindingRestrictionsGetter authorizationtypedclient.RoleBindingRestrictionsGetter
+	userClient                    userclient.Interface
+	kclient                       kclientset.Interface
+	groupCache                    GroupCache
 }
 
-var _ = oadmission.WantsOpenshiftClient(&restrictUsersAdmission{})
-var _ = oadmission.WantsGroupCache(&restrictUsersAdmission{})
+var _ = oadmission.WantsOpenshiftInternalAuthorizationClient(&restrictUsersAdmission{})
+var _ = oadmission.WantsOpenshiftInternalUserClient(&restrictUsersAdmission{})
+var _ = oadmission.WantsUserInformer(&restrictUsersAdmission{})
 var _ = kadmission.WantsInternalKubeClientSet(&restrictUsersAdmission{})
 
 // NewRestrictUsersAdmission configures an admission plugin that enforces
@@ -54,19 +63,22 @@ func (q *restrictUsersAdmission) SetInternalKubeClientSet(c kclientset.Interface
 	q.kclient = c
 }
 
-func (q *restrictUsersAdmission) SetOpenshiftClient(c oclient.Interface) {
-	q.oclient = c
+func (q *restrictUsersAdmission) SetOpenshiftInternalAuthorizationClient(roleBindingRestrictionsGetter authorizationclient.Interface) {
+	q.roleBindingRestrictionsGetter = roleBindingRestrictionsGetter.Authorization()
 }
 
-func (q *restrictUsersAdmission) SetGroupCache(c *usercache.GroupCache) {
-	q.groupCache = c
+func (q *restrictUsersAdmission) SetOpenshiftInternalUserClient(userClient userclient.Interface) {
+	q.userClient = userClient
 }
 
-// objectReferenceDelta returns the relative complement of
-// []ObjectReference elementsToIgnore in []ObjectReference elements
-// (i.e., elements∖elementsToIgnore).
-func objectReferenceDelta(elementsToIgnore, elements []kapi.ObjectReference) []kapi.ObjectReference {
-	result := []kapi.ObjectReference{}
+func (q *restrictUsersAdmission) SetUserInformer(userInformers userinformer.SharedInformerFactory) {
+	q.groupCache = usercache.NewGroupCache(userInformers.User().InternalVersion().Groups())
+}
+
+// subjectsDelta returns the relative complement of elementsToIgnore in
+// elements (i.e., elements∖elementsToIgnore).
+func subjectsDelta(elementsToIgnore, elements []rbac.Subject) []rbac.Subject {
+	result := []rbac.Subject{}
 
 	for _, el := range elements {
 		keep := true
@@ -89,11 +101,9 @@ func objectReferenceDelta(elementsToIgnore, elements []kapi.ObjectReference) []k
 // each subject in the binding must be matched by some rolebinding restriction
 // in the namespace.
 func (q *restrictUsersAdmission) Admit(a admission.Attributes) (err error) {
-	// We only care about rolebindings and policybindings; ignore anything else.
-	gr := a.GetResource().GroupResource()
-	switch {
-	case authorizationapi.IsResourceOrLegacy("policybindings", gr), authorizationapi.IsResourceOrLegacy("rolebindings", gr):
-	default:
+
+	// We only care about rolebindings
+	if a.GetResource().GroupResource() != rbac.Resource("rolebindings") {
 		return nil
 	}
 
@@ -108,73 +118,41 @@ func (q *restrictUsersAdmission) Admit(a admission.Attributes) (err error) {
 		return nil
 	}
 
-	var subjects, oldSubjects []kapi.ObjectReference
+	var oldSubjects []rbac.Subject
 
 	obj, oldObj := a.GetObject(), a.GetOldObject()
-	switch {
-	case authorizationapi.IsResourceOrLegacy("rolebindings", gr):
-		rolebinding, ok := obj.(*authorizationapi.RoleBinding)
-		if !ok {
-			return admission.NewForbidden(a,
-				fmt.Errorf("wrong object type for new rolebinding: %T", obj))
-		}
 
-		subjects = rolebinding.Subjects
-		if len(subjects) == 0 {
-			return nil
-		}
-
-		if oldObj != nil {
-			oldrolebinding, ok := oldObj.(*authorizationapi.RoleBinding)
-			if !ok {
-				return admission.NewForbidden(a,
-					fmt.Errorf("wrong object type for old rolebinding: %T", oldObj))
-			}
-
-			oldSubjects = oldrolebinding.Subjects
-		}
-
-		glog.V(4).Infof("Handling rolebinding %s/%s",
-			rolebinding.Namespace, rolebinding.Name)
-
-	case authorizationapi.IsResourceOrLegacy("policybindings", gr):
-		policybinding, ok := obj.(*authorizationapi.PolicyBinding)
-		if !ok {
-			return admission.NewForbidden(a,
-				fmt.Errorf("wrong object type for new policybinding: %T", obj))
-		}
-
-		for _, rolebinding := range policybinding.RoleBindings {
-			subjects = append(subjects, rolebinding.Subjects...)
-		}
-		if len(subjects) == 0 {
-			return nil
-		}
-
-		if oldObj != nil {
-			oldpolicybinding, ok := oldObj.(*authorizationapi.PolicyBinding)
-			if !ok {
-				return admission.NewForbidden(a,
-					fmt.Errorf("wrong object type for old policybinding: %T", oldObj))
-			}
-
-			for _, rolebinding := range oldpolicybinding.RoleBindings {
-				oldSubjects = append(oldSubjects, rolebinding.Subjects...)
-			}
-		}
-
-		glog.V(4).Infof("Handling policybinding %s/%s",
-			policybinding.Namespace, policybinding.Name)
+	rolebinding, ok := obj.(*rbac.RoleBinding)
+	if !ok {
+		return admission.NewForbidden(a,
+			fmt.Errorf("wrong object type for new rolebinding: %T", obj))
 	}
 
-	newSubjects := objectReferenceDelta(oldSubjects, subjects)
+	if len(rolebinding.Subjects) == 0 {
+		glog.V(4).Infof("No new subjects; admitting")
+		return nil
+	}
+
+	if oldObj != nil {
+		oldrolebinding, ok := oldObj.(*rbac.RoleBinding)
+		if !ok {
+			return admission.NewForbidden(a,
+				fmt.Errorf("wrong object type for old rolebinding: %T", oldObj))
+		}
+		oldSubjects = oldrolebinding.Subjects
+	}
+
+	glog.V(4).Infof("Handling rolebinding %s/%s",
+		rolebinding.Namespace, rolebinding.Name)
+
+	newSubjects := subjectsDelta(oldSubjects, rolebinding.Subjects)
 	if len(newSubjects) == 0 {
 		glog.V(4).Infof("No new subjects; admitting")
 		return nil
 	}
 
 	// TODO: Cache rolebinding restrictions.
-	roleBindingRestrictionList, err := q.oclient.RoleBindingRestrictions(ns).
+	roleBindingRestrictionList, err := q.roleBindingRestrictionsGetter.RoleBindingRestrictions(ns).
 		List(metav1.ListOptions{})
 	if err != nil {
 		return admission.NewForbidden(a, err)
@@ -182,10 +160,6 @@ func (q *restrictUsersAdmission) Admit(a admission.Attributes) (err error) {
 	if len(roleBindingRestrictionList.Items) == 0 {
 		glog.V(4).Infof("No rolebinding restrictions specified; admitting")
 		return nil
-	}
-
-	if !q.groupCache.Running() {
-		return admission.NewForbidden(a, errors.New("groupCache not running"))
 	}
 
 	checkers := []SubjectChecker{}
@@ -198,7 +172,7 @@ func (q *restrictUsersAdmission) Admit(a admission.Attributes) (err error) {
 	}
 
 	roleBindingRestrictionContext, err := NewRoleBindingRestrictionContext(ns,
-		q.kclient, q.oclient, q.groupCache)
+		q.kclient, q.userClient.User(), q.groupCache)
 	if err != nil {
 		return admission.NewForbidden(a, err)
 	}
@@ -230,8 +204,11 @@ func (q *restrictUsersAdmission) Validate() error {
 	if q.kclient == nil {
 		return errors.New("RestrictUsersAdmission plugin requires a Kubernetes client")
 	}
-	if q.oclient == nil {
+	if q.roleBindingRestrictionsGetter == nil {
 		return errors.New("RestrictUsersAdmission plugin requires an OpenShift client")
+	}
+	if q.userClient == nil {
+		return errors.New("RestrictUsersAdmission plugin requires an OpenShift user client")
 	}
 	if q.groupCache == nil {
 		return errors.New("RestrictUsersAdmission plugin requires a group cache")

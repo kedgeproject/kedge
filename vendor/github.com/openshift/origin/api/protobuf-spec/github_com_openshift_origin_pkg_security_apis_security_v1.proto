@@ -9,11 +9,16 @@ import "k8s.io/apimachinery/pkg/apis/meta/v1/generated.proto";
 import "k8s.io/apimachinery/pkg/runtime/generated.proto";
 import "k8s.io/apimachinery/pkg/runtime/schema/generated.proto";
 import "k8s.io/apimachinery/pkg/util/intstr/generated.proto";
-import "k8s.io/apiserver/pkg/apis/example/v1/generated.proto";
 import "k8s.io/kubernetes/pkg/api/v1/generated.proto";
 
 // Package-wide variables from generator "generated".
 option go_package = "v1";
+
+// AllowedFlexVolume represents a single Flexvolume that is allowed to be used.
+message AllowedFlexVolume {
+  // Driver is the name of the Flexvolume driver.
+  optional string driver = 1;
+}
 
 // FSGroupStrategyOptions defines the strategy type and options used to create the strategy.
 message FSGroupStrategyOptions {
@@ -154,7 +159,10 @@ message SecurityContextConstraints {
 
   // Priority influences the sort order of SCCs when evaluating which SCCs to try first for
   // a given pod request based on access in the Users and Groups fields.  The higher the int, the
-  // higher priority.  If scores for multiple SCCs are equal they will be sorted by name.
+  // higher priority. An unset value is considered a 0 priority. If scores
+  // for multiple SCCs are equal they will be sorted from most restrictive to
+  // least restrictive. If both priorities and restrictions are equal the
+  // SCCs will be sorted by name.
   optional int32 priority = 2;
 
   // AllowPrivilegedContainer determines if a container can request to be run as privileged.
@@ -183,6 +191,11 @@ message SecurityContextConstraints {
   // of a VolumeSource (azureFile, configMap, emptyDir).  To allow all volumes you may use "*".
   // To allow no volumes, set to ["none"].
   repeated string volumes = 8;
+
+  // AllowedFlexVolumes is a whitelist of allowed Flexvolumes.  Empty or nil indicates that all
+  // Flexvolumes may be used.  This parameter is effective only when the usage of the Flexvolumes
+  // is allowed in the "Volumes" field.
+  repeated AllowedFlexVolume allowedFlexVolumes = 21;
 
   // AllowHostNetwork determines if the policy allows the use of HostNetwork in the pod spec.
   optional bool allowHostNetwork = 9;
@@ -216,9 +229,11 @@ message SecurityContextConstraints {
   optional bool readOnlyRootFilesystem = 17;
 
   // The users who have permissions to use this security context constraints
+  // +optional
   repeated string users = 18;
 
   // The groups that have permission to use this security context constraints
+  // +optional
   repeated string groups = 19;
 
   // SeccompProfiles lists the allowed profiles that may be set for the pod or

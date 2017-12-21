@@ -74,6 +74,12 @@ items:
     verbs:
     - update
   - apiGroups:
+    - authorization.k8s.io
+    resources:
+    - subjectaccessreviews
+    verbs:
+    - create
+  - apiGroups:
     - ""
     resources:
     - events
@@ -109,12 +115,19 @@ items:
     - delete
     - get
     - list
+    - patch
     - update
     - watch
   - apiGroups:
     - batch
     resources:
     - cronjobs/status
+    verbs:
+    - update
+  - apiGroups:
+    - batch
+    resources:
+    - cronjobs/finalizers
     verbs:
     - update
   - apiGroups:
@@ -143,6 +156,7 @@ items:
     name: system:controller:daemon-set-controller
   rules:
   - apiGroups:
+    - apps
     - extensions
     resources:
     - daemonsets
@@ -151,9 +165,17 @@ items:
     - list
     - watch
   - apiGroups:
+    - apps
     - extensions
     resources:
     - daemonsets/status
+    verbs:
+    - update
+  - apiGroups:
+    - apps
+    - extensions
+    resources:
+    - daemonsets/finalizers
     verbs:
     - update
   - apiGroups:
@@ -179,6 +201,17 @@ items:
     - pods/binding
     verbs:
     - create
+  - apiGroups:
+    - apps
+    resources:
+    - controllerrevisions
+    verbs:
+    - create
+    - delete
+    - list
+    - patch
+    - update
+    - watch
   - apiGroups:
     - ""
     resources:
@@ -212,6 +245,13 @@ items:
     - extensions
     resources:
     - deployments/status
+    verbs:
+    - update
+  - apiGroups:
+    - apps
+    - extensions
+    resources:
+    - deployments/finalizers
     verbs:
     - update
   - apiGroups:
@@ -485,6 +525,12 @@ items:
     verbs:
     - update
   - apiGroups:
+    - batch
+    resources:
+    - jobs/finalizers
+    verbs:
+    - update
+  - apiGroups:
     - ""
     resources:
     - pods
@@ -492,6 +538,7 @@ items:
     - create
     - delete
     - list
+    - patch
     - watch
   - apiGroups:
     - ""
@@ -561,6 +608,7 @@ items:
     resources:
     - nodes/status
     verbs:
+    - patch
     - update
   - apiGroups:
     - ""
@@ -729,6 +777,12 @@ items:
     verbs:
     - update
   - apiGroups:
+    - extensions
+    resources:
+    - replicasets/finalizers
+    verbs:
+    - update
+  - apiGroups:
     - ""
     resources:
     - pods
@@ -769,6 +823,12 @@ items:
     - ""
     resources:
     - replicationcontrollers/status
+    verbs:
+    - update
+  - apiGroups:
+    - ""
+    resources:
+    - replicationcontrollers/finalizers
     verbs:
     - update
   - apiGroups:
@@ -946,6 +1006,12 @@ items:
     verbs:
     - update
   - apiGroups:
+    - apps
+    resources:
+    - statefulsets/finalizers
+    verbs:
+    - update
+  - apiGroups:
     - ""
     resources:
     - pods
@@ -955,6 +1021,18 @@ items:
     - get
     - patch
     - update
+  - apiGroups:
+    - apps
+    resources:
+    - controllerrevisions
+    verbs:
+    - create
+    - delete
+    - get
+    - list
+    - patch
+    - update
+    - watch
   - apiGroups:
     - ""
     resources:

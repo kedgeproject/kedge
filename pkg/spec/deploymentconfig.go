@@ -20,7 +20,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/ghodss/yaml"
-	os_deploy_v1 "github.com/openshift/origin/pkg/deploy/apis/apps/v1"
+	os_deploy_v1 "github.com/openshift/origin/pkg/apps/apis/apps/v1"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	kapi "k8s.io/kubernetes/pkg/api/v1"

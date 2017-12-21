@@ -22,7 +22,6 @@ import (
 	genericregistry "k8s.io/apiserver/pkg/registry/generic/registry"
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/apis/rbac"
-	"k8s.io/kubernetes/pkg/registry/cachesize"
 	"k8s.io/kubernetes/pkg/registry/rbac/clusterrole"
 )
 
@@ -34,15 +33,11 @@ type REST struct {
 // NewREST returns a RESTStorage object that will work against ClusterRole objects.
 func NewREST(optsGetter generic.RESTOptionsGetter) *REST {
 	store := &genericregistry.Store{
-		Copier:      api.Scheme,
-		NewFunc:     func() runtime.Object { return &rbac.ClusterRole{} },
-		NewListFunc: func() runtime.Object { return &rbac.ClusterRoleList{} },
-		ObjectNameFunc: func(obj runtime.Object) (string, error) {
-			return obj.(*rbac.ClusterRole).Name, nil
-		},
-		PredicateFunc:     clusterrole.Matcher,
-		QualifiedResource: rbac.Resource("clusterroles"),
-		WatchCacheSize:    cachesize.GetWatchCacheSizeByResource("clusterroles"),
+		Copier:                   api.Scheme,
+		NewFunc:                  func() runtime.Object { return &rbac.ClusterRole{} },
+		NewListFunc:              func() runtime.Object { return &rbac.ClusterRoleList{} },
+		PredicateFunc:            clusterrole.Matcher,
+		DefaultQualifiedResource: rbac.Resource("clusterroles"),
 
 		CreateStrategy: clusterrole.Strategy,
 		UpdateStrategy: clusterrole.Strategy,

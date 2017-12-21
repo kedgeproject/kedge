@@ -67,7 +67,6 @@ func NewFileStore(
 	keyDirectory string,
 	certFile string,
 	keyFile string) (Store, error) {
-
 	s := fileStore{
 		pairNamePrefix: pairNamePrefix,
 		certDirectory:  certDirectory,
@@ -75,6 +74,7 @@ func NewFileStore(
 		certFile:       certFile,
 		keyFile:        keyFile,
 	}
+	glog.Infof("New file store: %#v", s)
 	if err := s.recover(); err != nil {
 		return nil, err
 	}
@@ -148,12 +148,14 @@ func (s *fileStore) Current() (*tls.Certificate, error) {
 		return loadX509KeyPair(c, k)
 	}
 
-	return nil, fmt.Errorf("no cert/key files read at %q, (%q, %q) or (%q, %q)",
-		pairFile,
-		s.certFile,
-		s.keyFile,
-		s.certDirectory,
-		s.keyDirectory)
+	noKeyErr := NoCertKeyError(
+		fmt.Sprintf("no cert/key files read at %q, (%q, %q) or (%q, %q)",
+			pairFile,
+			s.certFile,
+			s.keyFile,
+			s.certDirectory,
+			s.keyDirectory))
+	return nil, &noKeyErr
 }
 
 func loadFile(pairFile string) (*tls.Certificate, error) {
@@ -182,7 +184,7 @@ func loadCertKeyBlocks(pairFile string) (cert *pem.Block, key *pem.Block, err er
 	if certBlock == nil {
 		return nil, nil, fmt.Errorf("could not decode the first block from %q from expected PEM format", pairFile)
 	}
-	keyBlock, rest := pem.Decode(rest)
+	keyBlock, _ := pem.Decode(rest)
 	if keyBlock == nil {
 		return nil, nil, fmt.Errorf("could not decode the second block from %q from expected PEM format", pairFile)
 	}
@@ -193,6 +195,9 @@ func (s *fileStore) Update(certData, keyData []byte) (*tls.Certificate, error) {
 	ts := time.Now().Format("2006-01-02-15-04-05")
 	pemFilename := s.filename(ts)
 
+	if err := os.MkdirAll(s.certDirectory, 0755); err != nil {
+		return nil, fmt.Errorf("could not create directory %q to store certificates: %v", s.certDirectory, err)
+	}
 	certPath := filepath.Join(s.certDirectory, pemFilename)
 
 	f, err := os.OpenFile(certPath, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0600)
@@ -261,6 +266,13 @@ func (s *fileStore) updateSymlink(filename string) error {
 		return err
 	} else if !filenameExists {
 		return fmt.Errorf("file %q does not exist so it can not be used as the currently selected cert/key", filename)
+	}
+
+	// Ensure the source path is absolute to ensure the symlink target is
+	// correct when certDirectory is a relative path.
+	filename, err := filepath.Abs(filename)
+	if err != nil {
+		return err
 	}
 
 	// Create the 'updated' symlink pointing to the requested file name.

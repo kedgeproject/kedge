@@ -32,12 +32,7 @@ func ValidateEtcdConnectionInfo(config api.EtcdConnectionInfo, server *api.EtcdC
 
 	// If we have server config info, make sure the client connection info will work with it
 	if server != nil {
-		var builtInAddress string
-		if api.UseTLS(server.ServingInfo) {
-			builtInAddress = fmt.Sprintf("https://%s", server.Address)
-		} else {
-			builtInAddress = fmt.Sprintf("http://%s", server.Address)
-		}
+		var builtInAddress = fmt.Sprintf("https://%s", server.Address)
 
 		// Require a client cert to connect to an etcd that requires client certs
 		if len(server.ServingInfo.ClientCA) > 0 {
@@ -60,7 +55,7 @@ func ValidateEtcdConfig(config *api.EtcdConfig, fldPath *field.Path) ValidationR
 	validationResults := ValidationResults{}
 
 	servingInfoPath := fldPath.Child("servingInfo")
-	validationResults.Append(ValidateServingInfo(config.ServingInfo, servingInfoPath))
+	validationResults.Append(ValidateServingInfo(config.ServingInfo, true, servingInfoPath))
 	if config.ServingInfo.BindNetwork == "tcp6" {
 		validationResults.AddErrors(field.Invalid(servingInfoPath.Child("bindNetwork"), config.ServingInfo.BindNetwork, "tcp6 is not a valid bindNetwork for etcd, must be tcp or tcp4"))
 	}
@@ -69,7 +64,7 @@ func ValidateEtcdConfig(config *api.EtcdConfig, fldPath *field.Path) ValidationR
 	}
 
 	peerServingInfoPath := fldPath.Child("peerServingInfo")
-	validationResults.Append(ValidateServingInfo(config.PeerServingInfo, peerServingInfoPath))
+	validationResults.Append(ValidateServingInfo(config.PeerServingInfo, true, peerServingInfoPath))
 	if config.ServingInfo.BindNetwork == "tcp6" {
 		validationResults.AddErrors(field.Invalid(peerServingInfoPath.Child("bindNetwork"), config.ServingInfo.BindNetwork, "tcp6 is not a valid bindNetwork for etcd peers, must be tcp or tcp4"))
 	}

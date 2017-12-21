@@ -17,8 +17,23 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
+	imageapiv1 "github.com/openshift/origin/pkg/image/apis/image/v1"
 	quotautil "github.com/openshift/origin/pkg/quota/util"
 )
+
+// ErrManifestBlobBadSize is returned when the blob size in a manifest does
+// not match the actual size. The docker/distribution does not check this and
+// therefore does not provide an error for this.
+type ErrManifestBlobBadSize struct {
+	Digest         digest.Digest
+	ActualSize     int64
+	SizeInManifest int64
+}
+
+func (err ErrManifestBlobBadSize) Error() string {
+	return fmt.Sprintf("the blob %s has the size (%d) different from the one specified in the manifest (%d)",
+		err.Digest, err.ActualSize, err.SizeInManifest)
+}
 
 var _ distribution.ManifestService = &manifestService{}
 
@@ -54,7 +69,7 @@ func (m *manifestService) Get(ctx context.Context, dgst digest.Digest, options .
 	ref := imageapi.DockerImageReference{
 		Namespace: m.repo.namespace,
 		Name:      m.repo.name,
-		Registry:  m.repo.registryAddr,
+		Registry:  m.repo.config.registryAddr,
 	}
 	if isImageManaged(image) {
 		// Reference without a registry part refers to repository containing locally managed images.
@@ -103,7 +118,8 @@ func (m *manifestService) Put(ctx context.Context, manifest distribution.Manifes
 	if err != nil {
 		return "", regapi.ErrorCodeManifestInvalid.WithDetail(err)
 	}
-	mediaType, payload, canonical, err := mh.Payload()
+
+	mediaType, payload, _, err := mh.Payload()
 	if err != nil {
 		return "", regapi.ErrorCodeManifestInvalid.WithDetail(err)
 	}
@@ -123,25 +139,41 @@ func (m *manifestService) Put(ctx context.Context, manifest distribution.Manifes
 		return "", err
 	}
 
-	// Calculate digest
-	dgst := digest.FromBytes(canonical)
+	config, err := mh.Config(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	dgst, err := mh.Digest()
+	if err != nil {
+		return "", err
+	}
+
+	layerOrder, layers, err := mh.Layers(ctx)
+	if err != nil {
+		return "", err
+	}
 
 	// Upload to openshift
-	ism := imageapi.ImageStreamMapping{
+	ism := imageapiv1.ImageStreamMapping{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: m.repo.namespace,
 			Name:      m.repo.name,
 		},
-		Image: imageapi.Image{
+		Image: imageapiv1.Image{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: dgst.String(),
 				Annotations: map[string]string{
-					imageapi.ManagedByOpenShiftAnnotation: "true",
+					imageapi.ManagedByOpenShiftAnnotation:      "true",
+					imageapi.ImageManifestBlobStoredAnnotation: "true",
+					imageapi.DockerImageLayersOrderAnnotation:  layerOrder,
 				},
 			},
-			DockerImageReference:         fmt.Sprintf("%s/%s/%s@%s", m.repo.registryAddr, m.repo.namespace, m.repo.name, dgst.String()),
+			DockerImageReference:         fmt.Sprintf("%s/%s/%s@%s", m.repo.config.registryAddr, m.repo.namespace, m.repo.name, dgst.String()),
 			DockerImageManifest:          string(payload),
 			DockerImageManifestMediaType: mediaType,
+			DockerImageConfig:            string(config),
+			DockerImageLayers:            layers,
 		},
 	}
 
@@ -152,15 +184,7 @@ func (m *manifestService) Put(ctx context.Context, manifest distribution.Manifes
 		}
 	}
 
-	if err = mh.FillImageMetadata(ctx, &ism.Image); err != nil {
-		return "", err
-	}
-
-	// Remove the raw manifest as it's very big and this leads to a large memory consumption in etcd.
-	ism.Image.DockerImageManifest = ""
-	ism.Image.DockerImageConfig = ""
-
-	if err = m.repo.registryOSClient.ImageStreamMappings(m.repo.namespace).Create(&ism); err != nil {
+	if _, err = m.repo.registryOSClient.ImageStreamMappings(m.repo.namespace).Create(&ism); err != nil {
 		// if the error was that the image stream wasn't found, try to auto provision it
 		statusErr, ok := err.(*kerrors.StatusError)
 		if !ok {
@@ -174,9 +198,9 @@ func (m *manifestService) Put(ctx context.Context, manifest distribution.Manifes
 		}
 
 		status := statusErr.ErrStatus
-		if status.Code != http.StatusNotFound ||
-			(strings.ToLower(status.Details.Kind) != "imagestream" /*pre-1.2*/ && strings.ToLower(status.Details.Kind) != "imagestreams") ||
-			status.Details.Name != m.repo.name {
+		kind := strings.ToLower(status.Details.Kind)
+		isValidKind := kind == "imagestream" /*pre-1.2*/ || kind == "imagestreams" /*1.2 to 1.6*/ || kind == "imagestreammappings" /*1.7+*/
+		if !isValidKind || status.Code != http.StatusNotFound || status.Details.Name != m.repo.name {
 			context.GetLogger(ctx).Errorf("error creating ImageStreamMapping: %s", err)
 			return "", err
 		}
@@ -190,7 +214,7 @@ func (m *manifestService) Put(ctx context.Context, manifest distribution.Manifes
 		}
 
 		// try to create the ISM again
-		if err := m.repo.registryOSClient.ImageStreamMappings(m.repo.namespace).Create(&ism); err != nil {
+		if _, err := m.repo.registryOSClient.ImageStreamMappings(m.repo.namespace).Create(&ism); err != nil {
 			if quotautil.IsErrorQuotaExceeded(err) {
 				context.GetLogger(ctx).Errorf("denied a creation of ImageStreamMapping: %v", err)
 				return "", distribution.ErrAccessDenied
@@ -204,7 +228,7 @@ func (m *manifestService) Put(ctx context.Context, manifest distribution.Manifes
 }
 
 // Delete deletes the manifest with digest `dgst`. Note: Image resources
-// in OpenShift are deleted via 'oadm prune images'. This function deletes
+// in OpenShift are deleted via 'oc adm prune images'. This function deletes
 // the content related to the manifest in the registry's storage (signatures).
 func (m *manifestService) Delete(ctx context.Context, dgst digest.Digest) error {
 	context.GetLogger(ctx).Debugf("(*manifestService).Delete")
@@ -217,7 +241,7 @@ var manifestInflight = make(map[digest.Digest]struct{})
 // manifestInflightSync protects manifestInflight
 var manifestInflightSync sync.Mutex
 
-func (m *manifestService) migrateManifest(ctx context.Context, image *imageapi.Image, dgst digest.Digest, manifest distribution.Manifest, isLocalStored bool) {
+func (m *manifestService) migrateManifest(ctx context.Context, image *imageapiv1.Image, dgst digest.Digest, manifest distribution.Manifest, isLocalStored bool) {
 	// Everything in its place and nothing to do.
 	if isLocalStored && len(image.DockerImageManifest) == 0 {
 		return
@@ -233,7 +257,7 @@ func (m *manifestService) migrateManifest(ctx context.Context, image *imageapi.I
 	go m.storeManifestLocally(ctx, image, dgst, manifest, isLocalStored)
 }
 
-func (m *manifestService) storeManifestLocally(ctx context.Context, image *imageapi.Image, dgst digest.Digest, manifest distribution.Manifest, isLocalStored bool) {
+func (m *manifestService) storeManifestLocally(ctx context.Context, image *imageapiv1.Image, dgst digest.Digest, manifest distribution.Manifest, isLocalStored bool) {
 	defer func() {
 		manifestInflightSync.Lock()
 		delete(manifestInflight, dgst)
@@ -247,12 +271,14 @@ func (m *manifestService) storeManifestLocally(ctx context.Context, image *image
 		}
 	}
 
-	if len(image.DockerImageManifest) == 0 {
+	if len(image.DockerImageManifest) == 0 || image.Annotations[imageapi.ImageManifestBlobStoredAnnotation] == "true" {
 		return
 	}
 
-	image.DockerImageManifest = ""
-	image.DockerImageConfig = ""
+	if image.Annotations == nil {
+		image.Annotations = make(map[string]string)
+	}
+	image.Annotations[imageapi.ImageManifestBlobStoredAnnotation] = "true"
 
 	if _, err := m.repo.updateImage(image); err != nil {
 		context.GetLogger(ctx).Errorf("error updating Image: %v", err)

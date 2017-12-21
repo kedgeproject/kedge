@@ -21,7 +21,7 @@ import (
 	"k8s.io/client-go/pkg/api/v1"
 )
 
-// +genclient=true
+// +genclient
 
 // PodPreset is a policy resource that defines additional runtime
 // requirements for a Pod.
@@ -34,7 +34,7 @@ type PodPreset struct {
 	Spec PodPresetSpec `json:"spec,omitempty" protobuf:"bytes,2,opt,name=spec"`
 }
 
-// PodPresetSpec is a description of a pod injection policy.
+// PodPresetSpec is a description of a pod preset.
 type PodPresetSpec struct {
 	// Selector is a label query over a set of resources, in this case pods.
 	// Required.
@@ -58,7 +58,7 @@ type PodPresetSpec struct {
 type PodPresetList struct {
 	metav1.TypeMeta `json:",inline"`
 	// Standard list metadata.
-	// More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#metadata
+	// More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#metadata
 	// +optional
 	metav1.ListMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
 

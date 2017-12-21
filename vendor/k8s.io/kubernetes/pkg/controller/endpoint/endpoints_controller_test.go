@@ -632,6 +632,60 @@ func TestSyncEndpointsItemsPreexistingLabelsChange(t *testing.T) {
 	endpointsHandler.ValidateRequest(t, testapi.Default.ResourcePath("endpoints", ns, "foo"), "PUT", &data)
 }
 
+func TestWaitsForAllInformersToBeSynced2(t *testing.T) {
+	var tests = []struct {
+		podsSynced            func() bool
+		servicesSynced        func() bool
+		endpointsSynced       func() bool
+		shouldUpdateEndpoints bool
+	}{
+		{neverReady, alwaysReady, alwaysReady, false},
+		{alwaysReady, neverReady, alwaysReady, false},
+		{alwaysReady, alwaysReady, neverReady, false},
+		{alwaysReady, alwaysReady, alwaysReady, true},
+	}
+
+	for _, test := range tests {
+		func() {
+			ns := "other"
+			testServer, endpointsHandler := makeTestServer(t, ns)
+			defer testServer.Close()
+			endpoints := newController(testServer.URL)
+			addPods(endpoints.podStore, ns, 1, 1, 0)
+			service := &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{Name: "foo", Namespace: ns},
+				Spec: v1.ServiceSpec{
+					Selector: map[string]string{},
+					Ports:    []v1.ServicePort{{Port: 80, TargetPort: intstr.FromInt(8080), Protocol: "TCP"}},
+				},
+			}
+			endpoints.serviceStore.Add(service)
+			endpoints.enqueueService(service)
+			endpoints.podsSynced = test.podsSynced
+			endpoints.servicesSynced = test.servicesSynced
+			endpoints.endpointsSynced = test.endpointsSynced
+			endpoints.workerLoopPeriod = 10 * time.Millisecond
+			stopCh := make(chan struct{})
+			defer close(stopCh)
+			go endpoints.Run(1, stopCh)
+
+			// cache.WaitForCacheSync has a 100ms poll period, and the endpoints worker has a 10ms period.
+			// To ensure we get all updates, including unexpected ones, we need to wait at least as long as
+			// a single cache sync period and worker period, with some fudge room.
+			time.Sleep(150 * time.Millisecond)
+			if test.shouldUpdateEndpoints {
+				// Ensure the work queue has been processed by looping for up to a second to prevent flakes.
+				wait.PollImmediate(50*time.Millisecond, 1*time.Second, func() (bool, error) {
+					return endpoints.queue.Len() == 0, nil
+				})
+				endpointsHandler.ValidateRequestCount(t, 1)
+			} else {
+				endpointsHandler.ValidateRequestCount(t, 0)
+			}
+		}()
+	}
+}
+
 func TestPodToEndpointAddress(t *testing.T) {
 	podStore := cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
 	ns := "test"
@@ -720,6 +774,14 @@ func TestPodChanged(t *testing.T) {
 		t.Errorf("Expected pod to be changed with pod readiness change")
 	}
 	oldPod.Status.Conditions = saveConditions
+
+	oldTimestamp := newPod.ObjectMeta.DeletionTimestamp
+	now := metav1.NewTime(time.Now().UTC())
+	newPod.ObjectMeta.DeletionTimestamp = &now
+	if !podChanged(oldPod, newPod) {
+		t.Errorf("Expected pod to be changed with DeletionTimestamp change")
+	}
+	newPod.ObjectMeta.DeletionTimestamp = oldTimestamp
 }
 
 func TestDetermineNeededServiceUpdates(t *testing.T) {
@@ -783,59 +845,5 @@ func TestDetermineNeededServiceUpdates(t *testing.T) {
 		if !retval.Equal(testCase.union) {
 			t.Errorf("%s (with podChanged=true): expected: %v  got: %v", testCase.name, testCase.union.List(), retval.List())
 		}
-	}
-}
-
-func TestWaitsForAllInformersToBeSynced2(t *testing.T) {
-	var tests = []struct {
-		podsSynced            func() bool
-		servicesSynced        func() bool
-		endpointsSynced       func() bool
-		shouldUpdateEndpoints bool
-	}{
-		{neverReady, alwaysReady, alwaysReady, false},
-		{alwaysReady, neverReady, alwaysReady, false},
-		{alwaysReady, alwaysReady, neverReady, false},
-		{alwaysReady, alwaysReady, alwaysReady, true},
-	}
-
-	for _, test := range tests {
-		func() {
-			ns := "other"
-			testServer, endpointsHandler := makeTestServer(t, ns)
-			defer testServer.Close()
-			endpoints := newController(testServer.URL)
-			addPods(endpoints.podStore, ns, 1, 1, 0)
-			service := &v1.Service{
-				ObjectMeta: metav1.ObjectMeta{Name: "foo", Namespace: ns},
-				Spec: v1.ServiceSpec{
-					Selector: map[string]string{},
-					Ports:    []v1.ServicePort{{Port: 80, TargetPort: intstr.FromInt(8080), Protocol: "TCP"}},
-				},
-			}
-			endpoints.serviceStore.Add(service)
-			endpoints.enqueueService(service)
-			endpoints.podsSynced = test.podsSynced
-			endpoints.servicesSynced = test.servicesSynced
-			endpoints.endpointsSynced = test.endpointsSynced
-			endpoints.workerLoopPeriod = 10 * time.Millisecond
-			stopCh := make(chan struct{})
-			defer close(stopCh)
-			go endpoints.Run(1, stopCh)
-
-			// cache.WaitForCacheSync has a 100ms poll period, and the endpoints worker has a 10ms period.
-			// To ensure we get all updates, including unexpected ones, we need to wait at least as long as
-			// a single cache sync period and worker period, with some fudge room.
-			time.Sleep(150 * time.Millisecond)
-			if test.shouldUpdateEndpoints {
-				// Ensure the work queue has been processed by looping for up to a second to prevent flakes.
-				wait.PollImmediate(50*time.Millisecond, 1*time.Second, func() (bool, error) {
-					return endpoints.queue.Len() == 0, nil
-				})
-				endpointsHandler.ValidateRequestCount(t, 1)
-			} else {
-				endpointsHandler.ValidateRequestCount(t, 0)
-			}
-		}()
 	}
 }

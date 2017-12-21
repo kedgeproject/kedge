@@ -16,13 +16,14 @@ import (
 	kapierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/util/wait"
 	kapi "k8s.io/kubernetes/pkg/api"
 	e2e "k8s.io/kubernetes/test/e2e/framework"
 
 	exutil "github.com/openshift/origin/test/extended/util"
 )
 
-var _ = g.Describe("[Conformance][networking][router] openshift router metrics", func() {
+var _ = g.Describe("[Conformance][Area:Networking][Feature:Router] openshift router metrics", func() {
 	defer g.GinkgoRecover()
 	var (
 		oc = exutil.NewCLI("router-metrics", exutil.KubeConfigPath())
@@ -33,7 +34,7 @@ var _ = g.Describe("[Conformance][networking][router] openshift router metrics",
 	)
 
 	g.BeforeEach(func() {
-		dc, err := oc.AdminClient().DeploymentConfigs("default").Get("router", metav1.GetOptions{})
+		dc, err := oc.AdminAppsClient().Apps().DeploymentConfigs("default").Get("router", metav1.GetOptions{})
 		if kapierrs.IsNotFound(err) {
 			g.Skip("no router installed on the cluster")
 			return
@@ -59,6 +60,10 @@ var _ = g.Describe("[Conformance][networking][router] openshift router metrics",
 
 		epts, err := oc.AdminKubeClient().CoreV1().Endpoints("default").Get("router", metav1.GetOptions{})
 		o.Expect(err).NotTo(o.HaveOccurred())
+		if len(epts.Subsets) == 0 || len(epts.Subsets[0].Addresses) == 0 {
+			e2e.Failf("Unable to run HAProxy router tests, the router reports no endpoints: %#v", epts)
+			return
+		}
 		host = epts.Subsets[0].Addresses[0].IP
 
 		ns = oc.KubeFramework().Namespace.Name
@@ -90,7 +95,7 @@ var _ = g.Describe("[Conformance][networking][router] openshift router metrics",
 			defer func() { oc.AdminKubeClient().Core().Pods(ns).Delete(execPodName, metav1.NewDeleteOptions(1)) }()
 
 			g.By("preventing access without a username and password")
-			err = expectURLStatusCodeExec(ns, execPodName, fmt.Sprintf("http://%s:%d/metrics", host, statsPort), 403)
+			err = expectURLStatusCodeExec(ns, execPodName, fmt.Sprintf("http://%s:%d/metrics", host, statsPort), 401, 403)
 			o.Expect(err).NotTo(o.HaveOccurred())
 
 			g.By("checking for the expected metrics")
@@ -100,7 +105,7 @@ var _ = g.Describe("[Conformance][networking][router] openshift router metrics",
 			times := 10
 			var results string
 			defer func() { e2e.Logf("received metrics:\n%s", results) }()
-			for i := 0; i < 30; i++ {
+			err = wait.PollImmediate(2*time.Second, 120*time.Second, func() (bool, error) {
 				results, err = getAuthenticatedURLViaPod(ns, execPodName, fmt.Sprintf("http://%s:%d/metrics", host, statsPort), username, password)
 				o.Expect(err).NotTo(o.HaveOccurred())
 
@@ -110,16 +115,17 @@ var _ = g.Describe("[Conformance][networking][router] openshift router metrics",
 				//e2e.Logf("Metrics:\n%s", results)
 				if len(findGaugesWithLabels(metrics["haproxy_server_up"], serverLabels)) == 2 {
 					if findGaugesWithLabels(metrics["haproxy_backend_connections_total"], routeLabels)[0] >= float64(times) {
-						break
+						return true, nil
 					}
 					// send a burst of traffic to the router
 					g.By("sending traffic to a weighted route")
 					err = expectRouteStatusCodeRepeatedExec(ns, execPodName, fmt.Sprintf("http://%s", host), "weighted.example.com", http.StatusOK, times)
 					o.Expect(err).NotTo(o.HaveOccurred())
 				}
-				time.Sleep(2 * time.Second)
 				g.By("retrying metrics until all backend servers appear")
-			}
+				return false, nil
+			})
+			o.Expect(err).NotTo(o.HaveOccurred())
 
 			allEndpoints := sets.NewString()
 			services := []string{"weightedendpoints1", "weightedendpoints2"}
@@ -174,11 +180,11 @@ var _ = g.Describe("[Conformance][networking][router] openshift router metrics",
 			defer func() { oc.AdminKubeClient().Core().Pods(ns).Delete(execPodName, metav1.NewDeleteOptions(1)) }()
 
 			g.By("preventing access without a username and password")
-			err := expectURLStatusCodeExec(ns, execPodName, fmt.Sprintf("http://%s:%d/debug/pprof/heap", host, statsPort), 403)
+			err := expectURLStatusCodeExec(ns, execPodName, fmt.Sprintf("http://%s:%d/debug/pprof/heap", host, statsPort), 401, 403)
 			o.Expect(err).NotTo(o.HaveOccurred())
 
 			g.By("at /debug/pprof")
-			results, err := getAuthenticatedURLViaPod(ns, execPodName, fmt.Sprintf("http://%s:%d/debug/pprof/heap", host, statsPort), username, password)
+			results, err := getAuthenticatedURLViaPod(ns, execPodName, fmt.Sprintf("http://%s:%d/debug/pprof/heap?debug=1", host, statsPort), username, password)
 			o.Expect(err).NotTo(o.HaveOccurred())
 			o.Expect(results).To(o.ContainSubstring("# runtime.MemStats"))
 		})
@@ -257,16 +263,18 @@ func findMetricLabels(f *dto.MetricFamily, labels map[string]string, match strin
 	return result
 }
 
-func expectURLStatusCodeExec(ns, execPodName, url string, statusCode int) error {
+func expectURLStatusCodeExec(ns, execPodName, url string, statusCodes ...int) error {
 	cmd := fmt.Sprintf("curl -s -o /dev/null -w '%%{http_code}' %q", url)
 	output, err := e2e.RunHostCmd(ns, execPodName, cmd)
 	if err != nil {
 		return fmt.Errorf("host command failed: %v\n%s", err, output)
 	}
-	if output != strconv.Itoa(statusCode) {
-		return fmt.Errorf("last response from server was not %d: %s", statusCode, output)
+	for _, statusCode := range statusCodes {
+		if output == strconv.Itoa(statusCode) {
+			return nil
+		}
 	}
-	return nil
+	return fmt.Errorf("last response from server was not any of %v: %s", statusCodes, output)
 }
 
 func getAuthenticatedURLViaPod(ns, execPodName, url, user, pass string) (string, error) {

@@ -30,37 +30,33 @@ import (
 	"k8s.io/client-go/kubernetes"
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 
+	"github.com/kubernetes-incubator/service-catalog/pkg/api"
+	"k8s.io/api/core/v1"
 	"k8s.io/client-go/discovery"
-	"k8s.io/client-go/pkg/api"
-	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/record"
 
+	"github.com/kubernetes-incubator/service-catalog/pkg/kubernetes/pkg/util/configz"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apiserver/pkg/server/healthz"
-	"k8s.io/kubernetes/pkg/client/clientset_generated/clientset"
-	"k8s.io/kubernetes/pkg/client/leaderelection"
-	"k8s.io/kubernetes/pkg/client/leaderelection/resourcelock"
-	"k8s.io/kubernetes/pkg/util/configz"
+	"k8s.io/client-go/tools/leaderelection"
+	"k8s.io/client-go/tools/leaderelection/resourcelock"
 
 	// The API groups for our API must be installed before we can use the
 	// client to work with them.  This needs to be done once per process; this
 	// is the point at which we handle this for the controller-manager
 	// process.  Please do not remove.
-	_ "github.com/kubernetes-incubator/service-catalog/pkg/apis/servicecatalog/install"
-	// The core API has to be installed in order for the client to understand
-	// error messages from the API server.  Please do not remove.
-	_ "k8s.io/client-go/pkg/api/install"
+	_ "github.com/kubernetes-incubator/service-catalog/pkg/api"
 
 	"github.com/kubernetes-incubator/service-catalog/cmd/controller-manager/app/options"
-	"github.com/kubernetes-incubator/service-catalog/pkg/brokerapi/openservicebroker"
 	servicecataloginformers "github.com/kubernetes-incubator/service-catalog/pkg/client/informers_generated/externalversions"
 	"github.com/kubernetes-incubator/service-catalog/pkg/controller"
 
 	"github.com/golang/glog"
+	osb "github.com/pmorie/go-open-service-broker-client/v2"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -83,6 +79,8 @@ the core control loops shipped with the service catalog.`,
 
 const controllerManagerAgentName = "service-catalog-controller-manager"
 const controllerDiscoveryAgentName = "service-catalog-controller-discovery"
+
+var catalogGVR = schema.GroupVersionResource{Group: "servicecatalog.k8s.io", Version: "v1beta1", Resource: "clusterservicebrokers"}
 
 // Run runs the service-catalog controller-manager; should never exit.
 func Run(controllerManagerOptions *options.ControllerManagerServer) error {
@@ -121,7 +119,7 @@ func Run(controllerManagerOptions *options.ControllerManagerServer) error {
 	if err != nil {
 		return fmt.Errorf("invalid Kubernetes API configuration: %v", err)
 	}
-	leaderElectionClient := clientset.NewForConfigOrDie(rest.AddUserAgent(k8sKubeconfig, "leader-election"))
+	leaderElectionClient := kubernetes.NewForConfigOrDie(rest.AddUserAgent(k8sKubeconfig, "leader-election"))
 
 	glog.V(4).Infof("Building service-catalog kubeconfig for url: %v\n", controllerManagerOptions.ServiceCatalogAPIServerURL)
 
@@ -141,14 +139,18 @@ func Run(controllerManagerOptions *options.ControllerManagerServer) error {
 		// TODO: disambiguate API errors
 		return fmt.Errorf("failed to get Service Catalog client configuration: %v", err)
 	}
-
-	// due to using both k8s.io/kubernetes and k8s.io/client-go, we need to convert this object over
+	serviceCatalogKubeconfig.Insecure = controllerManagerOptions.ServiceCatalogInsecureSkipVerify
 
 	glog.V(4).Info("Starting http server and mux")
 	// Start http server and handlers
 	go func() {
 		mux := http.NewServeMux()
-		healthz.InstallHandler(mux)
+		apiAvailableChecker := checkAPIAvailableResources{
+			controller.SimpleClientBuilder{
+				ClientConfig: serviceCatalogKubeconfig,
+			},
+		}
+		healthz.InstallHandler(mux, healthz.PingHealthz, apiAvailableChecker)
 		configz.InstallHandler(mux)
 
 		if controllerManagerOptions.EnableProfiling {
@@ -171,7 +173,7 @@ func Run(controllerManagerOptions *options.ControllerManagerServer) error {
 	glog.V(4).Info("Creating event broadcaster")
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(glog.Infof)
-	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: k8sKubeClient.Core().Events("")})
+	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: k8sKubeClient.CoreV1().Events("")})
 	recorder := eventBroadcaster.NewRecorder(api.Scheme, v1.EventSource{Component: controllerManagerAgentName})
 
 	// 'run' is the logic to run the controllers for the controller manager
@@ -216,7 +218,7 @@ func Run(controllerManagerOptions *options.ControllerManagerServer) error {
 			Namespace: controllerManagerOptions.LeaderElectionNamespace,
 			Name:      "service-catalog-controller-manager",
 		},
-		Client: leaderElectionClient,
+		Client: leaderElectionClient.CoreV1(),
 		LockConfig: resourcelock.ResourceLockConfig{
 			Identity:      id + "-external-service-catalog-controller",
 			EventRecorder: recorder,
@@ -254,7 +256,7 @@ func getAvailableResources(clientBuilder controller.ClientBuilder) (map[schema.G
 			return false, nil
 		}
 
-		glog.V(4).Info("Created client for discovery")
+		glog.V(4).Info("Created client for API discovery")
 
 		discoveryClient = client.Discovery()
 		return true, nil
@@ -271,7 +273,6 @@ func getAvailableResources(clientBuilder controller.ClientBuilder) (map[schema.G
 
 	allResources := map[schema.GroupVersionResource]bool{}
 	for _, apiResourceList := range resourceMap {
-		glog.V(4).Infof("Resource: %#v", apiResourceList)
 		version, err := schema.ParseGroupVersion(apiResourceList.GroupVersion)
 		if err != nil {
 			return nil, err
@@ -306,28 +307,31 @@ func StartControllers(s *options.ControllerManagerServer,
 	}
 
 	// Launch service-catalog controller
-	if availableResources[schema.GroupVersionResource{Group: "servicecatalog.k8s.io", Version: "v1alpha1", Resource: "brokers"}] {
-		glog.V(5).Info("Creating shared informers; resync interval: %v", s.ResyncInterval)
+	if availableResources[catalogGVR] {
+		glog.V(5).Infof("Creating shared informers; resync interval: %v", s.ResyncInterval)
+
 		// Build the informer factory for service-catalog resources
 		informerFactory := servicecataloginformers.NewSharedInformerFactory(
 			serviceCatalogClientBuilder.ClientOrDie("shared-informers"),
 			s.ResyncInterval,
 		)
-		// All shared informers are v1alpha1 API level
-		serviceCatalogSharedInformers := informerFactory.Servicecatalog().V1alpha1()
+		// All shared informers are v1beta1 API level
+		serviceCatalogSharedInformers := informerFactory.Servicecatalog().V1beta1()
 
-		glog.V(5).Info("Creating controller; broker relist interval: %v", s.BrokerRelistInterval)
+		glog.V(5).Infof("Creating controller; broker relist interval: %v", s.ServiceBrokerRelistInterval)
 		serviceCatalogController, err := controller.NewController(
 			coreClient,
-			serviceCatalogClientBuilder.ClientOrDie(controllerManagerAgentName).ServicecatalogV1alpha1(),
-			serviceCatalogSharedInformers.Brokers(),
-			serviceCatalogSharedInformers.ServiceClasses(),
-			serviceCatalogSharedInformers.Instances(),
-			serviceCatalogSharedInformers.Bindings(),
-			openservicebroker.NewClient,
-			s.BrokerRelistInterval,
-			s.OSBAPIContextProfile,
+			serviceCatalogClientBuilder.ClientOrDie(controllerManagerAgentName).ServicecatalogV1beta1(),
+			serviceCatalogSharedInformers.ClusterServiceBrokers(),
+			serviceCatalogSharedInformers.ClusterServiceClasses(),
+			serviceCatalogSharedInformers.ServiceInstances(),
+			serviceCatalogSharedInformers.ServiceBindings(),
+			serviceCatalogSharedInformers.ClusterServicePlans(),
+			osb.NewClient,
+			s.ServiceBrokerRelistInterval,
+			s.OSBAPIPreferredVersion,
 			recorder,
+			s.ReconciliationRetryDuration,
 		)
 		if err != nil {
 			return err
@@ -339,8 +343,30 @@ func StartControllers(s *options.ControllerManagerServer,
 		glog.V(1).Info("Starting shared informers")
 		informerFactory.Start(stop)
 	} else {
-		return fmt.Errorf("unable to start service-catalog controller: servicecatalog/v1alpha1 is not available")
+		return fmt.Errorf("unable to start service-catalog controller: API GroupVersion %q is not available; found %#v", catalogGVR, availableResources)
 	}
 
 	select {}
+}
+
+// checkAPIAvailableResourcesServer is a HealthzChecker that makes sure the
+// Service-Catalog APIServer is contactable.
+type checkAPIAvailableResources struct {
+	serviceCatalogClientBuilder controller.ClientBuilder
+}
+
+func (c checkAPIAvailableResources) Name() string {
+	return "checkAPIAvailableResources"
+}
+
+func (c checkAPIAvailableResources) Check(_ *http.Request) error {
+	glog.Info("Health-checking connection with service-catalog API server")
+	availableResources, err := getAvailableResources(c.serviceCatalogClientBuilder)
+	if err != nil {
+		return err
+	}
+	if !availableResources[catalogGVR] {
+		return fmt.Errorf("failed to get API GroupVersion %q; found: %#v", catalogGVR, availableResources)
+	}
+	return nil
 }

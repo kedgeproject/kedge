@@ -18,12 +18,14 @@ spec:
         app: {{ template "fullname" . }}-apiserver
         chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
         release: "{{ .Release.Name }}"
+        releaseRevision: "{{ .Release.Revision }}"
         heritage: "{{ .Release.Service }}"
     spec:
+      serviceAccountName: "{{ .Values.apiserver.serviceAccount }}"
       containers:
       - name: apiserver
-        image: {{ .Values.apiserver.image }}
-        imagePullPolicy: {{ .Values.apiserver.imagePullPolicy }}
+        image: {{ .Values.image }}
+        imagePullPolicy: {{ .Values.imagePullPolicy }}
         resources:
           requests:
             cpu: 100m
@@ -32,28 +34,20 @@ spec:
             cpu: 100m
             memory: 30Mi
         args:
+        - apiserver
         {{ if .Values.apiserver.audit.activated -}}
         - --audit-log-path
         - {{ .Values.apiserver.audit.logPath }}
         {{- end}}
         - --admission-control
-        - "KubernetesNamespaceLifecycle"
+        - "KubernetesNamespaceLifecycle,DefaultServicePlan,ServiceBindingsLifecycle,ServicePlanChangeValidator,BrokerAuthSarCheck"
         - --secure-port
         - "8443"
-        {{- if .Values.apiserver.insecure }}
-        - --insecure-bind-address
-        - 0.0.0.0
-        - --insecure-port
-        - "8080"
-        {{- end }}
         - --storage-type
         - {{ .Values.apiserver.storage.type }}
         {{- if eq .Values.apiserver.storage.type "etcd" }}
         - --etcd-servers
         - {{ .Values.apiserver.storage.etcd.servers }}
-        {{- else if eq .Values.apiserver.storage.type "tpr" }}
-        - --global-namespace
-        - {{ .Values.apiserver.storage.tpr.globalNamespace }}
         {{- end }}
         - -v
         - "{{ .Values.apiserver.verbosity }}"
@@ -63,10 +57,11 @@ spec:
         {{- if not .Values.apiserver.auth.enabled }}
         - --disable-auth
         {{- end }}
-        ports:
-        {{- if .Values.apiserver.insecure }}
-        - containerPort: 8080
+        {{- if .Values.originatingIdentityEnabled }}
+        - --feature-gates
+        - OriginatingIdentity=true
         {{- end }}
+        ports:
         - containerPort: 8443
         volumeMounts:
         - name: apiserver-cert

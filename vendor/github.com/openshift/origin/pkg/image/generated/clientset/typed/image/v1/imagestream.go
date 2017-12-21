@@ -7,6 +7,7 @@ import (
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	rest "k8s.io/client-go/rest"
+	api_v1 "k8s.io/kubernetes/pkg/api/v1"
 )
 
 // ImageStreamsGetter has a method to return a ImageStreamInterface.
@@ -26,6 +27,8 @@ type ImageStreamInterface interface {
 	List(opts meta_v1.ListOptions) (*v1.ImageStreamList, error)
 	Watch(opts meta_v1.ListOptions) (watch.Interface, error)
 	Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1.ImageStream, err error)
+	Secrets(imageStreamName string, opts meta_v1.ListOptions) (*api_v1.SecretList, error)
+
 	ImageStreamExpansion
 }
 
@@ -41,69 +44,6 @@ func newImageStreams(c *ImageV1Client, namespace string) *imageStreams {
 		client: c.RESTClient(),
 		ns:     namespace,
 	}
-}
-
-// Create takes the representation of a imageStream and creates it.  Returns the server's representation of the imageStream, and an error, if there is any.
-func (c *imageStreams) Create(imageStream *v1.ImageStream) (result *v1.ImageStream, err error) {
-	result = &v1.ImageStream{}
-	err = c.client.Post().
-		Namespace(c.ns).
-		Resource("imagestreams").
-		Body(imageStream).
-		Do().
-		Into(result)
-	return
-}
-
-// Update takes the representation of a imageStream and updates it. Returns the server's representation of the imageStream, and an error, if there is any.
-func (c *imageStreams) Update(imageStream *v1.ImageStream) (result *v1.ImageStream, err error) {
-	result = &v1.ImageStream{}
-	err = c.client.Put().
-		Namespace(c.ns).
-		Resource("imagestreams").
-		Name(imageStream.Name).
-		Body(imageStream).
-		Do().
-		Into(result)
-	return
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclientstatus=false comment above the type to avoid generating UpdateStatus().
-
-func (c *imageStreams) UpdateStatus(imageStream *v1.ImageStream) (result *v1.ImageStream, err error) {
-	result = &v1.ImageStream{}
-	err = c.client.Put().
-		Namespace(c.ns).
-		Resource("imagestreams").
-		Name(imageStream.Name).
-		SubResource("status").
-		Body(imageStream).
-		Do().
-		Into(result)
-	return
-}
-
-// Delete takes name of the imageStream and deletes it. Returns an error if one occurs.
-func (c *imageStreams) Delete(name string, options *meta_v1.DeleteOptions) error {
-	return c.client.Delete().
-		Namespace(c.ns).
-		Resource("imagestreams").
-		Name(name).
-		Body(options).
-		Do().
-		Error()
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *imageStreams) DeleteCollection(options *meta_v1.DeleteOptions, listOptions meta_v1.ListOptions) error {
-	return c.client.Delete().
-		Namespace(c.ns).
-		Resource("imagestreams").
-		VersionedParams(&listOptions, scheme.ParameterCodec).
-		Body(options).
-		Do().
-		Error()
 }
 
 // Get takes name of the imageStream, and returns the corresponding imageStream object, and an error if there is any.
@@ -141,6 +81,69 @@ func (c *imageStreams) Watch(opts meta_v1.ListOptions) (watch.Interface, error) 
 		Watch()
 }
 
+// Create takes the representation of a imageStream and creates it.  Returns the server's representation of the imageStream, and an error, if there is any.
+func (c *imageStreams) Create(imageStream *v1.ImageStream) (result *v1.ImageStream, err error) {
+	result = &v1.ImageStream{}
+	err = c.client.Post().
+		Namespace(c.ns).
+		Resource("imagestreams").
+		Body(imageStream).
+		Do().
+		Into(result)
+	return
+}
+
+// Update takes the representation of a imageStream and updates it. Returns the server's representation of the imageStream, and an error, if there is any.
+func (c *imageStreams) Update(imageStream *v1.ImageStream) (result *v1.ImageStream, err error) {
+	result = &v1.ImageStream{}
+	err = c.client.Put().
+		Namespace(c.ns).
+		Resource("imagestreams").
+		Name(imageStream.Name).
+		Body(imageStream).
+		Do().
+		Into(result)
+	return
+}
+
+// UpdateStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
+
+func (c *imageStreams) UpdateStatus(imageStream *v1.ImageStream) (result *v1.ImageStream, err error) {
+	result = &v1.ImageStream{}
+	err = c.client.Put().
+		Namespace(c.ns).
+		Resource("imagestreams").
+		Name(imageStream.Name).
+		SubResource("status").
+		Body(imageStream).
+		Do().
+		Into(result)
+	return
+}
+
+// Delete takes name of the imageStream and deletes it. Returns an error if one occurs.
+func (c *imageStreams) Delete(name string, options *meta_v1.DeleteOptions) error {
+	return c.client.Delete().
+		Namespace(c.ns).
+		Resource("imagestreams").
+		Name(name).
+		Body(options).
+		Do().
+		Error()
+}
+
+// DeleteCollection deletes a collection of objects.
+func (c *imageStreams) DeleteCollection(options *meta_v1.DeleteOptions, listOptions meta_v1.ListOptions) error {
+	return c.client.Delete().
+		Namespace(c.ns).
+		Resource("imagestreams").
+		VersionedParams(&listOptions, scheme.ParameterCodec).
+		Body(options).
+		Do().
+		Error()
+}
+
 // Patch applies the patch and returns the patched imageStream.
 func (c *imageStreams) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1.ImageStream, err error) {
 	result = &v1.ImageStream{}
@@ -150,6 +153,20 @@ func (c *imageStreams) Patch(name string, pt types.PatchType, data []byte, subre
 		SubResource(subresources...).
 		Name(name).
 		Body(data).
+		Do().
+		Into(result)
+	return
+}
+
+// Secrets takes v1.ImageStream name, label and field selectors, and returns the list of Secrets that match those selectors.
+func (c *imageStreams) Secrets(imageStreamName string, opts meta_v1.ListOptions) (result *api_v1.SecretList, err error) {
+	result = &api_v1.SecretList{}
+	err = c.client.Get().
+		Namespace(c.ns).
+		Resource("imagestreams").
+		Name(imageStreamName).
+		SubResource("secrets").
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Do().
 		Into(result)
 	return

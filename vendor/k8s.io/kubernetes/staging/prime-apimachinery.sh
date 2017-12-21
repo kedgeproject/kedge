@@ -72,10 +72,9 @@ while read package; do
 done <${dir}/packages.txt
 
 # this file generates something or other, but we don't want to accidentally have it generate into an apimachinery package
-git checkout cmd/libs/go2idl/set-gen/main.go
+git checkout vendor/k8s.io/code-generator/cmd/set-gen/main.go
 
 
 # now run gofmt to get the sorting right
 echo "running gofmt"
-gofmt -s -w ${KUBE_ROOT}/cmd ${KUBE_ROOT}/examples ${KUBE_ROOT}/federation ${KUBE_ROOT}/pkg ${KUBE_ROOT}/plugin ${KUBE_ROOT}/test 
-
+gofmt -s -w ${KUBE_ROOT}/cmd ${KUBE_ROOT}/examples ${KUBE_ROOT}/federation ${KUBE_ROOT}/pkg ${KUBE_ROOT}/plugin ${KUBE_ROOT}/test

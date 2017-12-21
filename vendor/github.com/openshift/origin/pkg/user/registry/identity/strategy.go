@@ -1,15 +1,10 @@
 package identity
 
 import (
-	"fmt"
-
-	"k8s.io/apimachinery/pkg/fields"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	apirequest "k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/registry/rest"
-	kstorage "k8s.io/apiserver/pkg/storage"
 	kapi "k8s.io/kubernetes/pkg/api"
 
 	userapi "github.com/openshift/origin/pkg/user/apis/user"
@@ -45,6 +40,12 @@ func (identityStrategy) PrepareForCreate(ctx apirequest.Context, obj runtime.Obj
 	identity.Name = identityName(identity.ProviderName, identity.ProviderUserName)
 }
 
+// this name cannot change since it must match resources persisted into etcd.
+func identityName(provider, identity string) string {
+	// TODO: normalize?
+	return provider + ":" + identity
+}
+
 // Validate validates a new user
 func (identityStrategy) Validate(ctx apirequest.Context, obj runtime.Object) field.ErrorList {
 	identity := obj.(*userapi.Identity)
@@ -67,27 +68,4 @@ func (identityStrategy) Canonicalize(obj runtime.Object) {
 // ValidateUpdate is the default update validation for an identity
 func (identityStrategy) ValidateUpdate(ctx apirequest.Context, obj, old runtime.Object) field.ErrorList {
 	return validation.ValidateIdentityUpdate(obj.(*userapi.Identity), old.(*userapi.Identity))
-}
-
-// GetAttrs returns labels and fields of a given object for filtering purposes
-func GetAttrs(o runtime.Object) (labels.Set, fields.Set, error) {
-	obj, ok := o.(*userapi.Identity)
-	if !ok {
-		return nil, nil, fmt.Errorf("not an Identity")
-	}
-	return labels.Set(obj.Labels), SelectableFields(obj), nil
-}
-
-// Matcher returns a generic matcher for a given label and field selector.
-func Matcher(label labels.Selector, field fields.Selector) kstorage.SelectionPredicate {
-	return kstorage.SelectionPredicate{
-		Label:    label,
-		Field:    field,
-		GetAttrs: GetAttrs,
-	}
-}
-
-// SelectableFields returns a field set that can be used for filter selection
-func SelectableFields(obj *userapi.Identity) fields.Set {
-	return userapi.IdentityToSelectableFields(obj)
 }

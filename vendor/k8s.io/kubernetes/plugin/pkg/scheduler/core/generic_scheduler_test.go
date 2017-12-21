@@ -199,7 +199,8 @@ func TestGenericScheduler(t *testing.T) {
 			pod:          &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "2"}},
 			name:         "test 1",
 			wErr: &FitError{
-				Pod: &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "2"}},
+				Pod:         &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "2"}},
+				NumAllNodes: 2,
 				FailedPredicates: FailedPredicateMap{
 					"machine1": []algorithm.PredicateFailureReason{algorithmpredicates.ErrFakePredicate},
 					"machine2": []algorithm.PredicateFailureReason{algorithmpredicates.ErrFakePredicate},
@@ -259,7 +260,8 @@ func TestGenericScheduler(t *testing.T) {
 			expectsErr:   true,
 			name:         "test 7",
 			wErr: &FitError{
-				Pod: &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "2"}},
+				Pod:         &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "2"}},
+				NumAllNodes: 3,
 				FailedPredicates: FailedPredicateMap{
 					"3": []algorithm.PredicateFailureReason{algorithmpredicates.ErrFakePredicate},
 					"2": []algorithm.PredicateFailureReason{algorithmpredicates.ErrFakePredicate},
@@ -289,7 +291,8 @@ func TestGenericScheduler(t *testing.T) {
 			expectsErr:   true,
 			name:         "test 8",
 			wErr: &FitError{
-				Pod: &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "2"}},
+				Pod:         &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "2"}},
+				NumAllNodes: 2,
 				FailedPredicates: FailedPredicateMap{
 					"1": []algorithm.PredicateFailureReason{algorithmpredicates.ErrFakePredicate},
 					"2": []algorithm.PredicateFailureReason{algorithmpredicates.ErrFakePredicate},
@@ -307,7 +310,7 @@ func TestGenericScheduler(t *testing.T) {
 		}
 
 		scheduler := NewGenericScheduler(
-			cache, test.predicates, algorithm.EmptyMetadataProducer, test.prioritizers, algorithm.EmptyMetadataProducer,
+			cache, nil, test.predicates, algorithm.EmptyMetadataProducer, test.prioritizers, algorithm.EmptyMetadataProducer,
 			[]algorithm.SchedulerExtender{})
 		machine, err := scheduler.Schedule(test.pod, schedulertesting.FakeNodeLister(makeNodeList(test.nodes)))
 
@@ -328,7 +331,7 @@ func TestFindFitAllError(t *testing.T) {
 		"2": schedulercache.NewNodeInfo(),
 		"1": schedulercache.NewNodeInfo(),
 	}
-	_, predicateMap, err := findNodesThatFit(&v1.Pod{}, nodeNameToInfo, makeNodeList(nodes), predicates, nil, algorithm.EmptyMetadataProducer)
+	_, predicateMap, err := findNodesThatFit(&v1.Pod{}, nodeNameToInfo, makeNodeList(nodes), predicates, nil, algorithm.EmptyMetadataProducer, nil)
 
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
@@ -362,7 +365,7 @@ func TestFindFitSomeError(t *testing.T) {
 		nodeNameToInfo[name].SetNode(&v1.Node{ObjectMeta: metav1.ObjectMeta{Name: name}})
 	}
 
-	_, predicateMap, err := findNodesThatFit(pod, nodeNameToInfo, makeNodeList(nodes), predicates, nil, algorithm.EmptyMetadataProducer)
+	_, predicateMap, err := findNodesThatFit(pod, nodeNameToInfo, makeNodeList(nodes), predicates, nil, algorithm.EmptyMetadataProducer, nil)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -402,20 +405,22 @@ func makeNode(node string, milliCPU, memory int64) *v1.Node {
 }
 
 func TestHumanReadableFitError(t *testing.T) {
-	error := &FitError{
-		Pod: &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "2"}},
+	err := &FitError{
+		Pod:         &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "2"}},
+		NumAllNodes: 3,
 		FailedPredicates: FailedPredicateMap{
 			"1": []algorithm.PredicateFailureReason{algorithmpredicates.ErrNodeUnderMemoryPressure},
 			"2": []algorithm.PredicateFailureReason{algorithmpredicates.ErrNodeUnderDiskPressure},
 			"3": []algorithm.PredicateFailureReason{algorithmpredicates.ErrNodeUnderDiskPressure},
 		},
 	}
-	if strings.Contains(error.Error(), "No nodes are available that match all of the following predicates") {
-		if strings.Contains(error.Error(), "NodeUnderDiskPressure (2)") && strings.Contains(error.Error(), "NodeUnderMemoryPressure (1)") {
+	if strings.Contains(err.Error(), "0/3 nodes are available") {
+		if strings.Contains(err.Error(), "2 NodeUnderDiskPressure") && strings.Contains(err.Error(), "1 NodeUnderMemoryPressure") {
+
 			return
 		}
 	}
-	t.Errorf("Error message doesn't have all the information content: [" + error.Error() + "]")
+	t.Errorf("Error message doesn't have all the information content: [" + err.Error() + "]")
 }
 
 // The point of this test is to show that you:

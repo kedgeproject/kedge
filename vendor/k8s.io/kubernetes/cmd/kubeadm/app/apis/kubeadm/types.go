@@ -24,7 +24,6 @@ import (
 
 type EnvParams struct {
 	KubernetesDir    string
-	HostEtcdPath     string
 	HyperkubeImage   string
 	RepositoryPrefix string
 	EtcdImage        string
@@ -33,12 +32,13 @@ type EnvParams struct {
 type MasterConfiguration struct {
 	metav1.TypeMeta
 
-	API               API
-	Etcd              Etcd
-	Networking        Networking
-	KubernetesVersion string
-	CloudProvider     string
-	AuthorizationMode string
+	API                API
+	Etcd               Etcd
+	Networking         Networking
+	KubernetesVersion  string
+	CloudProvider      string
+	NodeName           string
+	AuthorizationModes []string
 
 	Token    string
 	TokenTTL time.Duration
@@ -82,6 +82,8 @@ type Etcd struct {
 	CAFile    string
 	CertFile  string
 	KeyFile   string
+	DataDir   string
+	ExtraArgs map[string]string
 }
 
 type NodeConfiguration struct {
@@ -92,6 +94,7 @@ type NodeConfiguration struct {
 	DiscoveryToken string
 	// Currently we only pay attention to one api server but hope to support >1 in the future
 	DiscoveryTokenAPIServers []string
+	NodeName                 string
 	TLSBootstrapToken        string
 	Token                    string
 }

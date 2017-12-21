@@ -4,7 +4,7 @@ This document explains a simple demonstration example of running MySQL synchrono
 
 ### Prerequisites
 
-This example assumes that you have a Kubernetes cluster installed and running, and that you have installed the ```kubectl``` command line tool somewhere in your path.  Please see the [getting started](../../../docs/getting-started-guides/) for installation instructions for your platform.
+This example assumes that you have a Kubernetes cluster installed and running, and that you have installed the ```kubectl``` command line tool somewhere in your path.  Please see the [getting started](https://kubernetes.io/docs/getting-started-guides/) for installation instructions for your platform.
 
 Also, this example requires the image found in the ```image``` directory. For your convenience, it is built and available on Docker's public image repository as ```capttofu/percona_xtradb_cluster_5_6```. It can also be built which would merely require that the image in the pod or replication controller files is updated.
 
@@ -40,18 +40,18 @@ When complete, you should be able connect with a MySQL client to the IP address
 Shown below are examples of Using ```kubectl``` from within the ```./examples/storage/mysql-galera``` directory, the status of the lauched replication controllers and services can be confirmed
 
 ```
-$ kubectl create -f examples/storage/mysql-galera/pxc-cluster-service.yaml 
+$ kubectl create -f examples/storage/mysql-galera/pxc-cluster-service.yaml
 services/pxc-cluster
 
-$ kubectl create -f examples/storage/mysql-galera/pxc-node1.yaml 
+$ kubectl create -f examples/storage/mysql-galera/pxc-node1.yaml
 services/pxc-node1
 replicationcontrollers/pxc-node1
 
-$ kubectl create -f examples/storage/mysql-galera/pxc-node2.yaml 
+$ kubectl create -f examples/storage/mysql-galera/pxc-node2.yaml
 services/pxc-node2
 replicationcontrollers/pxc-node2
 
-$ kubectl create -f examples/storage/mysql-galera/pxc-node3.yaml 
+$ kubectl create -f examples/storage/mysql-galera/pxc-node3.yaml
 services/pxc-node3
 replicationcontrollers/pxc-node3
 
@@ -100,7 +100,7 @@ pxc-node3-0b5mc
 
 $ kubectl exec pxc-node3-0b5mc -i -t -- mysql -u root -p -h pxc-cluster
 
-Enter password: 
+Enter password:
 Welcome to the MySQL monitor.  Commands end with ; or \g.
 Your MySQL connection id is 5
 Server version: 5.6.24-72.2-56-log Percona XtraDB Cluster (GPL), Release rel72.2, Revision 43abf03, WSREP version 25.11, wsrep_25.11

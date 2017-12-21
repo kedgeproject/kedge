@@ -2,10 +2,15 @@ package image_ecosystem
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	g "github.com/onsi/ginkgo"
 	o "github.com/onsi/gomega"
+
+	"k8s.io/apimachinery/pkg/util/wait"
+
+	e2e "k8s.io/kubernetes/test/e2e/framework"
 
 	exutil "github.com/openshift/origin/test/extended/util"
 )
@@ -30,64 +35,82 @@ func NewSampleRepoTest(c SampleRepoConfig) func() {
 		defer g.GinkgoRecover()
 		var oc = exutil.NewCLI(c.repoName+"-repo-test", exutil.KubeConfigPath())
 
-		g.JustBeforeEach(func() {
-			g.By("Waiting for builder service account")
-			err := exutil.WaitForBuilderAccount(oc.KubeClient().CoreV1().ServiceAccounts(oc.Namespace()))
-			o.Expect(err).NotTo(o.HaveOccurred())
-		})
-
-		g.Describe("Building "+c.repoName+" app from new-app", func() {
-			g.It(fmt.Sprintf("should build a "+c.repoName+" image and run it in a pod"), func() {
-				oc.SetOutputDir(exutil.TestContext.OutputDir)
-
-				err := exutil.WaitForOpenShiftNamespaceImageStreams(oc)
+		g.Context("", func() {
+			g.JustBeforeEach(func() {
+				g.By("Waiting for builder service account")
+				err := exutil.WaitForBuilderAccount(oc.KubeClient().CoreV1().ServiceAccounts(oc.Namespace()))
 				o.Expect(err).NotTo(o.HaveOccurred())
-				g.By(fmt.Sprintf("calling oc new-app with the " + c.repoName + " example template"))
-				err = oc.Run("new-app").Args("-f", c.templateURL).Execute()
-				o.Expect(err).NotTo(o.HaveOccurred())
+			})
 
-				// all the templates automatically start a build.
-				buildName := c.buildConfigName + "-1"
-
-				g.By("expecting the build is in the Complete phase")
-				err = exutil.WaitForABuild(oc.Client().Builds(oc.Namespace()), buildName, nil, nil, nil)
-				if err != nil {
-					exutil.DumpBuildLogs(c.buildConfigName, oc)
+			g.AfterEach(func() {
+				if g.CurrentGinkgoTestDescription().Failed {
+					exutil.DumpPodStates(oc)
+					exutil.DumpPodLogsStartingWith("", oc)
 				}
-				o.Expect(err).NotTo(o.HaveOccurred())
+			})
 
-				g.By("expecting the app deployment to be complete")
-				err = exutil.WaitForDeploymentConfig(oc.KubeClient(), oc.Client(), oc.Namespace(), c.deploymentConfigName, 1, oc)
-				o.Expect(err).NotTo(o.HaveOccurred())
+			g.Describe("Building "+c.repoName+" app from new-app", func() {
+				g.It(fmt.Sprintf("should build a "+c.repoName+" image and run it in a pod"), func() {
+					oc.SetOutputDir(exutil.TestContext.OutputDir)
 
-				if len(c.dbDeploymentConfigName) > 0 {
-					g.By("expecting the db deployment to be complete")
-					err = exutil.WaitForDeploymentConfig(oc.KubeClient(), oc.Client(), oc.Namespace(), c.dbDeploymentConfigName, 1, oc)
+					err := exutil.WaitForOpenShiftNamespaceImageStreams(oc)
+					o.Expect(err).NotTo(o.HaveOccurred())
+					g.By(fmt.Sprintf("calling oc new-app with the " + c.repoName + " example template"))
+					err = oc.Run("new-app").Args("-f", c.templateURL).Execute()
 					o.Expect(err).NotTo(o.HaveOccurred())
 
-					g.By("expecting the db service is available")
-					serviceIP, err := oc.Run("get").Args("service", c.dbServiceName).Template("{{ .spec.clusterIP }}").Output()
+					// all the templates automatically start a build.
+					buildName := c.buildConfigName + "-1"
+
+					g.By("expecting the build is in the Complete phase")
+					err = exutil.WaitForABuild(oc.BuildClient().Build().Builds(oc.Namespace()), buildName, nil, nil, nil)
+					if err != nil {
+						exutil.DumpBuildLogs(c.buildConfigName, oc)
+					}
+					o.Expect(err).NotTo(o.HaveOccurred())
+
+					g.By("expecting the app deployment to be complete")
+					err = exutil.WaitForDeploymentConfig(oc.KubeClient(), oc.AppsClient().Apps(), oc.Namespace(), c.deploymentConfigName, 1, oc)
+					o.Expect(err).NotTo(o.HaveOccurred())
+
+					if len(c.dbDeploymentConfigName) > 0 {
+						g.By("expecting the db deployment to be complete")
+						err = exutil.WaitForDeploymentConfig(oc.KubeClient(), oc.AppsClient().Apps(), oc.Namespace(), c.dbDeploymentConfigName, 1, oc)
+						o.Expect(err).NotTo(o.HaveOccurred())
+
+						g.By("expecting the db service is available")
+						serviceIP, err := oc.Run("get").Args("service", c.dbServiceName).Template("{{ .spec.clusterIP }}").Output()
+						o.Expect(err).NotTo(o.HaveOccurred())
+						o.Expect(serviceIP).ShouldNot(o.Equal(""))
+
+						g.By("expecting a db endpoint is available")
+						err = e2e.WaitForEndpoint(oc.KubeFramework().ClientSet, oc.Namespace(), c.dbServiceName)
+						o.Expect(err).NotTo(o.HaveOccurred())
+					}
+
+					g.By("expecting the app service is available")
+					serviceIP, err := oc.Run("get").Args("service", c.serviceName).Template("{{ .spec.clusterIP }}").Output()
 					o.Expect(err).NotTo(o.HaveOccurred())
 					o.Expect(serviceIP).ShouldNot(o.Equal(""))
 
-					g.By("expecting a db endpoint is available")
-					err = oc.KubeFramework().WaitForAnEndpoint(c.dbServiceName)
+					g.By("expecting an app endpoint is available")
+					err = e2e.WaitForEndpoint(oc.KubeFramework().ClientSet, oc.Namespace(), c.serviceName)
 					o.Expect(err).NotTo(o.HaveOccurred())
-				}
 
-				g.By("expecting the app service is available")
-				serviceIP, err := oc.Run("get").Args("service", c.serviceName).Template("{{ .spec.clusterIP }}").Output()
-				o.Expect(err).NotTo(o.HaveOccurred())
-				o.Expect(serviceIP).ShouldNot(o.Equal(""))
-
-				g.By("expecting an app endpoint is available")
-				err = oc.KubeFramework().WaitForAnEndpoint(c.serviceName)
-				o.Expect(err).NotTo(o.HaveOccurred())
-
-				g.By("verifying string from app request")
-				response, err := exutil.FetchURL("http://"+serviceIP+":8080"+c.appPath, time.Duration(30*time.Second))
-				o.Expect(err).NotTo(o.HaveOccurred())
-				o.Expect(response).Should(o.ContainSubstring(c.expectedString))
+					g.By("verifying string from app request")
+					var response string
+					err = wait.Poll(1*time.Second, 2*time.Minute, func() (bool, error) {
+						response, err = exutil.FetchURL("http://"+serviceIP+":8080"+c.appPath, time.Duration(1*time.Minute))
+						if err != nil {
+							o.Expect(err).NotTo(o.HaveOccurred())
+						}
+						if strings.Contains(response, c.expectedString) {
+							return true, nil
+						}
+						return false, nil
+					})
+					o.Expect(response).Should(o.ContainSubstring(c.expectedString))
+				})
 			})
 		})
 	}

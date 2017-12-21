@@ -50,7 +50,27 @@ func (strategy) PrepareForCreate(_ genericapirequest.Context, obj runtime.Object
 func (strategy) PrepareForUpdate(_ genericapirequest.Context, obj, old runtime.Object) {
 }
 
+// Canonicalize removes duplicate user and group values, preserving order.
 func (strategy) Canonicalize(obj runtime.Object) {
+	scc := obj.(*securityapi.SecurityContextConstraints)
+	scc.Users = uniqueStrings(scc.Users)
+	scc.Groups = uniqueStrings(scc.Groups)
+}
+
+func uniqueStrings(values []string) []string {
+	if len(values) < 2 {
+		return values
+	}
+	updated := make([]string, 0, len(values))
+	existing := make(map[string]struct{})
+	for _, value := range values {
+		if _, ok := existing[value]; ok {
+			continue
+		}
+		existing[value] = struct{}{}
+		updated = append(updated, value)
+	}
+	return updated
 }
 
 func (strategy) Validate(ctx genericapirequest.Context, obj runtime.Object) field.ErrorList {
@@ -62,12 +82,12 @@ func (strategy) ValidateUpdate(ctx genericapirequest.Context, obj, old runtime.O
 }
 
 // GetAttrs returns labels and fields of a given object for filtering purposes.
-func GetAttrs(obj runtime.Object) (labels.Set, fields.Set, error) {
+func GetAttrs(obj runtime.Object) (labels.Set, fields.Set, bool, error) {
 	scc, ok := obj.(*securityapi.SecurityContextConstraints)
 	if !ok {
-		return nil, nil, fmt.Errorf("not SecurityContextConstraints")
+		return nil, nil, false, fmt.Errorf("not SecurityContextConstraints")
 	}
-	return labels.Set(scc.Labels), SelectableFields(scc), nil
+	return labels.Set(scc.Labels), SelectableFields(scc), scc.Initializers != nil, nil
 }
 
 // Matcher returns a generic matcher for a given label and field selector.
@@ -75,12 +95,12 @@ func Matcher(label labels.Selector, field fields.Selector) apistorage.SelectionP
 	return apistorage.SelectionPredicate{
 		Label: label,
 		Field: field,
-		GetAttrs: func(obj runtime.Object) (labels.Set, fields.Set, error) {
+		GetAttrs: func(obj runtime.Object) (labels.Set, fields.Set, bool, error) {
 			scc, ok := obj.(*securityapi.SecurityContextConstraints)
 			if !ok {
-				return nil, nil, fmt.Errorf("not a securitycontextconstraint")
+				return nil, nil, false, fmt.Errorf("not a securitycontextconstraint")
 			}
-			return labels.Set(scc.Labels), SelectableFields(scc), nil
+			return labels.Set(scc.Labels), SelectableFields(scc), scc.Initializers != nil, nil
 		},
 	}
 }

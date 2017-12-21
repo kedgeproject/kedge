@@ -23,10 +23,10 @@ type RegistryMatcher interface {
 	Matches(name string) bool
 }
 
-type RegistryNameMatcher imageapi.DefaultRegistryFunc
+type RegistryNameMatcher func() (string, bool)
 
 func (m RegistryNameMatcher) Matches(name string) bool {
-	current, ok := imageapi.DefaultRegistryFunc(m)()
+	current, ok := m()
 	if !ok {
 		return false
 	}
@@ -49,12 +49,6 @@ func NewRegistryMatcher(names []string) RegistryMatcher {
 }
 
 type resourceSet map[schema.GroupResource]struct{}
-
-func (s resourceSet) addAll(other resourceSet) {
-	for k := range other {
-		s[k] = struct{}{}
-	}
-}
 
 func imageConditionInfo(rule *api.ImageCondition) (covers resourceSet, selectors []labels.Selector, err error) {
 	covers = make(resourceSet)

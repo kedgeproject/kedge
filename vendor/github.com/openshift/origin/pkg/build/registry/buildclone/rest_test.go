@@ -12,7 +12,7 @@ import (
 )
 
 func TestCreateClone(t *testing.T) {
-	rest := CloneREST{&generator.BuildGenerator{Client: generator.Client{
+	rest := CloneREST{&generator.BuildGenerator{Client: generator.TestingClient{
 		CreateBuildFunc: func(ctx apirequest.Context, build *buildapi.Build) error {
 			return nil
 		},
@@ -21,7 +21,7 @@ func TestCreateClone(t *testing.T) {
 		},
 	}}}
 
-	_, err := rest.Create(apirequest.NewDefaultContext(), &buildapi.BuildRequest{ObjectMeta: metav1.ObjectMeta{Name: "name"}})
+	_, err := rest.Create(apirequest.NewDefaultContext(), &buildapi.BuildRequest{ObjectMeta: metav1.ObjectMeta{Name: "name"}}, false)
 	if err != nil {
 		t.Errorf("Unexpected error %v", err)
 	}
@@ -29,7 +29,7 @@ func TestCreateClone(t *testing.T) {
 
 func TestCreateCloneValidationError(t *testing.T) {
 	rest := CloneREST{&generator.BuildGenerator{}}
-	_, err := rest.Create(apirequest.NewDefaultContext(), &buildapi.BuildRequest{})
+	_, err := rest.Create(apirequest.NewDefaultContext(), &buildapi.BuildRequest{}, false)
 	if err == nil {
 		t.Error("Expected object got none!")
 	}

@@ -8,6 +8,7 @@ import (
 	"github.com/docker/distribution/context"
 	"github.com/docker/distribution/digest"
 
+	registryclient "github.com/openshift/origin/pkg/dockerregistry/server/client"
 	registrytest "github.com/openshift/origin/pkg/dockerregistry/testutil"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
 )
@@ -17,7 +18,10 @@ func TestTagGet(t *testing.T) {
 	repo := "app"
 	tag := "latest"
 
-	fos, client := registrytest.NewFakeOpenShiftWithClient()
+	backgroundCtx := context.Background()
+	backgroundCtx = registrytest.WithTestLogger(backgroundCtx, t)
+
+	fos, imageClient := registrytest.NewFakeOpenShiftWithClient(backgroundCtx)
 	testImage := registrytest.AddRandomImage(t, fos, namespace, repo, tag)
 
 	testcases := []struct {
@@ -67,8 +71,8 @@ func TestTagGet(t *testing.T) {
 			testImage.Annotations[imageapi.ManagedByOpenShiftAnnotation] = "false"
 		}
 
-		r := newTestRepository(t, namespace, repo, testRepositoryOptions{
-			client:            client,
+		r := newTestRepository(backgroundCtx, t, namespace, repo, testRepositoryOptions{
+			client:            registryclient.NewFakeRegistryAPIClient(nil, imageClient),
 			enablePullThrough: tc.pullthrough,
 		})
 
@@ -77,7 +81,7 @@ func TestTagGet(t *testing.T) {
 			repo:       r,
 		}
 
-		resultDesc, err := ts.Get(context.Background(), tc.tagName)
+		resultDesc, err := ts.Get(backgroundCtx, tc.tagName)
 
 		switch err.(type) {
 		case distribution.ErrTagUnknown:
@@ -106,10 +110,13 @@ func TestTagGetWithoutImageStream(t *testing.T) {
 	repo := "app"
 	tag := "latest"
 
-	_, client := registrytest.NewFakeOpenShiftWithClient()
+	ctx := context.Background()
+	ctx = registrytest.WithTestLogger(ctx, t)
 
-	r := newTestRepository(t, namespace, repo, testRepositoryOptions{
-		client: client,
+	_, imageClient := registrytest.NewFakeOpenShiftWithClient(ctx)
+
+	r := newTestRepository(ctx, t, namespace, repo, testRepositoryOptions{
+		client: registryclient.NewFakeRegistryAPIClient(nil, imageClient),
 	})
 
 	ts := &tagService{
@@ -117,7 +124,7 @@ func TestTagGetWithoutImageStream(t *testing.T) {
 		repo:       r,
 	}
 
-	_, err := ts.Get(context.Background(), tag)
+	_, err := ts.Get(ctx, tag)
 	if err == nil {
 		t.Fatalf("error expected")
 	}
@@ -133,7 +140,10 @@ func TestTagCreation(t *testing.T) {
 	repo := "app"
 	tag := "latest"
 
-	fos, client := registrytest.NewFakeOpenShiftWithClient()
+	ctx := context.Background()
+	ctx = registrytest.WithTestLogger(ctx, t)
+
+	fos, imageClient := registrytest.NewFakeOpenShiftWithClient(ctx)
 	testImage := registrytest.AddRandomImage(t, fos, namespace, repo, tag)
 
 	testcases := []struct {
@@ -172,8 +182,8 @@ func TestTagCreation(t *testing.T) {
 			testImage.Annotations[imageapi.ManagedByOpenShiftAnnotation] = "false"
 		}
 
-		r := newTestRepository(t, namespace, repo, testRepositoryOptions{
-			client:            client,
+		r := newTestRepository(ctx, t, namespace, repo, testRepositoryOptions{
+			client:            registryclient.NewFakeRegistryAPIClient(nil, imageClient),
 			enablePullThrough: tc.pullthrough,
 		})
 
@@ -182,7 +192,7 @@ func TestTagCreation(t *testing.T) {
 			repo:       r,
 		}
 
-		err := ts.Tag(context.Background(), tc.tagName, tc.tagValue)
+		err := ts.Tag(ctx, tc.tagName, tc.tagValue)
 		if tc.expectedError {
 			if err == nil {
 				t.Fatalf("[%s] error expected", tc.title)
@@ -190,7 +200,17 @@ func TestTagCreation(t *testing.T) {
 			continue
 		}
 
-		tag, err := ts.Get(context.Background(), tc.tagName)
+		r = newTestRepository(ctx, t, namespace, repo, testRepositoryOptions{
+			client:            registryclient.NewFakeRegistryAPIClient(nil, imageClient),
+			enablePullThrough: tc.pullthrough,
+		})
+
+		ts = &tagService{
+			TagService: newTestTagService(nil),
+			repo:       r,
+		}
+
+		tag, err := ts.Get(ctx, tc.tagName)
 		if err != nil {
 			t.Fatalf("[%s] unexpected error: %s", tc.title, err)
 		}
@@ -206,11 +226,14 @@ func TestTagCreationWithoutImageStream(t *testing.T) {
 	repo := "app"
 	tag := "latest"
 
-	fos, client := registrytest.NewFakeOpenShiftWithClient()
+	ctx := context.Background()
+	ctx = registrytest.WithTestLogger(ctx, t)
+
+	fos, imageClient := registrytest.NewFakeOpenShiftWithClient(ctx)
 	anotherImage := registrytest.AddRandomImage(t, fos, namespace, repo+"-another", tag)
 
-	r := newTestRepository(t, namespace, repo, testRepositoryOptions{
-		client: client,
+	r := newTestRepository(ctx, t, namespace, repo, testRepositoryOptions{
+		client: registryclient.NewFakeRegistryAPIClient(nil, imageClient),
 	})
 
 	ts := &tagService{
@@ -218,7 +241,7 @@ func TestTagCreationWithoutImageStream(t *testing.T) {
 		repo:       r,
 	}
 
-	err := ts.Tag(context.Background(), tag, distribution.Descriptor{
+	err := ts.Tag(ctx, tag, distribution.Descriptor{
 		Digest: digest.Digest(anotherImage.Name),
 	})
 	if err == nil {
@@ -236,7 +259,10 @@ func TestTagDeletion(t *testing.T) {
 	repo := "app"
 	tag := "latest"
 
-	fos, client := registrytest.NewFakeOpenShiftWithClient()
+	ctx := context.Background()
+	ctx = registrytest.WithTestLogger(ctx, t)
+
+	fos, imageClient := registrytest.NewFakeOpenShiftWithClient(ctx)
 	testImage := registrytest.AddRandomImage(t, fos, namespace, repo, tag)
 
 	testcases := []struct {
@@ -283,8 +309,8 @@ func TestTagDeletion(t *testing.T) {
 			testImage.Annotations[imageapi.ManagedByOpenShiftAnnotation] = "false"
 		}
 
-		r := newTestRepository(t, namespace, repo, testRepositoryOptions{
-			client:            client,
+		r := newTestRepository(ctx, t, namespace, repo, testRepositoryOptions{
+			client:            registryclient.NewFakeRegistryAPIClient(nil, imageClient),
 			enablePullThrough: tc.pullthrough,
 		})
 
@@ -293,7 +319,7 @@ func TestTagDeletion(t *testing.T) {
 			repo:       r,
 		}
 
-		err := ts.Untag(context.Background(), tc.tagName)
+		err := ts.Untag(ctx, tc.tagName)
 
 		switch err.(type) {
 		case distribution.ErrTagUnknown:
@@ -318,10 +344,13 @@ func TestTagDeletionWithoutImageStream(t *testing.T) {
 	repo := "app"
 	tag := "latest"
 
-	_, client := registrytest.NewFakeOpenShiftWithClient()
+	ctx := context.Background()
+	ctx = registrytest.WithTestLogger(ctx, t)
 
-	r := newTestRepository(t, namespace, repo, testRepositoryOptions{
-		client: client,
+	_, imageClient := registrytest.NewFakeOpenShiftWithClient(ctx)
+
+	r := newTestRepository(ctx, t, namespace, repo, testRepositoryOptions{
+		client: registryclient.NewFakeRegistryAPIClient(nil, imageClient),
 	})
 
 	ts := &tagService{
@@ -329,7 +358,7 @@ func TestTagDeletionWithoutImageStream(t *testing.T) {
 		repo:       r,
 	}
 
-	err := ts.Untag(context.Background(), tag)
+	err := ts.Untag(ctx, tag)
 	if err == nil {
 		t.Fatalf("error expected")
 	}
@@ -345,7 +374,10 @@ func TestTagGetAll(t *testing.T) {
 	repo := "app"
 	tag := "latest"
 
-	fos, client := registrytest.NewFakeOpenShiftWithClient()
+	ctx := context.Background()
+	ctx = registrytest.WithTestLogger(ctx, t)
+
+	fos, imageClient := registrytest.NewFakeOpenShiftWithClient(ctx)
 	testImage := registrytest.AddRandomImage(t, fos, namespace, repo, tag)
 
 	testcases := []struct {
@@ -379,8 +411,8 @@ func TestTagGetAll(t *testing.T) {
 			testImage.Annotations[imageapi.ManagedByOpenShiftAnnotation] = "false"
 		}
 
-		r := newTestRepository(t, namespace, repo, testRepositoryOptions{
-			client:            client,
+		r := newTestRepository(ctx, t, namespace, repo, testRepositoryOptions{
+			client:            registryclient.NewFakeRegistryAPIClient(nil, imageClient),
 			enablePullThrough: tc.pullthrough,
 		})
 
@@ -389,7 +421,7 @@ func TestTagGetAll(t *testing.T) {
 			repo:       r,
 		}
 
-		result, err := ts.All(context.Background())
+		result, err := ts.All(ctx)
 
 		if err != nil && !tc.expectedError {
 			t.Fatalf("[%s] unexpected error: %#+v", tc.title, err)
@@ -405,10 +437,13 @@ func TestTagGetAllWithoutImageStream(t *testing.T) {
 	namespace := "user"
 	repo := "app"
 
-	_, client := registrytest.NewFakeOpenShiftWithClient()
+	ctx := context.Background()
+	ctx = registrytest.WithTestLogger(ctx, t)
 
-	r := newTestRepository(t, namespace, repo, testRepositoryOptions{
-		client: client,
+	_, imageClient := registrytest.NewFakeOpenShiftWithClient(ctx)
+
+	r := newTestRepository(ctx, t, namespace, repo, testRepositoryOptions{
+		client: registryclient.NewFakeRegistryAPIClient(nil, imageClient),
 	})
 
 	ts := &tagService{
@@ -416,7 +451,7 @@ func TestTagGetAllWithoutImageStream(t *testing.T) {
 		repo:       r,
 	}
 
-	_, err := ts.All(context.Background())
+	_, err := ts.All(ctx)
 	if err == nil {
 		t.Fatalf("error expected")
 	}
@@ -432,7 +467,10 @@ func TestTagLookup(t *testing.T) {
 	repo := "app"
 	tag := "latest"
 
-	fos, client := registrytest.NewFakeOpenShiftWithClient()
+	ctx := context.Background()
+	ctx = registrytest.WithTestLogger(ctx, t)
+
+	fos, imageClient := registrytest.NewFakeOpenShiftWithClient(ctx)
 	testImage := registrytest.AddRandomImage(t, fos, namespace, repo, tag)
 
 	testcases := []struct {
@@ -477,8 +515,8 @@ func TestTagLookup(t *testing.T) {
 			testImage.Annotations[imageapi.ManagedByOpenShiftAnnotation] = "false"
 		}
 
-		r := newTestRepository(t, namespace, repo, testRepositoryOptions{
-			client:            client,
+		r := newTestRepository(ctx, t, namespace, repo, testRepositoryOptions{
+			client:            registryclient.NewFakeRegistryAPIClient(nil, imageClient),
 			enablePullThrough: tc.pullthrough,
 		})
 
@@ -487,7 +525,7 @@ func TestTagLookup(t *testing.T) {
 			repo:       r,
 		}
 
-		result, err := ts.Lookup(context.Background(), tc.tagValue)
+		result, err := ts.Lookup(ctx, tc.tagValue)
 
 		if err != nil {
 			if !tc.expectedError {
@@ -511,11 +549,14 @@ func TestTagLookupWithoutImageStream(t *testing.T) {
 	repo := "app"
 	tag := "latest"
 
-	fos, client := registrytest.NewFakeOpenShiftWithClient()
+	ctx := context.Background()
+	ctx = registrytest.WithTestLogger(ctx, t)
+
+	fos, imageClient := registrytest.NewFakeOpenShiftWithClient(ctx)
 	anotherImage := registrytest.AddRandomImage(t, fos, namespace, repo+"-another", tag)
 
-	r := newTestRepository(t, namespace, repo, testRepositoryOptions{
-		client: client,
+	r := newTestRepository(ctx, t, namespace, repo, testRepositoryOptions{
+		client: registryclient.NewFakeRegistryAPIClient(nil, imageClient),
 	})
 
 	ts := &tagService{
@@ -523,7 +564,7 @@ func TestTagLookupWithoutImageStream(t *testing.T) {
 		repo:       r,
 	}
 
-	_, err := ts.Lookup(context.Background(), distribution.Descriptor{
+	_, err := ts.Lookup(ctx, distribution.Descriptor{
 		Digest: digest.Digest(anotherImage.Name),
 	})
 	if err == nil {

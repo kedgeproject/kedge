@@ -36,12 +36,15 @@ type PolicyRule struct {
 	NonResourceURLsSlice []string `json:"nonResourceURLs,omitempty" protobuf:"bytes,6,rep,name=nonResourceURLs"`
 }
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 // IsPersonalSubjectAccessReview is a marker for PolicyRule.AttributeRestrictions that denotes that subjectaccessreviews on self should be allowed
 type IsPersonalSubjectAccessReview struct {
 	metav1.TypeMeta `json:",inline"`
 }
 
-// +genclient=true
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // Role is a logical grouping of PolicyRules that can be referenced as a unit by RoleBindings.
 type Role struct {
@@ -62,7 +65,8 @@ func (t OptionalNames) String() string {
 	return fmt.Sprintf("%v", []string(t))
 }
 
-// +genclient=true
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // RoleBinding references a Role, but not contain it.  It can reference any Role in the same namespace or in the global namespace.
 // It adds who information via (Users and Groups) OR Subjects and namespace information by which namespace it exists in.
@@ -97,7 +101,8 @@ type RoleBinding struct {
 
 type NamedRoles []NamedRole
 
-// +genclient=true
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // Policy is a object that holds all the Roles for a particular namespace.  There is at most
 // one Policy document per namespace.
@@ -115,7 +120,8 @@ type Policy struct {
 
 type NamedRoleBindings []NamedRoleBinding
 
-// +genclient=true
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // PolicyBinding is a object that holds all the RoleBindings for a particular namespace.  There is
 // one PolicyBinding document per referenced Policy namespace
@@ -149,6 +155,10 @@ type NamedRoleBinding struct {
 	RoleBinding RoleBinding `json:"roleBinding" protobuf:"bytes,2,opt,name=roleBinding"`
 }
 
+// +genclient
+// +genclient:onlyVerbs=create
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 // SelfSubjectRulesReview is a resource you can create to determine which actions you can perform in a namespace
 type SelfSubjectRulesReview struct {
 	metav1.TypeMeta `json:",inline"`
@@ -167,6 +177,10 @@ type SelfSubjectRulesReviewSpec struct {
 	// +k8s:conversion-gen=false
 	Scopes OptionalScopes `json:"scopes" protobuf:"bytes,1,rep,name=scopes"`
 }
+
+// +genclient
+// +genclient:onlyVerbs=create
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // SubjectRulesReview is a resource you can create to determine which actions another user can perform in a namespace
 type SubjectRulesReview struct {
@@ -198,6 +212,8 @@ type SubjectRulesReviewStatus struct {
 	EvaluationError string `json:"evaluationError,omitempty" protobuf:"bytes,2,opt,name=evaluationError"`
 }
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 // ResourceAccessReviewResponse describes who can perform the action
 type ResourceAccessReviewResponse struct {
 	metav1.TypeMeta `json:",inline"`
@@ -217,6 +233,12 @@ type ResourceAccessReviewResponse struct {
 	EvaluationError string `json:"evalutionError" protobuf:"bytes,4,opt,name=evalutionError"`
 }
 
+// +genclient
+// +genclient:nonNamespaced
+// +genclient:skipVerbs=get,list,create,update,patch,delete,deleteCollection,watch
+// +genclient:method=Create,verb=create,result=ResourceAccessReviewResponse
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 // ResourceAccessReview is a means to request a list of which users and groups are authorized to perform the
 // action specified by spec
 type ResourceAccessReview struct {
@@ -225,6 +247,8 @@ type ResourceAccessReview struct {
 	// Action describes the action being tested.
 	Action `json:",inline" protobuf:"bytes,1,opt,name=Action"`
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // SubjectAccessReviewResponse describes whether or not a user or group can perform an action
 type SubjectAccessReviewResponse struct {
@@ -251,6 +275,12 @@ func (t OptionalScopes) String() string {
 	return fmt.Sprintf("%v", []string(t))
 }
 
+// +genclient
+// +genclient:nonNamespaced
+// +genclient:skipVerbs=get,list,create,update,patch,delete,deleteCollection,watch
+// +genclient:method=Create,verb=create,result=SubjectAccessReviewResponse
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 // SubjectAccessReview is an object for requesting information about whether a user or group can perform an action
 type SubjectAccessReview struct {
 	metav1.TypeMeta `json:",inline"`
@@ -269,6 +299,11 @@ type SubjectAccessReview struct {
 	Scopes OptionalScopes `json:"scopes" protobuf:"bytes,4,rep,name=scopes"`
 }
 
+// +genclient
+// +genclient:skipVerbs=get,list,create,update,patch,delete,deleteCollection,watch
+// +genclient:method=Create,verb=create,result=ResourceAccessReviewResponse
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 // LocalResourceAccessReview is a means to request a list of which users and groups are authorized to perform the action specified by spec in a particular namespace
 type LocalResourceAccessReview struct {
 	metav1.TypeMeta `json:",inline"`
@@ -276,6 +311,11 @@ type LocalResourceAccessReview struct {
 	// Action describes the action being tested.  The Namespace element is FORCED to the current namespace.
 	Action `json:",inline" protobuf:"bytes,1,opt,name=Action"`
 }
+
+// +genclient
+// +genclient:skipVerbs=get,list,create,update,patch,delete,deleteCollection,watch
+// +genclient:method=Create,verb=create,result=SubjectAccessReviewResponse
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // LocalSubjectAccessReview is an object for requesting information about whether a user or group can perform an action in a particular namespace
 type LocalSubjectAccessReview struct {
@@ -319,6 +359,8 @@ type Action struct {
 	Content kruntime.RawExtension `json:"content,omitempty" protobuf:"bytes,7,opt,name=content"`
 }
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 // PolicyList is a collection of Policies
 type PolicyList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -328,6 +370,8 @@ type PolicyList struct {
 	// Items is a list of Policies
 	Items []Policy `json:"items" protobuf:"bytes,2,rep,name=items"`
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // PolicyBindingList is a collection of PolicyBindings
 type PolicyBindingList struct {
@@ -339,6 +383,8 @@ type PolicyBindingList struct {
 	Items []PolicyBinding `json:"items" protobuf:"bytes,2,rep,name=items"`
 }
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 // RoleBindingList is a collection of RoleBindings
 type RoleBindingList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -348,6 +394,8 @@ type RoleBindingList struct {
 	// Items is a list of RoleBindings
 	Items []RoleBinding `json:"items" protobuf:"bytes,2,rep,name=items"`
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // RoleList is a collection of Roles
 type RoleList struct {
@@ -359,8 +407,9 @@ type RoleList struct {
 	Items []Role `json:"items" protobuf:"bytes,2,rep,name=items"`
 }
 
-// +genclient=true
-// +nonNamespaced=true
+// +genclient
+// +genclient:nonNamespaced
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // ClusterRole is a logical grouping of PolicyRules that can be referenced as a unit by ClusterRoleBindings.
 type ClusterRole struct {
@@ -372,8 +421,9 @@ type ClusterRole struct {
 	Rules []PolicyRule `json:"rules" protobuf:"bytes,2,rep,name=rules"`
 }
 
-// +genclient=true
-// +nonNamespaced=true
+// +genclient
+// +genclient:nonNamespaced
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // ClusterRoleBinding references a ClusterRole, but not contain it.  It can reference any ClusterRole in the same namespace or in the global namespace.
 // It adds who information via (Users and Groups) OR Subjects and namespace information by which namespace it exists in.
@@ -408,8 +458,9 @@ type ClusterRoleBinding struct {
 
 type NamedClusterRoles []NamedClusterRole
 
-// +genclient=true
-// +nonNamespaced=true
+// +genclient
+// +genclient:nonNamespaced
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // ClusterPolicy is a object that holds all the ClusterRoles for a particular namespace.  There is at most
 // one ClusterPolicy document per namespace.
@@ -427,8 +478,9 @@ type ClusterPolicy struct {
 
 type NamedClusterRoleBindings []NamedClusterRoleBinding
 
-// +genclient=true
-// +nonNamespaced=true
+// +genclient
+// +genclient:nonNamespaced
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // ClusterPolicyBinding is a object that holds all the ClusterRoleBindings for a particular namespace.  There is
 // one ClusterPolicyBinding document per referenced ClusterPolicy namespace
@@ -462,6 +514,8 @@ type NamedClusterRoleBinding struct {
 	RoleBinding ClusterRoleBinding `json:"roleBinding" protobuf:"bytes,2,opt,name=roleBinding"`
 }
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 // ClusterPolicyList is a collection of ClusterPolicies
 type ClusterPolicyList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -471,6 +525,8 @@ type ClusterPolicyList struct {
 	// Items is a list of ClusterPolicies
 	Items []ClusterPolicy `json:"items" protobuf:"bytes,2,rep,name=items"`
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // ClusterPolicyBindingList is a collection of ClusterPolicyBindings
 type ClusterPolicyBindingList struct {
@@ -482,6 +538,8 @@ type ClusterPolicyBindingList struct {
 	Items []ClusterPolicyBinding `json:"items" protobuf:"bytes,2,rep,name=items"`
 }
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 // ClusterRoleBindingList is a collection of ClusterRoleBindings
 type ClusterRoleBindingList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -492,6 +550,8 @@ type ClusterRoleBindingList struct {
 	Items []ClusterRoleBinding `json:"items" protobuf:"bytes,2,rep,name=items"`
 }
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
 // ClusterRoleList is a collection of ClusterRoles
 type ClusterRoleList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -501,6 +561,9 @@ type ClusterRoleList struct {
 	// Items is a list of ClusterRoles
 	Items []ClusterRole `json:"items" protobuf:"bytes,2,rep,name=items"`
 }
+
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // RoleBindingRestriction is an object that can be matched against a subject
 // (user, group, or service account) to determine whether rolebindings on that
@@ -529,6 +592,8 @@ type RoleBindingRestrictionSpec struct {
 	// ServiceAccountRestriction matches against service-account subjects.
 	ServiceAccountRestriction *ServiceAccountRestriction `json:"serviceaccountrestriction" protobuf:"bytes,3,opt,name=serviceaccountrestriction"`
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // RoleBindingRestrictionList is a collection of RoleBindingRestriction objects.
 type RoleBindingRestrictionList struct {

@@ -39,12 +39,13 @@ type FailedPredicateMap map[string][]algorithm.PredicateFailureReason
 
 type FitError struct {
 	Pod              *v1.Pod
+	NumAllNodes      int
 	FailedPredicates FailedPredicateMap
 }
 
 var ErrNoNodesAvailable = fmt.Errorf("no nodes available to schedule pods")
 
-const NoNodeAvailableMsg = "No nodes are available that match all of the following predicates:"
+const NoNodeAvailableMsg = "0/%v nodes are available"
 
 // Error returns detailed information of why the pod failed to fit on each node
 func (f *FitError) Error() string {
@@ -58,17 +59,18 @@ func (f *FitError) Error() string {
 	sortReasonsHistogram := func() []string {
 		reasonStrings := []string{}
 		for k, v := range reasons {
-			reasonStrings = append(reasonStrings, fmt.Sprintf("%v (%v)", k, v))
+			reasonStrings = append(reasonStrings, fmt.Sprintf("%v %v", v, k))
 		}
 		sort.Strings(reasonStrings)
 		return reasonStrings
 	}
-	reasonMsg := fmt.Sprintf(NoNodeAvailableMsg+": %v.", strings.Join(sortReasonsHistogram(), ", "))
+	reasonMsg := fmt.Sprintf(NoNodeAvailableMsg+": %v.", f.NumAllNodes, strings.Join(sortReasonsHistogram(), ", "))
 	return reasonMsg
 }
 
 type genericScheduler struct {
 	cache                 schedulercache.Cache
+	equivalenceCache      *EquivalenceCache
 	predicates            map[string]algorithm.FitPredicate
 	priorityMetaProducer  algorithm.MetadataProducer
 	predicateMetaProducer algorithm.MetadataProducer
@@ -79,8 +81,6 @@ type genericScheduler struct {
 	lastNodeIndex         uint64
 
 	cachedNodeInfoMap map[string]*schedulercache.NodeInfo
-
-	equivalenceCache *EquivalenceCache
 }
 
 // Schedule tries to schedule the given pod to one of node in the node list.
@@ -104,10 +104,8 @@ func (g *genericScheduler) Schedule(pod *v1.Pod, nodeLister algorithm.NodeLister
 		return "", err
 	}
 
-	// TODO(harryz) Check if equivalenceCache is enabled and call scheduleWithEquivalenceClass here
-
 	trace.Step("Computing predicates")
-	filteredNodes, failedPredicateMap, err := findNodesThatFit(pod, g.cachedNodeInfoMap, nodes, g.predicates, g.extenders, g.predicateMetaProducer)
+	filteredNodes, failedPredicateMap, err := findNodesThatFit(pod, g.cachedNodeInfoMap, nodes, g.predicates, g.extenders, g.predicateMetaProducer, g.equivalenceCache)
 	if err != nil {
 		return "", err
 	}
@@ -115,6 +113,7 @@ func (g *genericScheduler) Schedule(pod *v1.Pod, nodeLister algorithm.NodeLister
 	if len(filteredNodes) == 0 {
 		return "", &FitError{
 			Pod:              pod,
+			NumAllNodes:      len(nodes),
 			FailedPredicates: failedPredicateMap,
 		}
 	}
@@ -128,6 +127,18 @@ func (g *genericScheduler) Schedule(pod *v1.Pod, nodeLister algorithm.NodeLister
 
 	trace.Step("Selecting host")
 	return g.selectHost(priorityList)
+}
+
+// Prioritizers returns a slice containing all the scheduler's priority
+// functions and their config. It is exposed for testing only.
+func (g *genericScheduler) Prioritizers() []algorithm.PriorityConfig {
+	return g.prioritizers
+}
+
+// Predicates returns a map containing all the scheduler's predicate
+// functions. It is exposed for testing only.
+func (g *genericScheduler) Predicates() map[string]algorithm.FitPredicate {
+	return g.predicates
 }
 
 // selectHost takes a prioritized list of nodes and then picks one
@@ -158,6 +169,7 @@ func findNodesThatFit(
 	predicateFuncs map[string]algorithm.FitPredicate,
 	extenders []algorithm.SchedulerExtender,
 	metadataProducer algorithm.MetadataProducer,
+	ecache *EquivalenceCache,
 ) ([]*v1.Node, FailedPredicateMap, error) {
 	var filtered []*v1.Node
 	failedPredicateMap := FailedPredicateMap{}
@@ -176,7 +188,7 @@ func findNodesThatFit(
 		meta := metadataProducer(pod, nodeNameToInfo)
 		checkNode := func(i int) {
 			nodeName := nodes[i].Name
-			fits, failedPredicates, err := podFitsOnNode(pod, meta, nodeNameToInfo[nodeName], predicateFuncs)
+			fits, failedPredicates, err := podFitsOnNode(pod, meta, nodeNameToInfo[nodeName], predicateFuncs, ecache)
 			if err != nil {
 				predicateResultLock.Lock()
 				errs[err.Error()]++
@@ -221,15 +233,45 @@ func findNodesThatFit(
 }
 
 // Checks whether node with a given name and NodeInfo satisfies all predicateFuncs.
-func podFitsOnNode(pod *v1.Pod, meta interface{}, info *schedulercache.NodeInfo, predicateFuncs map[string]algorithm.FitPredicate) (bool, []algorithm.PredicateFailureReason, error) {
-	var failedPredicates []algorithm.PredicateFailureReason
-	for _, predicate := range predicateFuncs {
-		fit, reasons, err := predicate(pod, meta, info)
-		if err != nil {
-			err := fmt.Errorf("SchedulerPredicates failed due to %v, which is unexpected.", err)
-			return false, []algorithm.PredicateFailureReason{}, err
+func podFitsOnNode(pod *v1.Pod, meta interface{}, info *schedulercache.NodeInfo, predicateFuncs map[string]algorithm.FitPredicate,
+	ecache *EquivalenceCache) (bool, []algorithm.PredicateFailureReason, error) {
+	var (
+		equivalenceHash  uint64
+		failedPredicates []algorithm.PredicateFailureReason
+		eCacheAvailable  bool
+		invalid          bool
+		fit              bool
+		reasons          []algorithm.PredicateFailureReason
+		err              error
+	)
+	if ecache != nil {
+		// getHashEquivalencePod will return immediately if no equivalence pod found
+		equivalenceHash = ecache.getHashEquivalencePod(pod)
+		eCacheAvailable = (equivalenceHash != 0)
+	}
+	for predicateKey, predicate := range predicateFuncs {
+		// If equivalenceCache is available
+		if eCacheAvailable {
+			// PredicateWithECache will returns it's cached predicate results
+			fit, reasons, invalid = ecache.PredicateWithECache(pod, info.Node().GetName(), predicateKey, equivalenceHash)
 		}
+
+		if !eCacheAvailable || invalid {
+			// we need to execute predicate functions since equivalence cache does not work
+			fit, reasons, err = predicate(pod, meta, info)
+			if err != nil {
+				return false, []algorithm.PredicateFailureReason{}, err
+			}
+
+			if eCacheAvailable {
+				// update equivalence cache with newly computed fit & reasons
+				// TODO(resouer) should we do this in another thread? any race?
+				ecache.UpdateCachedPredicateItem(pod, info.Node().GetName(), predicateKey, fit, reasons, equivalenceHash)
+			}
+		}
+
 		if !fit {
+			// eCache is available and valid, and predicates result is unfit, record the fail reasons
 			failedPredicates = append(failedPredicates, reasons...)
 		}
 	}
@@ -330,7 +372,7 @@ func PrioritizeNodes(
 
 	// Summarize all scores.
 	result := make(schedulerapi.HostPriorityList, 0, len(nodes))
-	// TODO: Consider parallelizing it.
+
 	for i := range nodes {
 		result = append(result, schedulerapi.HostPriority{Host: nodes[i].Name, Score: 0})
 		for j := range priorityConfigs {
@@ -386,6 +428,7 @@ func EqualPriorityMap(_ *v1.Pod, _ interface{}, nodeInfo *schedulercache.NodeInf
 
 func NewGenericScheduler(
 	cache schedulercache.Cache,
+	eCache *EquivalenceCache,
 	predicates map[string]algorithm.FitPredicate,
 	predicateMetaProducer algorithm.MetadataProducer,
 	prioritizers []algorithm.PriorityConfig,
@@ -393,6 +436,7 @@ func NewGenericScheduler(
 	extenders []algorithm.SchedulerExtender) algorithm.ScheduleAlgorithm {
 	return &genericScheduler{
 		cache:                 cache,
+		equivalenceCache:      eCache,
 		predicates:            predicates,
 		predicateMetaProducer: predicateMetaProducer,
 		prioritizers:          prioritizers,
