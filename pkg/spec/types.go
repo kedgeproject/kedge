@@ -35,6 +35,7 @@ type VolumeClaim struct {
 	// k8s: io.k8s.kubernetes.pkg.api.v1.PersistentVolumeClaimSpec
 	api_v1.PersistentVolumeClaimSpec `json:",inline"`
 	// Size of persistent volume
+	// +optional
 	Size string `json:"size"`
 	// k8s: io.k8s.kubernetes.pkg.apis.meta.v1.ObjectMeta
 	meta_v1.ObjectMeta `json:",inline"`
