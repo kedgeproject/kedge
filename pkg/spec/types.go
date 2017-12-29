@@ -245,7 +245,8 @@ type JobSpecMod struct {
 // a complete kedge app based on OpenShift
 // kedgeSpec: io.kedge.DeploymentConfigSpecMod
 type DeploymentConfigSpecMod struct {
-	ControllerFields                  `json:",inline"`
+	ControllerFields `json:",inline"`
+	// k8s: v1.DeploymentConfigSpec
 	os_deploy_v1.DeploymentConfigSpec `json:",inline"`
 
 	// Replicas is the number of desired replicas.
