@@ -36,7 +36,7 @@ type VolumeClaim struct {
 	api_v1.PersistentVolumeClaimSpec `json:",inline"`
 	// Size of persistent volume
 	Size string `json:"size"`
-	// k8s: io.k8s.kubernetes.pkg.apis.meta.v1.ObjectMeta
+	// k8s: io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta
 	meta_v1.ObjectMeta `json:",inline"`
 }
 
@@ -65,7 +65,7 @@ type ServiceSpecMod struct {
 	// targetPort and protocol in the format '<port>:<targetPort>/<protocol>'
 	// +optional
 	PortMappings []intstr.IntOrString `json:"portMappings,omitempty"`
-	// k8s: io.k8s.kubernetes.pkg.apis.meta.v1.ObjectMeta
+	// k8s: io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta
 	meta_v1.ObjectMeta `json:",inline"`
 }
 
@@ -74,7 +74,7 @@ type ServiceSpecMod struct {
 type IngressSpecMod struct {
 	// k8s: io.k8s.kubernetes.pkg.apis.extensions.v1beta1.IngressSpec
 	ext_v1beta1.IngressSpec `json:",inline"`
-	// k8s: io.k8s.kubernetes.pkg.apis.meta.v1.ObjectMeta
+	// k8s: io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta
 	meta_v1.ObjectMeta `json:",inline"`
 }
 
@@ -82,7 +82,7 @@ type IngressSpecMod struct {
 type RouteSpecMod struct {
 	// k8s: v1.RouteSpec
 	os_route_v1.RouteSpec `json:",inline"`
-	// k8s: io.k8s.kubernetes.pkg.apis.meta.v1.ObjectMeta
+	// k8s: io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta
 	meta_v1.ObjectMeta `json:",inline"`
 }
 
@@ -106,7 +106,7 @@ type Container struct {
 type ConfigMapMod struct {
 	// k8s: io.k8s.kubernetes.pkg.api.v1.ConfigMap
 	api_v1.ConfigMap `json:",inline"`
-	// k8s: io.k8s.kubernetes.pkg.apis.meta.v1.ObjectMeta
+	// k8s: io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta
 	// We need ObjectMeta here, even though it is present in api.ConfigMap
 	// because the one upstream has a JSON tag "metadata" due to which it
 	// cannot be merged at ConfigMap's root level. The ObjectMeta here
@@ -138,7 +138,7 @@ type PodSpecMod struct {
 type SecretMod struct {
 	// k8s: io.k8s.kubernetes.pkg.api.v1.Secret
 	api_v1.Secret `json:",inline"`
-	// k8s: io.k8s.kubernetes.pkg.apis.meta.v1.ObjectMeta
+	// k8s: io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta
 	// We need ObjectMeta here, even though it is present in api.Secret
 	// because the one upstream has a JSON tag "metadata" due to which it
 	// cannot be merged at Secret's root level. The ObjectMeta here
@@ -152,7 +152,7 @@ type SecretMod struct {
 type ImageStreamSpecMod struct {
 	// k8s: v1.ImageStreamSpec
 	image_v1.ImageStreamSpec `json:",inline"`
-	// k8s: io.k8s.kubernetes.pkg.apis.meta.v1.ObjectMeta
+	// k8s: io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta
 	meta_v1.ObjectMeta `json:",inline"`
 }
 
@@ -161,7 +161,7 @@ type ImageStreamSpecMod struct {
 type BuildConfigSpecMod struct {
 	// k8s: v1.BuildConfigSpec
 	build_v1.BuildConfigSpec `json:",inline"`
-	// k8s: io.k8s.kubernetes.pkg.apis.meta.v1.ObjectMeta
+	// k8s: io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta
 	meta_v1.ObjectMeta `json:",inline"`
 }
 
@@ -208,7 +208,7 @@ type ControllerFields struct {
 	// +optional
 	IncludeResources []string `json:"includeResources,omitempty"`
 
-	// k8s: io.k8s.kubernetes.pkg.apis.meta.v1.ObjectMeta
+	// k8s: io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta
 	meta_v1.ObjectMeta `json:",inline"`
 	PodSpecMod         `json:",inline"`
 }
