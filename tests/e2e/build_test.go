@@ -85,16 +85,24 @@ func TestBuild(t *testing.T) {
 		t.Error(err)
 	}
 
+	imageFound := false
 	for _, image := range images {
-		if image.RepoTags[0] == "localhost:5000/test:2.0" {
-			t.Log("The image has been uploaded successfully.")
+		for _, tag := range image.RepoTags {
+			if tag == "localhost:5000/test:2.0" {
+				t.Log("The image has been uploaded successfully.")
 
-			rmc := "docker rmi " + image.ID
+				rmc := "docker rmi " + image.ID
 
-			_, err := runCmd(rmc)
-			if err != nil {
-				t.Error(err)
+				_, err := runCmd(rmc)
+				if err != nil {
+					t.Error(err)
+				}
+				imageFound = true
+				break
 			}
+		}
+		if imageFound {
+			break
 		}
 	}
 
