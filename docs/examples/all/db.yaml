@@ -6,11 +6,11 @@ containers:
     value: rootpasswd
   - name: MYSQL_PASSWORD
     value: wordpress
+  - name: MYSQL_USER
+    value: wordpress
   envFrom:
   - configMapRef:
       name: database
-  - name: MYSQL_USER
-    value: wordpress
   volumeMounts:
   - name: database
     mountPath: /var/lib/mysql
