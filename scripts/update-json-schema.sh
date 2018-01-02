@@ -25,7 +25,7 @@ git clone "$GENERATOR_REPO" "$KEDGE_REPO_NAME"
 cd "$KEDGE_REPO_NAME"
 rm -rf "$OUTPUT_DIR"
 mkdir -p "$OUTPUT_DIR"
-docker run --rm -v "$OUTPUT_DIR":/data:Z "$KEDGE_JSON_SCHEMA_IMAGE"
+docker run --rm -v `pwd`/"$OUTPUT_DIR":/data:Z "$KEDGE_JSON_SCHEMA_IMAGE"
 
 # add relevant user information
 git config user.name "$GIT_USER"
