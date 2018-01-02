@@ -8,14 +8,14 @@ fi
 
 KEDGE_REPO_NAME="kedge-json-schema"
 GENERATOR_REPO="git@github.com:kedgeproject/json-schema.git"
-DEPLOY_KEY="scripts/deploy_key"
+DEPLOY_KEY="scripts/json_schema_rsa"
 KEDGE_JSON_SCHEMA_IMAGE="containscafeine/kedge-json-schema:latest"
 GIT_USER="kedge-bot"
 GIT_EMAIL="shubham@linux.com"
 OUTPUT_DIR="master"
 
 # decrypt the private key
-openssl aes-256-cbc -K $encrypted_91569b511922_key -iv $encrypted_91569b511922_iv -in "$DEPLOY_KEY.enc" -out "$DEPLOY_KEY" -d
+openssl aes-256-cbc -K $encrypted_c128d1739e00_key -iv $encrypted_c128d1739e00_iv -in "$DEPLOY_KEY.enc" -out "$DEPLOY_KEY" -d
 chmod 600 "$DEPLOY_KEY"
 eval `ssh-agent -s`
 ssh-add "$DEPLOY_KEY"
