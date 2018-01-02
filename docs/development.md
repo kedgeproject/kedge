@@ -150,7 +150,7 @@ make vendor-update
 4. Commit updated glide files and vendor
 
 ```bash
-git add glide.yaml glide.lock vendor
+git add glide.yaml glide.lock scripts/vendor-openshift.sh vendor
 git commit
 ```
 
