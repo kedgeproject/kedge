@@ -17,7 +17,7 @@ env:
 matrix:
   include:
     - go: 1.7
-      env: BUILD_DOCS=yes
+      env: BUILD_DOCS=yes GENERATE_JSON_SCHEMA=yes
     - go: 1.8
     - go: 1.9
 
@@ -48,3 +48,4 @@ after_success:
   - goveralls -coverprofile=gover.coverprofile -service=travis-ci
   # sync the docs only if everything else was successful
   - ./scripts/sync-docs.sh
+  - ./scripts/update-json-schema.sh
