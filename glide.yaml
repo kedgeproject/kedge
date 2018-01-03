@@ -28,6 +28,9 @@ import:
 - package: github.com/novln/docker-parser
   version: 6030251119d652af8ead44ac7907444227b64d56
 
+- package: github.com/xeipuuv/gojsonschema
+  version: 212d8a0df7acfab8bdd190a7a69f0ab7376edcc8
+
 # pinning 'golang.org/x/sys' otherwise docker dependencies complain to compiling
 - package: golang.org/x/sys
   version: 8d1157a435470616f975ff9bb013bea8d0962067
