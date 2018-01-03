@@ -1,0 +1,193 @@
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  creationTimestamp: null
+  labels:
+    app: gitlab
+  name: gitlab-data
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+status: {}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  creationTimestamp: null
+  labels:
+    app: gitlab
+  name: gitlab-etc
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+status: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  creationTimestamp: null
+  labels:
+    app: gitlab
+  name: gitlab
+spec:
+  ports:
+  - name: ssh
+    port: 22
+    targetPort: 22
+  - name: http
+    port: 80
+    targetPort: 80
+  - name: https
+    port: 443
+    targetPort: 443
+  selector:
+    app: gitlab
+  type: LoadBalancer
+status:
+  loadBalancer: {}
+---
+apiVersion: v1
+data:
+  db-password: Z2l0bGFi
+  db-user: Z2l0bGFi
+  redis-password: Z2l0bGFi
+kind: Secret
+metadata:
+  creationTimestamp: null
+  labels:
+    app: gitlab
+  name: gitlab
+---
+apiVersion: v1
+data:
+  gitlab_omnibus_config: |
+    external_url ENV['EXTERNAL_URL'];
+    root_pass = ENV['GITLAB_ROOT_PASSWORD'];
+    gitlab_rails['initial_root_password'] = root_pass unless root_pass.to_s == '';
+    postgresql['enable'] = false;
+    gitlab_rails['db_host'] = ENV['DB_HOST'];
+    gitlab_rails['db_password'] = ENV['DB_PASSWORD'];
+    gitlab_rails['db_username'] = ENV['DB_USER'];
+    gitlab_rails['db_database'] = ENV['DB_DATABASE'];
+    redis['enable'] = false;
+    gitlab_rails['redis_host'] = ENV['REDIS_HOST'];
+    gitlab_rails['redis_password'] = ENV['REDIS_PASSWORD'];
+    unicorn['worker_processes'] = 2;
+    manage_accounts['enable'] = true;
+    manage_storage_directories['manage_etc'] = false;
+    gitlab_shell['auth_file'] = '/gitlab-data/ssh/authorized_keys';
+    git_data_dir '/gitlab-data/git-data';
+    gitlab_rails['shared_path'] = '/gitlab-data/shared';
+    gitlab_rails['uploads_directory'] = '/gitlab-data/uploads';
+    gitlab_ci['builds_directory'] = '/gitlab-data/builds';
+kind: ConfigMap
+metadata:
+  creationTimestamp: null
+  labels:
+    app: gitlab
+  name: gitlab
+---
+apiVersion: apps.openshift.io/v1
+kind: DeploymentConfig
+metadata:
+  creationTimestamp: null
+  labels:
+    app: gitlab
+  name: gitlab
+spec:
+  replicas: 4
+  strategy:
+    resources: {}
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: gitlab
+      name: gitlab
+    spec:
+      containers:
+      - env:
+        - name: GITLAB_OMNIBUS_CONFIG
+          valueFrom:
+            configMapKeyRef:
+              key: gitlab_omnibus_config
+              name: gitlab
+        - name: GITLAB_ROOT_PASSWORD
+        - name: EXTERNAL_URL
+          value: http://your-domain.com/
+        - name: DB_HOST
+          value: postgresql
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              key: db-user
+              name: gitlab
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: db-password
+              name: gitlab
+        - name: DB_DATABASE
+          value: gitlab
+        - name: REDIS_HOST
+          value: redis
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: redis-password
+              name: gitlab
+        image: gitlab/gitlab-ce:9.4.1-ce.0
+        livenessProbe:
+          failureThreshold: 10
+          httpGet:
+            path: /help
+            port: 80
+          initialDelaySeconds: 200
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 1
+        name: gitlab
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /help
+            port: 80
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources:
+          limits:
+            cpu: "1"
+            memory: 2Gi
+          requests:
+            cpu: 500m
+            memory: 1Gi
+        volumeMounts:
+        - mountPath: /etc/gitlab
+          name: gitlab-etc
+        - mountPath: /gitlab-data
+          name: gitlab-data
+      volumes:
+      - name: gitlab-etc
+        persistentVolumeClaim:
+          claimName: gitlab-etc
+      - name: gitlab-data
+        persistentVolumeClaim:
+          claimName: gitlab-data
+  test: false
+  triggers: null
+status:
+  availableReplicas: 0
+  latestVersion: 0
+  observedGeneration: 0
+  replicas: 0
+  unavailableReplicas: 0
+  updatedReplicas: 0

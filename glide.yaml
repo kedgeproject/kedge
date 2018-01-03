@@ -33,7 +33,9 @@ import:
   version: 8d1157a435470616f975ff9bb013bea8d0962067
   subpackages:
   - unix
-  
+
+- package: github.com/kylelemons/godebug/diff
+  version: d65d576e9348f5982d7f6d83682b694e731a45c6
 
 # Those are packages that OpenShift patches in its vendor directory.
 # Those patched libs are not published elsewhere.
