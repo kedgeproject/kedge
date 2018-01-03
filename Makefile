@@ -94,7 +94,7 @@ test: test-dep validate test-unit test-unit-cover
 
 # Tests that are run on travs-ci
 .PHONY: travis-tests
-travis-tests: test-dep validate test-unit-cover test-jsonschema-generation
+travis-tests: test-dep validate test-unit-cover
 
 # Install all the required test-dependencies before executing tests (only valid when running `make test`)
 .PHONY: test-dep
@@ -122,9 +122,3 @@ vendor-update:
 	glide update -v
 	# Vendors OpenShift and its dependencies
 	./scripts/vendor-openshift.sh
-
-# Test if the changed types.go is valid and JSONSchema can be generated out of it
-.PHONY: test-jsonschema-generation
-test-jsonschema-generation:
-	docker run -v `pwd`/pkg/spec/types.go:/data/types.go:ro,Z surajd/kedgeschema
-
