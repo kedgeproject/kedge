@@ -24,6 +24,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/kedgeproject/kedge/pkg/spec"
 
 	"github.com/ghodss/yaml"
@@ -131,17 +132,35 @@ func CreateArtifacts(paths []string, generate bool, args ...string) error {
 // runClusterCommand calls kubectl or oc binary.
 // Boolean flag useOC controls if oc or kubectl will be used
 func RunClusterCommand(args []string, data []byte, useOC bool) error {
+
+	// Use kubectl by default, oc if useOC bool is true (in cases such as DeploymentConfig, ImageStream, etc.)
 	executable := "kubectl"
 	if useOC {
 		executable = "oc"
+	} else {
+		if _, err := exec.LookPath("kubectl"); err != nil {
+			log.Debug("kubectl is unavailable, using oc")
+			executable = "oc"
+		}
 	}
+
+	// If oc is used, error out if it's not available
+	if executable == "oc" {
+		if _, err := exec.LookPath("oc"); err != nil {
+			return errors.New("Unable to find oc command. Please install oc to your system")
+		}
+	}
+
+	// Create the executable command
 	cmd := exec.Command(executable, args...)
 
+	// Read from stdin
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return errors.Wrap(err, "can't get stdinPipe for kubectl")
 	}
 
+	// Write to stdin
 	go func() {
 		defer stdin.Close()
 		_, err := io.WriteString(stdin, string(data))
@@ -150,11 +169,13 @@ func RunClusterCommand(args []string, data []byte, useOC bool) error {
 		}
 	}()
 
+	// Execute the actual command
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		fmt.Printf("%s", string(out))
 		return errors.Wrap(err, "failed to execute command")
 	}
+
 	fmt.Printf("%s", string(out))
 	return nil
 }
