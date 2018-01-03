@@ -11,7 +11,7 @@ GENERATOR_REPO="git@github.com:kedgeproject/json-schema.git"
 DEPLOY_KEY="scripts/json_schema_rsa"
 KEDGE_JSON_SCHEMA_IMAGE="kedge/json-schema-generator:latest"
 GIT_USER="kedge-bot"
-GIT_EMAIL="shubham@linux.com"
+GIT_EMAIL="shubh@redhat.com"
 OUTPUT_DIR="master"
 
 # decrypt the private key
