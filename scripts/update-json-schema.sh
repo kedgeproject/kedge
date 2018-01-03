@@ -9,7 +9,7 @@ fi
 KEDGE_REPO_NAME="kedge-json-schema"
 GENERATOR_REPO="git@github.com:kedgeproject/json-schema.git"
 DEPLOY_KEY="scripts/json_schema_rsa"
-KEDGE_JSON_SCHEMA_IMAGE="containscafeine/kedge-json-schema:latest"
+KEDGE_JSON_SCHEMA_IMAGE="kedge/json-schema-generator:latest"
 GIT_USER="kedge-bot"
 GIT_EMAIL="shubham@linux.com"
 OUTPUT_DIR="master"
