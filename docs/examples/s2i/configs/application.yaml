@@ -1,21 +1,20 @@
 name: ticker
-controller: deploymentconfig
 
-containers:
-- image: ""
-  env:
-  - name: REDIS_HOST
-    value: redis
-
-triggers:
-- imageChangeParams:
-    automatic: true
-    containerNames:
-    - ticker
-    from:
-      kind: ImageStreamTag
-      name: ticker:latest
-  type: ImageChange
+deploymentConfigs:
+- containers:
+  - image: ""
+    env:
+    - name: REDIS_HOST
+      value: redis
+  triggers:
+  - imageChangeParams:
+      automatic: true
+      containerNames:
+      - ticker
+      from:
+        kind: ImageStreamTag
+        name: ticker:latest
+    type: ImageChange
 
 services:
 - portMappings:

@@ -33,7 +33,7 @@ var generateCmd = &cobra.Command{
 			fmt.Println(err)
 			os.Exit(-1)
 		}
-		if err := pkgcmd.CreateArtifacts(InputFiles, true, ""); err != nil {
+		if err := pkgcmd.CreateArtifacts(InputFiles, true, SkipValidation, ""); err != nil {
 			fmt.Println(err)
 			os.Exit(-1)
 		}
@@ -43,5 +43,6 @@ var generateCmd = &cobra.Command{
 func init() {
 	generateCmd.Flags().StringArrayVarP(&InputFiles, "files", "f", []string{}, "Input files")
 	generateCmd.MarkFlagRequired("files")
+	generateCmd.Flags().BoolVar(&SkipValidation, "skip-validation", false, "Skip validation of Kedge file")
 	RootCmd.AddCommand(generateCmd)
 }

@@ -1,19 +1,20 @@
 name: webapp
-deploymentConfigss:
+deploymentConfigs:
 - containers:
   - image: ""
-triggers:
-- imageChangeParams:
-    automatic: true
-    containerNames:
-    - webapp
-    from:
-      kind: ImageStreamTag
-      name: webapp:2.4
-  type: ImageChange
+  triggers:
+  - imageChangeParams:
+      automatic: true
+      containerNames:
+      - webapp
+      from:
+        kind: ImageStreamTag
+        name: webapp:2.4
+    type: ImageChange
 services:
 - portMappings:
   - "8080"
+
 imageStreams:
 - tags:
   - from:

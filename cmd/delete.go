@@ -42,7 +42,7 @@ var deleteCmd = &cobra.Command{
 			command = append(command, "--namespace", Namespace)
 		}
 
-		if err := pkgcmd.CreateArtifacts(InputFiles, false, command...); err != nil {
+		if err := pkgcmd.CreateArtifacts(InputFiles, false, SkipValidation, command...); err != nil {
 			fmt.Println(err)
 			os.Exit(-1)
 		}
