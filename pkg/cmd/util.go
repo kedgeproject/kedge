@@ -144,12 +144,30 @@ func replaceWithEnv(in []byte) []byte {
 	// index 0 contains full match, 1 contains first group
 	name := string(groups[1][:])
 
-	value, found := os.LookupEnv(name)
-	if !found {
-		// If there is no corresponding env variable, return original string.
-		// We will use this to detect remaining variables in the input file.
-		// We can't return error from this function.
-		return in
+	var value string
+	var found bool
+	// Splitting string with separator ":"
+	slice := strings.Split(name, ":")
+	// if slice has 2 elements, i.e given variable has default value
+	if len(slice) == 2 {
+		name = slice[0]
+		// look into environment for the value
+		value, found = os.LookupEnv(name)
+		// put default value if it's not present in environment
+		if !found && value == "" {
+			value = strings.TrimSpace(slice[1])
+		}
+	} else {
+		// default value is not provided
+		// look into environment for the value
+		value, found = os.LookupEnv(name)
+		if !found {
+			// If there is no corresponding env variable, return original string.
+			// We will use this to detect remaining variables in the input file.
+			// We can't return error from this function.
+			return in
+		}
 	}
+
 	return []byte(value)
 }
