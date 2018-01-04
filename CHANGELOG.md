@@ -1,5 +1,40 @@
 # Change Log
 
+## [v0.7.0](https://github.com/kedgeproject/kedge/tree/v0.7.0) (2018-01-04)
+[Full Changelog](https://github.com/kedgeproject/kedge/compare/v0.6.0...v0.7.0)
+
+**Closed issues:**
+
+- Build test fails [\#542](https://github.com/kedgeproject/kedge/issues/542)
+- Using google analytics to track visits to kedgeproject.org [\#531](https://github.com/kedgeproject/kedge/issues/531)
+- Fix portMappings documentation [\#502](https://github.com/kedgeproject/kedge/issues/502)
+- Gaps in documentation \(add getting started guide, update user guide and examples\) [\#501](https://github.com/kedgeproject/kedge/issues/501)
+- Blog about Kedge [\#480](https://github.com/kedgeproject/kedge/issues/480)
+- is it possible to use oc instead of kubectl while doing `kedge create/apply` ? [\#458](https://github.com/kedgeproject/kedge/issues/458)
+- Test the `kedge build` functionality [\#308](https://github.com/kedgeproject/kedge/issues/308)
+- Auto generate Kedge JSON schema for every PR [\#280](https://github.com/kedgeproject/kedge/issues/280)
+
+**Merged pull requests:**
+
+- Remove personal email and replace with work email [\#557](https://github.com/kedgeproject/kedge/pull/557) ([containscafeine](https://github.com/containscafeine))
+- Fix container image name for JSON Schema generation [\#556](https://github.com/kedgeproject/kedge/pull/556) ([containscafeine](https://github.com/containscafeine))
+- Pass absolute path to JSON Schema docker command [\#553](https://github.com/kedgeproject/kedge/pull/553) ([containscafeine](https://github.com/containscafeine))
+- Update Travis key for JSON Schema push [\#552](https://github.com/kedgeproject/kedge/pull/552) ([containscafeine](https://github.com/containscafeine))
+- Auto generate Kedge JSON Schema for every merge [\#548](https://github.com/kedgeproject/kedge/pull/548) ([containscafeine](https://github.com/containscafeine))
+- Fix reference to DeploymentConfigSpec [\#546](https://github.com/kedgeproject/kedge/pull/546) ([containscafeine](https://github.com/containscafeine))
+- Fix references to ObjectMeta [\#545](https://github.com/kedgeproject/kedge/pull/545) ([containscafeine](https://github.com/containscafeine))
+- fix build test - check all image tags [\#543](https://github.com/kedgeproject/kedge/pull/543) ([kadel](https://github.com/kadel))
+- Fallback to oc command if kubectl is not found [\#537](https://github.com/kedgeproject/kedge/pull/537) ([cdrage](https://github.com/cdrage))
+- Specify Default value for variable [\#535](https://github.com/kedgeproject/kedge/pull/535) ([surajnarwade](https://github.com/surajnarwade))
+- Add Google Analytics to the kedgeproject.org site [\#533](https://github.com/kedgeproject/kedge/pull/533) ([cdrage](https://github.com/cdrage))
+- Adds the Kedge name to the main site [\#530](https://github.com/kedgeproject/kedge/pull/530) ([cdrage](https://github.com/cdrage))
+- Add link to blog [\#529](https://github.com/kedgeproject/kedge/pull/529) ([cdrage](https://github.com/cdrage))
+- add vendor script to the commit [\#507](https://github.com/kedgeproject/kedge/pull/507) ([surajssd](https://github.com/surajssd))
+- Vendor update 3.7.0 [\#506](https://github.com/kedgeproject/kedge/pull/506) ([surajssd](https://github.com/surajssd))
+- add missing tags to the types file [\#503](https://github.com/kedgeproject/kedge/pull/503) ([surajssd](https://github.com/surajssd))
+- add basic test framework for cmd line tests [\#498](https://github.com/kedgeproject/kedge/pull/498) ([surajssd](https://github.com/surajssd))
+- Adding tests for `kedge build` [\#381](https://github.com/kedgeproject/kedge/pull/381) ([ashetty1](https://github.com/ashetty1))
+
 ## [v0.6.0](https://github.com/kedgeproject/kedge/tree/v0.6.0) (2017-12-11)
 [Full Changelog](https://github.com/kedgeproject/kedge/compare/v0.5.1...v0.6.0)
 
@@ -22,6 +57,7 @@
 
 **Merged pull requests:**
 
+- 0.6.0 Release [\#528](https://github.com/kedgeproject/kedge/pull/528) ([cdrage](https://github.com/cdrage))
 - Fix slate issues / redirecting [\#527](https://github.com/kedgeproject/kedge/pull/527) ([cdrage](https://github.com/cdrage))
 - Fix up TOC [\#526](https://github.com/kedgeproject/kedge/pull/526) ([cdrage](https://github.com/cdrage))
 - Fix typos on gh-pages landing page [\#524](https://github.com/kedgeproject/kedge/pull/524) ([robin-owen](https://github.com/robin-owen))
