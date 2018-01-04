@@ -27,6 +27,7 @@ import (
 
 // Hardcoding the location of the binary, which is in root of project directory
 var ProjectPath = "$GOPATH/src/github.com/kedgeproject/kedge/"
+var TestPath = "docs/examples/"
 var BinaryLocation = ProjectPath + "kedge"
 var BinaryCommand = []string{"create", "-n"}
 
@@ -73,7 +74,7 @@ func createNS(clientset *kubernetes.Clientset, name string) (*v1.Namespace, erro
 
 // Run the binary against the Kubernetes cluster using a specified command against a specific namespace
 // requirement: your binary must have a --namespace parameter to specify a namespace location as well as
-// -f to specific a file. Ex: command --namespace foobar -f foo.yml -f bar.yml
+// -f to specific a file. Ex: command --namespace foobar -f foo.yaml -f bar.yaml
 func RunBinary(files []string, namespace string) ([]byte, error) {
 	args := append(BinaryCommand, namespace)
 	for _, file := range files {
@@ -267,120 +268,114 @@ func Test_Integration(t *testing.T) {
 
 	tests := []testData{
 		{
-			TestName:  "Testing configMap",
+			TestName:  "Testing configmap",
 			Namespace: "configmap",
 			InputFiles: []string{
-				ProjectPath + "docs/examples/configmap/db.yaml",
-				ProjectPath + "docs/examples/configmap/web.yaml",
+				ProjectPath + TestPath + "configmap/guestbook.yaml",
+				ProjectPath + TestPath + "configmap/redis-master.yaml",
+				ProjectPath + TestPath + "configmap/redis-slave.yaml",
 			},
-			PodStarted: []string{"web"},
+			PodStarted: []string{"guestbook", "redis-master", "redis-slave"},
 			NodePortServices: []ServicePort{
-				{Name: "wordpress", Port: 8080},
+				{Name: "guestbook", Port: 3000},
 			},
 		},
 		{
-			TestName:  "Testing customVol",
-			Namespace: "customvol",
+			TestName:  "Testing custom-vol",
+			Namespace: "custom-vol",
 			InputFiles: []string{
-				ProjectPath + "docs/examples/customVol/db.yaml",
-				ProjectPath + "docs/examples/customVol/web.yaml",
+				ProjectPath + TestPath + "custom-vol/guestbook.yaml",
+				ProjectPath + TestPath + "custom-vol/redis-master.yaml",
+				ProjectPath + TestPath + "custom-vol/redis-slave.yaml",
 			},
-			PodStarted: []string{"web"},
+			PodStarted: []string{"guestbook", "redis-master", "redis-slave"},
 			NodePortServices: []ServicePort{
-				{Name: "wordpress", Port: 8080},
-			},
-		},
-		{
-			TestName:  "Testing includeResources",
-			Namespace: "include-resources",
-			InputFiles: []string{
-				ProjectPath + "docs/examples/includeResources/app.yaml",
-			},
-			PodStarted: []string{"web"},
-			NodePortServices: []ServicePort{
-				{Name: "web", Port: 80},
+				{Name: "guestbook", Port: 3000},
 			},
 		},
 		{
 			TestName:  "Testing health",
 			Namespace: "health",
 			InputFiles: []string{
-				ProjectPath + "docs/examples/health/db.yaml",
-				ProjectPath + "docs/examples/health/web.yaml",
+				ProjectPath + TestPath + "health/guestbook.yaml",
+				ProjectPath + TestPath + "health/redis-master.yaml",
+				ProjectPath + TestPath + "health/redis-slave.yaml",
 			},
-			PodStarted: []string{"web"},
+			PodStarted: []string{"guestbook", "redis-master", "redis-slave"},
 			NodePortServices: []ServicePort{
-				{Name: "wordpress", Port: 8080},
+				{Name: "guestbook", Port: 3000},
 			},
 		},
 		{
-			TestName:  "Testing healthChecks",
-			Namespace: "healthchecks",
+			TestName:  "Testing health-check",
+			Namespace: "health-check",
 			InputFiles: []string{
-				ProjectPath + "docs/examples/healthchecks/db.yaml",
-				ProjectPath + "docs/examples/healthchecks/web.yaml",
+				ProjectPath + TestPath + "health-check/guestbook.yaml",
+				ProjectPath + TestPath + "health-check/redis-master.yaml",
+				ProjectPath + TestPath + "health-check/redis-slave.yaml",
 			},
-			PodStarted: []string{"web"},
+			PodStarted: []string{"guestbook", "redis-master", "redis-slave"},
 			NodePortServices: []ServicePort{
-				{Name: "wordpress", Port: 8080},
+				{Name: "guestbook", Port: 3000},
 			},
 		},
 		{
 			TestName:  "Testing secret",
-			Namespace: "secrets",
+			Namespace: "secret",
 			InputFiles: []string{
-				ProjectPath + "docs/examples/secrets/db.yaml",
-				ProjectPath + "docs/examples/secrets/web.yaml",
+				ProjectPath + TestPath + "secret/guestbook.yaml",
+				ProjectPath + TestPath + "secret/redis-master.yaml",
+				ProjectPath + TestPath + "secret/redis-slave.yaml",
 			},
-			PodStarted: []string{"web"},
+			PodStarted: []string{"guestbook", "redis-master", "redis-slave"},
 			NodePortServices: []ServicePort{
-				{Name: "wordpress", Port: 8080},
+				{Name: "guestbook", Port: 3000},
 			},
 		},
 		{
-			TestName:  "Testing single file",
-			Namespace: "singlefile",
+			TestName:  "Test port-mappings",
+			Namespace: "port-mappings",
 			InputFiles: []string{
-				ProjectPath + "docs/examples/single_file/wordpress.yml",
+				ProjectPath + TestPath + "port-mappings/guestbook.yaml",
+				ProjectPath + TestPath + "port-mappings/redis-master.yaml",
+				ProjectPath + TestPath + "port-mappings/redis-slave.yaml",
 			},
-			PodStarted: []string{"wordpress"},
+			PodStarted: []string{"guestbook", "redis-master", "redis-slave"},
 			NodePortServices: []ServicePort{
-				{Name: "wordpress", Port: 8080},
+				{Name: "guestbook", Port: 3000},
 			},
 		},
+		// Special non-guestbook-go-redis tests
 		{
-			TestName:  "Normal Wordpress test",
-			Namespace: "wordpress",
+			TestName:  "Testing single-file",
+			Namespace: "single-file",
 			InputFiles: []string{
-				ProjectPath + "examples/wordpress/wordpress.yaml",
-				ProjectPath + "examples/wordpress/mariadb.yaml",
+				ProjectPath + TestPath + "single-file/guestbook.yaml",
 			},
-			PodStarted: []string{"wordpress"},
+			PodStarted: []string{"guestbook", "redis-master", "redis-slave"},
 			NodePortServices: []ServicePort{
-				{Name: "wordpress", Port: 80},
-			},
-		},
-		{
-			TestName:  "Test portMappings",
-			Namespace: "portmappings",
-			InputFiles: []string{
-				ProjectPath + "docs/examples/portMappings/wordpress.yaml",
-				ProjectPath + "docs/examples/portMappings/mariadb.yaml",
-			},
-			PodStarted: []string{"wordpress"},
-			NodePortServices: []ServicePort{
-				{Name: "wordpress", Port: 80},
-				{Name: "mariadb", Port: 3306},
+				{Name: "guestbook", Port: 3000},
 			},
 		},
 		{
 			TestName:  "Test jobs",
 			Namespace: "jobs",
 			InputFiles: []string{
-				ProjectPath + "docs/examples/jobs/job.yaml",
+				ProjectPath + TestPath + "jobs/job.yaml",
 			},
 			PodStarted: []string{"pival"},
 			Type:       "job",
+		},
+		{
+			TestName:  "Testing include-resources",
+			Namespace: "include-resources",
+			InputFiles: []string{
+				ProjectPath + TestPath + "include-resources/web.yaml",
+			},
+			PodStarted: []string{"web"},
+			NodePortServices: []ServicePort{
+				{Name: "web", Port: 80},
+			},
 		},
 	}
 

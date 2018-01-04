@@ -5,10 +5,9 @@ Creating secret:
 Create a secret by defining it at the root level -
 ```yaml
 secrets:
-- name: wordpress
+- name: secret
   data:
-    MYSQL_ROOT_PASSWORD: YWRtaW4=
-    MYSQL_PASSWORD: cGFzc3dvcmQ=
+    GET_HOSTS_FROM: RE5T
 ```
 Make sure everything put in the field `data:` is base64 encoded.
 For supplying plaintext secret data, use the field `stringData`.
@@ -18,24 +17,18 @@ Now consuming it, see the snippet from [db.yaml](db.yaml):
 ```yaml
   envFrom:
   - secretRef:
-      name: wordpress
+      name: secret
 ```
 
 Alternatively, it can also be consumed by referencing it manually in `env:`
 
 ```yaml
   env:
-  - name: MYSQL_ROOT_PASSWORD
+  - name: GET_HOSTS_FROM
     valueFrom:
       secretKeyRef:
-        name: wordpress
-        key: MYSQL_ROOT_PASSWORD
-...
-  - name: MYSQL_PASSWORD
-    valueFrom:
-      secretKeyRef:
-        name: wordpress
-        key: DB_PASSWD
+        name: secret
+        key: GET_HOSTS_FROM
 ```
 
 ## Ref:

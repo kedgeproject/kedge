@@ -2,13 +2,12 @@
 
 ## Defining a configMap
 
-See the following snippet from [web.yaml](./web.yaml)
+See the following snippet from [guestbook.yaml](./guestbook.yaml)
 
 ```yaml
 configMaps:
 - data:
-    WORDPRESS_DB_NAME: wordpress
-    WORDPRESS_DB_HOST: "database:3306"
+    GET_HOSTS_FROM: dns
 ```
 
 Define a root level field called `configMaps`. It is just a key value pair.
@@ -20,9 +19,9 @@ e.g.
 
 ```yaml
 configMaps:
-- name: web
+- name: dns
   data:
-    WORDPRESS_DB_NAME: wordpress
+    GET_HOSTS_FROM: dns
 ```
 
 ## Consuming the configMap
@@ -30,11 +29,15 @@ configMaps:
 See the following code snippet from [db.yaml](./db.yaml)
 
 ```yaml
-  - name: MYSQL_DATABASE
+containers:
+- name: guestbook
+  image: gcr.io/google_containers/guestbook:v3
+  env:
+  - name: GET_HOSTS_FROM
     valueFrom:
       configMapKeyRef:
-        key: MYSQL_DATABASE
-        name: database
+        key: GET_HOSTS_FROM
+        name: guestbook
 ```
 
 This is similar to the way `configMap` is referred in Kubernetes.

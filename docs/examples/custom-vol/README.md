@@ -4,11 +4,11 @@ To define a volume you have to do two things
 
 - Define a `volumeMount` in `containers.volumeMounts`
 
-Check out the following snippet from [db.yaml](./db.yaml)
+Check out the following snippet from [redis-master.yaml](./redis-master.yaml)
 ```yaml
   volumeMounts:
-  - name: database
-    mountPath: /var/lib/mysql
+  - name: persistent
+    mountPath: /data
 ```
 
 Here you mention what is the name of the volume from the root level in `name` field and then in `mountPath` define the path where you wanna mount the volume inside the container.
@@ -18,7 +18,7 @@ Here you mention what is the name of the volume from the root level in `name` fi
 Check out the following snippet from [db.yaml](./db.yaml)
 ```yaml
 volumeClaims:
-- name: database
+- name: persistent
   size: 500Mi
   accessModes:
   - ReadWriteOnce
