@@ -1,0 +1,14 @@
+name: redis-slave
+
+labels:
+  app: redis
+  role: slave
+
+containers:
+- name: redis-slave
+  image: kubernetes/redis-slave:v2
+
+services:
+- name: redis-slave
+  portMappings: 
+  - 6379:6379

@@ -7,7 +7,7 @@ For e.g. right now there is no way to define Kubernetes cron jobs in kedge,
 but you can still specify the Kubernetes cron job file. In this field called
 `includeResources`.
 
-See snippet from [app.yaml](app.yaml):
+See snippet from [web.yaml](web.yaml):
 
 ```yaml
 includeResources:
@@ -25,5 +25,5 @@ in which this config is specified.
 This does not change anything with respect to deploying applications.
 
 ```console
-$ kedge apply -f app.yaml
+$ kedge apply -f web.yaml
 ```

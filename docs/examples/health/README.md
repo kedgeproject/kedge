@@ -1,11 +1,11 @@
 # Health
 
 At container level instead of defining `livenessProbe` and 
-`readinessProbe` you can define a field called `helath`.
+`readinessProbe` you can define a field called `health`.
 And then that gets replicated in `livenessProbe` and 
 `readinessProbe`.
 
-See the snippet below from [web.yaml](web.yaml):
+See the snippet below from [guestbook.yaml](guestbook.yaml):
 
 ```yaml
 containers:
