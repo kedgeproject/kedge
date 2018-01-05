@@ -1,6 +1,6 @@
 # Kedge : Simple, Concise & Declarative Kubernetes Applications
 
-[![Semaphore Build Status Widget]][Semaphore Build Status] [![Travis Build Status Widget]][Travis Build Status] [![Coverage Status Widget]][Coverage Status] [![GoDoc Widget]][GoDoc] [![GoReportCard Widget]][GoReportCardResult] [![Slack Widget]][Slack] 
+[![Semaphore Build Status Widget]][Semaphore Build Status] [![Travis Build Status Widget]][Travis Build Status] [![Coverage Status Widget]][Coverage Status] [![GoDoc Widget]][GoDoc] [![GoReportCard Widget]][GoReportCardResult]
 
 ![logo](/docs/images/logo.png)
 
@@ -68,7 +68,5 @@ Unless otherwise stated (ex. `/vendor` files), all code is licensed under the [A
 [Coverage Status]: https://coveralls.io/github/kedgeproject/kedge?branch=master
 [GoDoc]: https://godoc.org/github.com/kedgeproject/kedge
 [GoDoc Widget]: https://godoc.org/github.com/kedgeproject/kedge?status.svg
-[Slack]: http://slack.kedgeproject.org
-[Slack Widget]: https://s3.eu-central-1.amazonaws.com/ngtuna/join-us-on-slack.png
 [GoReportCard Widget]: https://goreportcard.com/badge/github.com/kedgeproject/kedge
 [GoReportCardResult]: https://goreportcard.com/report/github.com/kedgeproject/kedge
