@@ -669,9 +669,10 @@ func parsePortMapping(pm string) (*api_v1.ServicePort, error) {
 	// Case 3 - port/protocol
 	// Case 4 - port:targetPort/protocol
 	case 2:
-		switch api_v1.Protocol(protocolSplit[1]) {
+		protocolUpperCase := strings.ToUpper(protocolSplit[1])
+		switch api_v1.Protocol(protocolUpperCase) {
 		case api_v1.ProtocolTCP, api_v1.ProtocolUDP:
-			protocol = api_v1.Protocol(protocolSplit[1])
+			protocol = api_v1.Protocol(protocolUpperCase)
 		default:
 			return nil, fmt.Errorf("invalid protocol '%v' provided, the acceptable values are '%v' and '%v'", protocolSplit[1], api.ProtocolTCP, api.ProtocolUDP)
 		}

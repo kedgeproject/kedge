@@ -1018,6 +1018,30 @@ func TestParsePortMapping(t *testing.T) {
 			success: true,
 		},
 		{
+			name:        "port/protocol(lowercase) is passed",
+			portMapping: "1337/udp",
+			servicePort: &api_v1.ServicePort{
+				Port: 1337,
+				TargetPort: intstr.IntOrString{
+					IntVal: 1337,
+				},
+				Protocol: api_v1.ProtocolUDP,
+			},
+			success: true,
+		},
+		{
+			name:        "port/protocol(tCp) is passed",
+			portMapping: "1337/tCp",
+			servicePort: &api_v1.ServicePort{
+				Port: 1337,
+				TargetPort: intstr.IntOrString{
+					IntVal: 1337,
+				},
+				Protocol: api_v1.ProtocolTCP,
+			},
+			success: true,
+		},
+		{
 			name:        "port:targetPort/protocol is passed",
 			portMapping: "1337:1338/UDP",
 			servicePort: &api_v1.ServicePort{
