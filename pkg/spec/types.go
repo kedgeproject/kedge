@@ -166,13 +166,25 @@ type BuildConfigSpecMod struct {
 	meta_v1.ObjectMeta `json:",inline"`
 }
 
-// ControllerFields are the common fields in every controller Kedge supports
-type ControllerFields struct {
+// Main kedge file structure defining whole applicatoin
+// kedgeSpec: io.kedge.App
+type App struct {
 	// Field to specify the version of application
 	// +optional
 	Appversion string `json:"appversion,omitempty"`
 
-	Controller string `json:"controller,omitempty"`
+	// ref: io.kedge.DeploymentSpecMod
+	// +optional
+	Deployments []DeploymentSpecMod `json:"deployments,omitempty"`
+
+	// ref: io.kedge.JobSpecMod
+	// +optional
+	Jobs []JobSpecMod `json:"jobs,omitempty"`
+
+	// ref: io.kedge.DeploymentConfigSpecMod
+	// +optional
+	DeploymentConfigs []DeploymentConfigSpecMod `json:"deploymentConfigs,omitempty"`
+
 	// List of volume that should be mounted on the pod.
 	// ref: io.kedge.VolumeClaim
 	// +optional
@@ -211,27 +223,26 @@ type ControllerFields struct {
 
 	// k8s: io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta
 	meta_v1.ObjectMeta `json:",inline"`
-	PodSpecMod         `json:",inline"`
 }
 
-type Controller struct {
-	Controller string `json:"controller,omitempty"`
-}
-
-// DeploymentSpecMod is Kedge's extension of Kubernetes DeploymentSpec and allows
-// defining a complete kedge application
+// DeploymentSpecMod is Kedge's extension of Kubernetes DeploymentSpec
 // kedgeSpec: io.kedge.DeploymentSpecMod
 type DeploymentSpecMod struct {
-	ControllerFields `json:",inline"`
+	// k8s: io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta
+	meta_v1.ObjectMeta `json:",inline"`
+
 	// k8s: io.k8s.kubernetes.pkg.apis.apps.v1beta1.DeploymentSpec
 	ext_v1beta1.DeploymentSpec `json:",inline"`
+
+	PodSpecMod `json:",inline"`
 }
 
-// JobSpecMod is Kedge's extension of Kubernetes JobSpec and allows
-// defining a complete kedge application
+// JobSpecMod is Kedge's extension of Kubernetes JobSpec
 // kedgeSpec: io.kedge.JobSpecMod
 type JobSpecMod struct {
-	ControllerFields `json:",inline"`
+	// k8s: io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta
+	meta_v1.ObjectMeta `json:",inline"`
+
 	// k8s: io.k8s.kubernetes.pkg.apis.batch.v1.JobSpec
 	batch_v1.JobSpec `json:",inline"`
 	// Optional duration in seconds relative to the startTime that the job may be active
@@ -239,14 +250,17 @@ type JobSpecMod struct {
 	// This only sets ActiveDeadlineSeconds in JobSpec, not PodSpec
 	// +optional
 	ActiveDeadlineSeconds *int64 `json:"activeDeadlineSeconds,conflicting,omitempty"`
+
+	PodSpecMod `json:",inline"`
 }
 
 // Ochestrator: OpenShift
-// DeploymentConfigSpecMod is Kedge's extension of OpenShift DeploymentConfig in order to define and allow
-// a complete kedge app based on OpenShift
+// DeploymentConfigSpecMod is Kedge's extension of OpenShift DeploymentConfig
 // kedgeSpec: io.kedge.DeploymentConfigSpecMod
 type DeploymentConfigSpecMod struct {
-	ControllerFields `json:",inline"`
+	// k8s: io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta
+	meta_v1.ObjectMeta `json:",inline"`
+
 	// k8s: v1.DeploymentConfigSpec
 	os_deploy_v1.DeploymentConfigSpec `json:",inline"`
 
@@ -258,4 +272,6 @@ type DeploymentConfigSpecMod struct {
 	// 1. Hence, we need to check if the user has set it or not.Making the type
 	// *int32 helps us do it, followed by substitution later on.
 	Replicas *int32 `json:"replicas,omitempty"`
+
+	PodSpecMod `json:",inline"`
 }
