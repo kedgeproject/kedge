@@ -1,16 +1,17 @@
 name: web
-replicas: 1
-containers:
-- image: wordpress:4
-  env:
-  - name: WORDPRESS_DB_HOST
-    value: database:3306
-  - name: WORDPRESS_DB_PASSWORD
-    value: wordpress
-  - name: WORDPRESS_DB_USER
-    value: wordpress
-  - name: WORDPRESS_DB_NAME
-    value: wordpress
+deployments:
+- replicas: 1
+  containers:
+  - image: wordpress:4
+    env:
+    - name: WORDPRESS_DB_HOST
+      value: database:3306
+    - name: WORDPRESS_DB_PASSWORD
+      value: wordpress
+    - name: WORDPRESS_DB_USER
+      value: wordpress
+    - name: WORDPRESS_DB_NAME
+      value: wordpress
 services:
 - name: wordpress
   ports:

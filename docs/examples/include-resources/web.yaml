@@ -1,15 +1,16 @@
 name: web
-containers:
-- image: centos/httpd
-  health:
-    httpGet:
-      path: /
-      port: 80
-    initialDelaySeconds: 10
-    timeoutSeconds: 5
-  volumeMounts:
-  - name: web
-    mountPath: /var/www/html/
+deployments:
+- containers:
+  - image: centos/httpd
+    health:
+      httpGet:
+        path: /
+        port: 80
+      initialDelaySeconds: 10
+      timeoutSeconds: 5
+    volumeMounts:
+    - name: web
+      mountPath: /var/www/html/
 services:
 - name: web
   type: NodePort

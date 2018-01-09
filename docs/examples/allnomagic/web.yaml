@@ -1,40 +1,41 @@
 name: web
-replicas: 1
-containers:
-- image: wordpress:4
-  env:
-  - name: WORDPRESS_DB_PASSWORD
-    valueFrom:
-      secretKeyRef:
-        name: wordpress
-        key: DB_PASSWD
-  - name: WORDPRESS_DB_NAME
-    valueFrom:
-      configMapKeyRef:
-        key: MYSQL_DATABASE
-        name: database
-  - name: WORDPRESS_DB_HOST
-    valueFrom:
-      configMapKeyRef:
-        key: WORDPRESS_DB_HOST
-        name: web
-  - name: WORDPRESS_DB_USER
-    valueFrom:
-      configMapKeyRef:
-        key: MYSQL_USER
-        name: database
-  livenessProbe:
-    httpGet:
-      path: /
-      port: 80
-    initialDelaySeconds: 120
-    timeoutSeconds: 5
-  readinessProbe:
-    httpGet:
-      path: /
-      port: 80
-    initialDelaySeconds: 5
-    timeoutSeconds: 2
+deployments:
+- replicas: 1
+  containers:
+  - image: wordpress:4
+    env:
+    - name: WORDPRESS_DB_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: wordpress
+          key: DB_PASSWD
+    - name: WORDPRESS_DB_NAME
+      valueFrom:
+        configMapKeyRef:
+          key: MYSQL_DATABASE
+          name: database
+    - name: WORDPRESS_DB_HOST
+      valueFrom:
+        configMapKeyRef:
+          key: WORDPRESS_DB_HOST
+          name: web
+    - name: WORDPRESS_DB_USER
+      valueFrom:
+        configMapKeyRef:
+          key: MYSQL_USER
+          name: database
+    livenessProbe:
+      httpGet:
+        path: /
+        port: 80
+      initialDelaySeconds: 120
+      timeoutSeconds: 5
+    readinessProbe:
+      httpGet:
+        path: /
+        port: 80
+      initialDelaySeconds: 5
+      timeoutSeconds: 2
 services:
 - name: wordpress
   type: LoadBalancer

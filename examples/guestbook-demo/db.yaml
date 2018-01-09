@@ -1,18 +1,20 @@
 name: mongodb
 
-containers:
-  - image:  centos/mongodb-32-centos7:3.2
-    envFrom:
-      - secretRef:
-          name: mongodb-admin
-      - secretRef:
-          name: mongodb-user
-      - configMapRef:
-          name: mongodb-user
+deployments:
+- containers:
+    - image:  centos/mongodb-32-centos7:3.2
+      envFrom:
+        - secretRef:
+            name: mongodb-admin
+        - secretRef:
+            name: mongodb-user
+        - configMapRef:
+            name: mongodb-user
 
-    volumeMounts:
-     - name: mongodb-data
-       mountPath: /var/lib/mongodb/data
+      volumeMounts:
+       - name: mongodb-data
+         mountPath: /var/lib/mongodb/data
+
 services:
   - portMappings:
     - 27017

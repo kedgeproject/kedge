@@ -1,33 +1,34 @@
 name: database
-containers:
-- image: mariadb:10
-  env:
-  - name: MYSQL_ROOT_PASSWORD
-    value: rootpasswd
-  - name: MYSQL_PASSWORD
-    value: wordpress
-  - name: MYSQL_USER
-    value: wordpress
-  envFrom:
-  - configMapRef:
-      name: database
-  volumeMounts:
-  - name: database
-    mountPath: /var/lib/mysql
-  livenessProbe:
-    exec:
-      command:
-      - mysqladmin
-      - ping
-    initialDelaySeconds: 30
-    timeoutSeconds: 5
-  readinessProbe:
-    exec:
-      command:
-      - mysqladmin
-      - ping
-    initialDelaySeconds: 5
-    timeoutSeconds: 1
+deployments:
+- containers:
+  - image: mariadb:10
+    env:
+    - name: MYSQL_ROOT_PASSWORD
+      value: rootpasswd
+    - name: MYSQL_PASSWORD
+      value: wordpress
+    - name: MYSQL_USER
+      value: wordpress
+    envFrom:
+    - configMapRef:
+        name: database
+    volumeMounts:
+    - name: database
+      mountPath: /var/lib/mysql
+    livenessProbe:
+      exec:
+        command:
+        - mysqladmin
+        - ping
+      initialDelaySeconds: 30
+      timeoutSeconds: 5
+    readinessProbe:
+      exec:
+        command:
+        - mysqladmin
+        - ping
+      initialDelaySeconds: 5
+      timeoutSeconds: 1
 services:
 - name: database
   ports:

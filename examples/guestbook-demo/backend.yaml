@@ -1,29 +1,30 @@
 name: backend
 
-containers:
-  - image: quay.io/tomkral/guestbook-demo-backend@sha256:abc9d419c2fc27511332471e7b82359f84ccec37577e1fcf05e7318145b3e125
+deployments:
+- containers:
+    - image: quay.io/tomkral/guestbook-demo-backend@sha256:abc9d419c2fc27511332471e7b82359f84ccec37577e1fcf05e7318145b3e125
 
-    env:
-      - name: MONGODB_PASSWORD
-        valueFrom:
-          secretKeyRef:
-            name: mongodb-user
-            key: MONGODB_PASSWORD
-      - name: MONGODB_USERNAME
-        valueFrom:
-          configMapKeyRef:
-            name: mongodb-user
-            key: MONGODB_USER
-      - name: MONGODB_DATABASE
-        valueFrom:
-          configMapKeyRef:
-            name: mongodb-user
-            key: MONGODB_DATABASE
-      - name: MONGODB_SERVER
-        valueFrom:
-          configMapKeyRef:
-            name: mongodb-user
-            key: MONGODB_SERVER
+      env:
+        - name: MONGODB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-user
+              key: MONGODB_PASSWORD
+        - name: MONGODB_USERNAME
+          valueFrom:
+            configMapKeyRef:
+              name: mongodb-user
+              key: MONGODB_USER
+        - name: MONGODB_DATABASE
+          valueFrom:
+            configMapKeyRef:
+              name: mongodb-user
+              key: MONGODB_DATABASE
+        - name: MONGODB_SERVER
+          valueFrom:
+            configMapKeyRef:
+              name: mongodb-user
+              key: MONGODB_SERVER
 
 services:
   - portMappings:

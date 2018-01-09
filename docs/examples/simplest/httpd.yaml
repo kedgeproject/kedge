@@ -1,6 +1,7 @@
 name: httpd
-containers:
-- image: centos/httpd
+deployments:
+- containers:
+  - image: centos/httpd
 services:
 - name: httpd
   type: NodePort

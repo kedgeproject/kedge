@@ -3,40 +3,41 @@ name: redis
 labels:
     app: redis
 
-containers:
-- name: redis
-  image: "bitnami/redis:3.2.8-r1"
-  imagePullPolicy: "IfNotPresent"
-  livenessProbe:
-    exec:
-      command:
-      - redis-cli
-      - ping
-    initialDelaySeconds: 30
-    timeoutSeconds: 5
-  readinessProbe:
-    exec:
-      command:
-      - redis-cli
-      - ping
-    initialDelaySeconds: 5
-    timeoutSeconds: 1
-  resources:
-    requests:
-      cpu: 100m
-      memory: 1Gi
+deployments:
+- containers:
+  - name: redis
+    image: "bitnami/redis:3.2.8-r1"
+    imagePullPolicy: "IfNotPresent"
+    livenessProbe:
+      exec:
+        command:
+        - redis-cli
+        - ping
+      initialDelaySeconds: 30
+      timeoutSeconds: 5
+    readinessProbe:
+      exec:
+        command:
+        - redis-cli
+        - ping
+      initialDelaySeconds: 5
+      timeoutSeconds: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 1Gi
 
-  # Environment variables
-  env:
-  - name: REDIS_PASSWORD
-    valueFrom:
-      secretKeyRef:
-        name: redis
-        key: redis-password
+    # Environment variables
+    env:
+    - name: REDIS_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: redis
+          key: redis-password
 
-  volumeMounts:
-  - name: redis-data
-    mountPath: /bitnami/redis
+    volumeMounts:
+    - name: redis-data
+      mountPath: /bitnami/redis
 
 services:
 - name: redis

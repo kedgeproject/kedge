@@ -4,13 +4,14 @@ labels:
   app: redis
   role: master
 
-containers:
-- name: redis-master
-  image: redis:2.8.23
-  volumeMounts:
-  - name: persistent
-    mountPath: /data
-  
+deployments:
+- containers:
+  - name: redis-master
+    image: redis:2.8.23
+    volumeMounts:
+    - name: persistent
+      mountPath: /data
+    
 services:
 - name: redis-master
   portMappings: 

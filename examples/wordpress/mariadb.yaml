@@ -1,24 +1,25 @@
 name: database
 
-containers:
-  - image: mariadb:10
-    health:
-      exec:
-        command:
-          - mysqladmin
-          - ping
+deployments:
+- containers:
+    - image: mariadb:10
+      health:
+        exec:
+          command:
+            - mysqladmin
+            - ping
 
-    envFrom:
-      - configMapRef:
-         name: database
-      - secretRef:
-          name: database-root-password
-      - secretRef:
-          name: database-user-password
+      envFrom:
+        - configMapRef:
+           name: database
+        - secretRef:
+            name: database-root-password
+        - secretRef:
+            name: database-user-password
 
-    volumeMounts:
-      - name: database
-        mountPath: /var/lib/mysql
+      volumeMounts:
+        - name: database
+          mountPath: /var/lib/mysql
 
 services:
   - name: database
