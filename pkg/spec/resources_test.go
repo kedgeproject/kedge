@@ -652,17 +652,17 @@ func TestValidateVolumeClaims(t *testing.T) {
 func TestCreateRoutes(t *testing.T) {
 	tests := []struct {
 		name   string
-		input  *ControllerFields
+		input  *App
 		output []runtime.Object
 	}{
 		{
 			name:   "no routes passed",
-			input:  &ControllerFields{},
+			input:  &App{},
 			output: nil,
 		},
 		{
 			name: "passing 1 route definition",
-			input: &ControllerFields{
+			input: &App{
 				Routes: []RouteSpecMod{
 					{
 						ObjectMeta: meta_v1.ObjectMeta{
@@ -687,7 +687,7 @@ func TestCreateRoutes(t *testing.T) {
 		},
 		{
 			name: "passing 2 route definitions",
-			input: &ControllerFields{
+			input: &App{
 				Routes: []RouteSpecMod{
 					{
 						ObjectMeta: meta_v1.ObjectMeta{
@@ -745,26 +745,28 @@ func TestCreateRoutes(t *testing.T) {
 func TestCreateServices(t *testing.T) {
 	tests := []struct {
 		Name    string
-		App     *DeploymentSpecMod
+		App     *App
 		Objects []runtime.Object
 	}{
 		{
 			"Single container specified",
-			&DeploymentSpecMod{
-				ControllerFields: ControllerFields{
-					ObjectMeta: meta_v1.ObjectMeta{
-						Name: "test",
+			&App{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name: "test",
+				},
+				Deployments: []DeploymentSpecMod{
+					{
+						PodSpecMod: PodSpecMod{
+							Containers: []Container{{Container: api_v1.Container{Image: "nginx"}}},
+						},
 					},
-					PodSpecMod: PodSpecMod{
-						Containers: []Container{{Container: api_v1.Container{Image: "nginx"}}},
-					},
-					Services: []ServiceSpecMod{
-						{
-							ObjectMeta: meta_v1.ObjectMeta{
-								Name: "test",
-							},
-							Ports: []ServicePortMod{{ServicePort: api_v1.ServicePort{Port: 8080}}}},
-					},
+				},
+				Services: []ServiceSpecMod{
+					{
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name: "test",
+						},
+						Ports: []ServicePortMod{{ServicePort: api_v1.ServicePort{Port: 8080}}}},
 				},
 			},
 			append(make([]runtime.Object, 0), &api_v1.Service{
@@ -790,17 +792,17 @@ func TestCreateServices(t *testing.T) {
 func TestCreateImageStreams(t *testing.T) {
 	tests := []struct {
 		name   string
-		input  *ControllerFields
+		input  *App
 		output []runtime.Object
 	}{
 		{
 			name:   "no imageStreams passed",
-			input:  &ControllerFields{},
+			input:  &App{},
 			output: nil,
 		},
 		{
 			name: "passing 1 imageStream definition",
-			input: &ControllerFields{
+			input: &App{
 				ImageStreams: []ImageStreamSpecMod{
 					{
 						ObjectMeta: meta_v1.ObjectMeta{
@@ -824,7 +826,7 @@ func TestCreateImageStreams(t *testing.T) {
 		},
 		{
 			name: "passing 2 imageStream definitions",
-			input: &ControllerFields{
+			input: &App{
 				ImageStreams: []ImageStreamSpecMod{
 					{
 						ObjectMeta: meta_v1.ObjectMeta{
@@ -879,17 +881,17 @@ func TestCreateImageStreams(t *testing.T) {
 func TestCreateBuildConfigs(t *testing.T) {
 	tests := []struct {
 		name   string
-		input  *ControllerFields
+		input  *App
 		output []runtime.Object
 	}{
 		{
 			name:   "no buildConfig passed",
-			input:  &ControllerFields{},
+			input:  &App{},
 			output: nil,
 		},
 		{
 			name: "passing 1 buildConfig definition",
-			input: &ControllerFields{
+			input: &App{
 				BuildConfigs: []BuildConfigSpecMod{
 					{
 						ObjectMeta: meta_v1.ObjectMeta{
@@ -914,7 +916,7 @@ func TestCreateBuildConfigs(t *testing.T) {
 		},
 		{
 			name: "passing 2 buildConfig definitions",
-			input: &ControllerFields{
+			input: &App{
 				BuildConfigs: []BuildConfigSpecMod{
 					{
 						ObjectMeta: meta_v1.ObjectMeta{

@@ -21,135 +21,117 @@ import (
 	"reflect"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/pkg/errors"
 	api_v1 "k8s.io/kubernetes/pkg/api/v1"
 	ext_v1beta1 "k8s.io/kubernetes/pkg/apis/extensions/v1beta1"
 
-	"github.com/davecgh/go-spew/spew"
-	"github.com/ghodss/yaml"
-	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-func (deployment *DeploymentSpecMod) Unmarshal(data []byte) error {
-	err := yaml.Unmarshal(data, &deployment)
-	if err != nil {
-		return errors.Wrap(err, "Deployment could not unmarshal into internal struct")
-	}
-	log.Debugf("object unmarshalled: %#v\n", deployment)
+func (app *App) validateDeployments() error {
+
+	// TODO: v2
 	return nil
 }
 
-func (deployment *DeploymentSpecMod) Validate() error {
-
-	// validate controller fields
-	if err := deployment.ControllerFields.validateControllerFields(); err != nil {
-		return errors.Wrap(err, "unable to validate controller fields")
+func (app *App) fixDeployments() error {
+	// auto populate name only if one deployment is specified without any name
+	if len(app.Deployments) == 1 && app.Deployments[0].ObjectMeta.Name == "" {
+		app.Deployments[0].ObjectMeta.Name = app.Name
 	}
 
-	return nil
-}
+	for i := range app.Deployments {
+		// copy root labels (already has "app: <app.Name>" label)
+		for key, value := range app.ObjectMeta.Labels {
+			app.Deployments[i].ObjectMeta.Labels = addKeyValueToMap(key, value, app.Deployments[i].ObjectMeta.Labels)
+		}
 
-func (deployment *DeploymentSpecMod) Fix() error {
-	if err := deployment.ControllerFields.fixControllerFields(); err != nil {
-		return errors.Wrap(err, "unable to fix ControllerFields")
-	}
+		// copy root annotations (already has "appVersion: <app.AppVersion>" annotation)
+		for key, value := range app.ObjectMeta.Annotations {
+			app.Deployments[i].ObjectMeta.Annotations = addKeyValueToMap(key, value, app.Deployments[i].ObjectMeta.Annotations)
+		}
 
-	deployment.ControllerFields.ObjectMeta.Labels = addKeyValueToMap(appLabelKey, deployment.ControllerFields.Name, deployment.ControllerFields.ObjectMeta.Labels)
+		var err error
+		app.Deployments[i].InitContainers, err = fixContainers(app.Deployments[i].InitContainers, app.Name)
+		if err != nil {
+			return errors.Wrap(err, "unable to fix init-containers")
+		}
 
-	if deployment.ControllerFields.Appversion != "" {
-		deployment.ControllerFields.ObjectMeta.Annotations = addKeyValueToMap(appVersion, deployment.ControllerFields.Appversion, deployment.ControllerFields.ObjectMeta.Annotations)
-	}
-
-	return nil
-}
-
-// Transform function if given DeploymentSpecMod data creates the versioned
-// kubernetes objects and returns them in list of runtime.Object
-// And if the field in DeploymentSpecMod called 'includeResources' is used
-// then it returns the filenames mentioned there as list of string
-func (deployment *DeploymentSpecMod) Transform() ([]runtime.Object, []string, error) {
-
-	runtimeObjects, includeResources, err := deployment.CreateK8sObjects()
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to create Kubernetes objects")
-	}
-
-	deploy, err := deployment.createKubernetesController()
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to create Kubernetes Deployment controller")
-	}
-
-	// adding controller objects
-	// deployment will be nil if no deployment is generated and no error occurs,
-	// so we only need to append this when a legit deployment resource is returned
-	if deploy != nil {
-		runtimeObjects = append(runtimeObjects, deploy)
-		log.Debugf("deployment: %s, deployment: %s\n", deploy.Name, spew.Sprint(deployment))
-
-	}
-
-	if len(runtimeObjects) == 0 {
-		return nil, nil, errors.New("No runtime objects created, possibly because not enough input data was passed")
-	}
-
-	scheme, err := GetScheme()
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "unable to get scheme")
-	}
-
-	for _, runtimeObject := range runtimeObjects {
-		if err := SetGVK(runtimeObject, scheme); err != nil {
-			return nil, nil, errors.Wrap(err, "unable to set Group, Version and Kind for generated Kubernetes resources")
+		app.Deployments[i].Containers, err = fixContainers(app.Deployments[i].Containers, app.Name)
+		if err != nil {
+			return errors.Wrap(err, "unable to fix containers")
 		}
 	}
 
-	return runtimeObjects, includeResources, nil
+	return nil
 }
 
 // Creates a Deployment Kubernetes resource. The returned Deployment resource
 // will be nil if it could not be generated due to insufficient input data.
-func (deployment *DeploymentSpecMod) createKubernetesController() (*ext_v1beta1.Deployment, error) {
+func (app *App) createDeployments() ([]runtime.Object, error) {
+	var deployments []runtime.Object
 
-	// We need to error out if both, deployment.PodSpec and deployment.DeploymentSpec are empty
-	if deployment.isDeploymentSpecPodSpecEmpty() {
-		log.Debug("Both, deployment.PodSpec and deployment.DeploymentSpec are empty, not enough data to create a deployment.")
-		return nil, nil
+	for _, deployment := range app.Deployments {
+
+		// We need to error out if both, deployment.PodSpec and deployment.DeploymentSpec are empty
+
+		if deployment.isDeploymentSpecPodSpecEmpty() {
+			log.Debug("Both, deployment.PodSpec and deployment.DeploymentSpec are empty, not enough data to create a deployment.")
+			return nil, nil
+		}
+
+		// We are merging whole DeploymentSpec with PodSpec.
+		// This means that someone could specify containers in template.spec and also in top level PodSpec.
+		// This stupid check is supposed to make sure that only one of them set.
+		// TODO: merge DeploymentSpec.Template.Spec and top level PodSpec
+		if deployment.isMultiplePodSpecSpecified() {
+			return nil, fmt.Errorf("Pod can't be specfied in two places. Use top level PodSpec or template.spec (DeploymentSpec.Template.Spec) not both")
+		}
+
+		deploymentSpec := deployment.DeploymentSpec
+
+		// top level PodSpecMod is not empty, use it for deployment template
+		// we already know that if deployment.PodSpec is not empty deployment.DeploymentSpec.Template.Spec is empty
+		if !reflect.DeepEqual(deployment.PodSpecMod, PodSpecMod{}) {
+
+			//copy over regular podSpec fields
+			deploymentSpec.Template.Spec = deployment.PodSpec
+
+			// our customized fields
+			var err error
+			deploymentSpec.Template.Spec.Containers, err = populateContainers(deployment.PodSpecMod.Containers, app.ConfigMaps, app.Secrets)
+			if err != nil {
+				return nil, errors.Wrapf(err, "deployment %q", app.Name)
+			}
+			log.Debugf("object after population: %#v\n", app)
+
+			deploymentSpec.Template.Spec.InitContainers, err = populateContainers(deployment.PodSpecMod.InitContainers, app.ConfigMaps, app.Secrets)
+			if err != nil {
+				return nil, errors.Wrapf(err, "deployment %q", app.Name)
+			}
+			log.Debugf("object after population: %#v\n", app)
+		}
+
+		// TODO: check if this wasn't set by user, in that case we shouldn't overwrite it
+		deploymentSpec.Template.ObjectMeta.Name = deployment.Name
+
+		// TODO: merge with already existing labels and avoid duplication
+		deploymentSpec.Template.ObjectMeta.Labels = deployment.Labels
+
+		deploymentSpec.Template.ObjectMeta.Annotations = deployment.Annotations
+
+		deployments = append(deployments, &ext_v1beta1.Deployment{
+			ObjectMeta: deployment.ObjectMeta,
+			Spec:       deploymentSpec,
+		})
 	}
-
-	// We are merging whole DeploymentSpec with PodSpec.
-	// This means that someone could specify containers in template.spec and also in top level PodSpec.
-	// This stupid check is supposed to make sure that only one of them set.
-	// TODO: merge DeploymentSpec.Template.Spec and top level PodSpec
-	if deployment.isMultiplePodSpecSpecified() {
-		return nil, fmt.Errorf("Pod can't be specfied in two places. Use top level PodSpec or template.spec (DeploymentSpec.Template.Spec) not both")
-	}
-
-	deploymentSpec := deployment.DeploymentSpec
-
-	// top level PodSpec is not empty, use it for deployment template
-	// we already know that if deployment.PodSpec is not empty deployment.DeploymentSpec.Template.Spec is empty
-	if !reflect.DeepEqual(deployment.PodSpec, api_v1.PodSpec{}) {
-		deploymentSpec.Template.Spec = deployment.PodSpec
-	}
-
-	// TODO: check if this wasn't set by user, in that case we shouldn't overwrite it
-	deploymentSpec.Template.ObjectMeta.Name = deployment.Name
-
-	// TODO: merge with already existing labels and avoid duplication
-	deploymentSpec.Template.ObjectMeta.Labels = deployment.Labels
-
-	deploymentSpec.Template.ObjectMeta.Annotations = deployment.Annotations
-
-	return &ext_v1beta1.Deployment{
-		ObjectMeta: deployment.ObjectMeta,
-		Spec:       deploymentSpec,
-	}, nil
+	return deployments, nil
 }
 
 func (deployment *DeploymentSpecMod) isDeploymentSpecPodSpecEmpty() bool {
-	return reflect.DeepEqual(deployment.PodSpec, api_v1.PodSpec{}) && reflect.DeepEqual(deployment.DeploymentSpec, ext_v1beta1.DeploymentSpec{})
+	return reflect.DeepEqual(deployment.PodSpecMod, PodSpecMod{}) && reflect.DeepEqual(deployment.DeploymentSpec, ext_v1beta1.DeploymentSpec{})
 }
 
 func (deployment *DeploymentSpecMod) isMultiplePodSpecSpecified() bool {
-	return !(reflect.DeepEqual(deployment.DeploymentSpec.Template.Spec, api_v1.PodSpec{}) || reflect.DeepEqual(deployment.PodSpec, api_v1.PodSpec{}))
+	return !(reflect.DeepEqual(deployment.DeploymentSpec.Template.Spec, api_v1.PodSpec{}) || reflect.DeepEqual(deployment.PodSpecMod, PodSpecMod{}))
 }

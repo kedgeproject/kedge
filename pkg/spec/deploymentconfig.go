@@ -17,124 +17,138 @@ limitations under the License.
 package spec
 
 import (
+	"fmt"
+	"reflect"
+
 	log "github.com/Sirupsen/logrus"
-	"github.com/davecgh/go-spew/spew"
-	"github.com/ghodss/yaml"
-	os_deploy_v1 "github.com/openshift/origin/pkg/apps/apis/apps/v1"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/runtime"
-	kapi "k8s.io/kubernetes/pkg/api/v1"
+
+	os_deploy_v1 "github.com/openshift/origin/pkg/apps/apis/apps/v1"
+	api_v1 "k8s.io/kubernetes/pkg/api/v1"
 )
 
-// Unmarshal the Kedge YAML file
-func (deploymentConfig *DeploymentConfigSpecMod) Unmarshal(data []byte) error {
-	err := yaml.Unmarshal(data, &deploymentConfig)
-	if err != nil {
-		return errors.Wrap(err, "could not unmarshal into internal struct")
-	}
-	log.Debugf("object unmarshalled: %#v\n", deploymentConfig)
+func (deploymentConfig *DeploymentConfigSpecMod) validateDeploymentConfig() error {
+	// TODO: v2
 	return nil
 }
 
-// Validate all portions of the file
-func (deploymentConfig *DeploymentConfigSpecMod) Validate() error {
-
-	if err := validateVolumeClaims(deploymentConfig.VolumeClaims); err != nil {
-		return errors.Wrap(err, "error validating volume claims")
+func (app *App) fixDeploymentConfigs() error {
+	// auto populate name only if one deployment is specified without any name
+	if len(app.DeploymentConfigs) == 1 && app.DeploymentConfigs[0].ObjectMeta.Name == "" {
+		app.DeploymentConfigs[0].ObjectMeta.Name = app.Name
 	}
 
-	return nil
-}
+	for i := range app.DeploymentConfigs {
+		// If the replicas are not specified at all, we need to set the value as 1
+		if app.DeploymentConfigs[i].Replicas == nil {
+			app.DeploymentConfigs[i].Replicas = getInt32Addr(1)
+		}
 
-// Fix all services / volume claims / configmaps that are applied
-// TODO: abstract out this code when more controllers are added
-func (deploymentConfig *DeploymentConfigSpecMod) Fix() error {
+		// Since we have unmarshalled replicas in a custom defined field, we need
+		// to substitute the unmarshalled (and fixed) value in the internal
+		// DeploymentConfigSpec struct
+		app.DeploymentConfigs[i].DeploymentConfigSpec.Replicas = *app.DeploymentConfigs[i].Replicas
 
-	if err := deploymentConfig.ControllerFields.fixControllerFields(); err != nil {
-		return errors.Wrap(err, "unable to fix ControllerFields")
-	}
+		// copy root labels (already has "app: <app.Name>" label)
+		for key, value := range app.ObjectMeta.Labels {
+			app.DeploymentConfigs[i].ObjectMeta.Labels = addKeyValueToMap(key, value, app.DeploymentConfigs[i].ObjectMeta.Labels)
+		}
 
-	// Fix DeploymentConfig
-	deploymentConfig.fixDeploymentConfig()
+		// copy root annotations (already has "appVersion: <app.AppVersion>" annotation)
+		for key, value := range app.ObjectMeta.Annotations {
+			app.DeploymentConfigs[i].ObjectMeta.Annotations = addKeyValueToMap(key, value, app.DeploymentConfigs[i].ObjectMeta.Annotations)
+		}
 
-	return nil
-}
+		var err error
+		app.DeploymentConfigs[i].InitContainers, err = fixContainers(app.DeploymentConfigs[i].InitContainers, app.Name)
+		if err != nil {
+			return errors.Wrap(err, "unable to fix init-containers")
+		}
 
-func (deploymentConfig *DeploymentConfigSpecMod) fixDeploymentConfig() {
-	deploymentConfig.ControllerFields.ObjectMeta.Labels = addKeyValueToMap(appLabelKey,
-		deploymentConfig.ControllerFields.Name,
-		deploymentConfig.ControllerFields.ObjectMeta.Labels)
-
-	if deploymentConfig.ControllerFields.Appversion != "" {
-		deploymentConfig.ControllerFields.ObjectMeta.Annotations = addKeyValueToMap(appVersion,
-			deploymentConfig.ControllerFields.Appversion,
-			deploymentConfig.ControllerFields.ObjectMeta.Annotations)
-	}
-
-	// If the replicas are not specified at all, we need to set the value as 1
-	if deploymentConfig.Replicas == nil {
-		deploymentConfig.Replicas = getInt32Addr(1)
-	}
-
-	// Since we have unmarshalled replicas in a custom defined field, we need
-	// to substitute the unmarshalled (and fixed) value in the internal
-	// DeploymentConfigSpec struct
-	deploymentConfig.DeploymentConfigSpec.Replicas = *deploymentConfig.Replicas
-}
-
-func (deploymentConfig *DeploymentConfigSpecMod) Transform() ([]runtime.Object, []string, error) {
-
-	// Create Kubernetes objects (since OpenShift uses Kubernetes underneath, no need to refactor
-	// this portion
-	runtimeObjects, extraResources, err := deploymentConfig.CreateK8sObjects()
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to create Kubernetes objects")
-	}
-
-	// Create the DeploymentConfig controller
-	deploy, err := deploymentConfig.createOpenShiftController()
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to create DeploymentConfig controller")
-	}
-
-	// adding controller objects
-	// deploymentConfig will be nil if no deploymentConfig is generated and no error occurs,
-	// so we only need to append this when a legit deploymentConfig resource is returned
-	if deploy != nil {
-		runtimeObjects = append(runtimeObjects, deploy)
-		log.Debugf("deploymentConfig: %s, deploymentConfig: %s\n", deploy.Name, spew.Sprint(deploymentConfig))
-	}
-
-	if len(runtimeObjects) == 0 {
-		return nil, nil, errors.New("No runtime objects created, possibly because not enough input data was passed")
-	}
-
-	scheme, err := GetScheme()
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "unable to get scheme")
-	}
-
-	// Set's the appropriate GVK
-	for _, runtimeObject := range runtimeObjects {
-		if err := SetGVK(runtimeObject, scheme); err != nil {
-			return nil, nil, errors.Wrap(err, "unable to set Group, Version and Kind for generated resources")
+		app.DeploymentConfigs[i].Containers, err = fixContainers(app.DeploymentConfigs[i].Containers, app.Name)
+		if err != nil {
+			return errors.Wrap(err, "unable to fix containers")
 		}
 	}
 
-	return runtimeObjects, extraResources, nil
+	return nil
 }
 
 // Created the OpenShift DeploymentConfig controller
-func (deploymentConfig *DeploymentConfigSpecMod) createOpenShiftController() (*os_deploy_v1.DeploymentConfig, error) {
+func (app *App) createDeploymentConfigs() ([]runtime.Object, error) {
+	var deploymentConfigs []runtime.Object
 
-	dcSpec := deploymentConfig.DeploymentConfigSpec
-	dcSpec.Template = &kapi.PodTemplateSpec{
-		Spec:       deploymentConfig.PodSpec,
-		ObjectMeta: deploymentConfig.ControllerFields.ObjectMeta,
+	for _, deploymentConfig := range app.DeploymentConfigs {
+
+		// We need to error out if both, deployment.PodSpec and deployment.DeploymentSpec are empty
+
+		if deploymentConfig.isDeploymentConfigSpecPodSpecEmpty() {
+			log.Debug("Both, deploymentConfig.PodSpec and deploymentConfig.DeploymentConfigSpec are empty, not enough data to create a deployment.")
+			return nil, nil
+		}
+
+		// We are merging whole DeploymentSpec with PodSpec.
+		// This means that someone could specify containers in template.spec and also in top level PodSpec.
+		// This stupid check is supposed to make sure that only one of them set.
+		// TODO: merge DeploymentSpec.Template.Spec and top level PodSpec
+		if deploymentConfig.isMultiplePodSpecSpecified() {
+			return nil, fmt.Errorf("Pod can't be specfied in two places. Use top level PodSpec or template.spec (DeploymentSpec.Template.Spec) not both")
+		}
+
+		deploymentConfigSpec := deploymentConfig.DeploymentConfigSpec
+
+		// top level PodSpecMod is not empty, use it for deployment template
+		// we already know that if deployment.PodSpec is not empty deployment.DeploymentSpec.Template.Spec is empty
+		if !reflect.DeepEqual(deploymentConfig.PodSpecMod, PodSpecMod{}) {
+
+			if deploymentConfigSpec.Template == nil {
+				deploymentConfigSpec.Template = &api_v1.PodTemplateSpec{}
+			}
+
+			//copy over regular podSpec fields
+			deploymentConfigSpec.Template.Spec = deploymentConfig.PodSpec
+
+			// our customized fields
+			var err error
+			deploymentConfigSpec.Template.Spec.Containers, err = populateContainers(deploymentConfig.PodSpecMod.Containers, app.ConfigMaps, app.Secrets)
+			if err != nil {
+				return nil, errors.Wrapf(err, "deployment %q", app.Name)
+			}
+			log.Debugf("object after population: %#v\n", app)
+
+			deploymentConfigSpec.Template.Spec.InitContainers, err = populateContainers(deploymentConfig.PodSpecMod.InitContainers, app.ConfigMaps, app.Secrets)
+			if err != nil {
+				return nil, errors.Wrapf(err, "deployment %q", app.Name)
+			}
+			log.Debugf("object after population: %#v\n", app)
+		}
+
+		// TODO: check if this wasn't set by user, in that case we shouldn't overwrite it
+		deploymentConfigSpec.Template.ObjectMeta.Name = deploymentConfig.Name
+
+		// TODO: merge with already existing labels and avoid duplication
+		deploymentConfigSpec.Template.ObjectMeta.Labels = deploymentConfig.Labels
+
+		deploymentConfigSpec.Template.ObjectMeta.Annotations = deploymentConfig.Annotations
+
+		deploymentConfigs = append(deploymentConfigs, &os_deploy_v1.DeploymentConfig{
+			ObjectMeta: deploymentConfig.ObjectMeta,
+			Spec:       deploymentConfigSpec,
+		})
 	}
+	return deploymentConfigs, nil
+}
 
-	return &os_deploy_v1.DeploymentConfig{
-		ObjectMeta: deploymentConfig.ObjectMeta,
-		Spec:       dcSpec,
-	}, nil
+func (deploymentConfig *DeploymentConfigSpecMod) isDeploymentConfigSpecPodSpecEmpty() bool {
+	return reflect.DeepEqual(deploymentConfig.PodSpecMod, PodSpecMod{}) && reflect.DeepEqual(deploymentConfig.DeploymentConfigSpec, os_deploy_v1.DeploymentConfigSpec{})
+}
+
+func (deploymentConfig *DeploymentConfigSpecMod) isMultiplePodSpecSpecified() bool {
+	// OpenShift DeploymentConfigSpec.Template is pointer to PodTemplateSpec
+	// First we need to check if it is not nil
+	if deploymentConfig.DeploymentConfigSpec.Template == nil {
+		return false
+	}
+	return !(reflect.DeepEqual(deploymentConfig.DeploymentConfigSpec.Template.Spec, api_v1.PodSpec{}) || reflect.DeepEqual(deploymentConfig.PodSpecMod, PodSpecMod{}))
 }

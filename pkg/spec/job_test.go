@@ -22,77 +22,67 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	api_v1 "k8s.io/kubernetes/pkg/api/v1"
 	batch_v1 "k8s.io/kubernetes/pkg/apis/batch/v1"
 )
 
 func TestJobSpecMod_CreateKubernetesController(t *testing.T) {
 	tests := []struct {
-		name          string
-		jobSpecMod    *JobSpecMod
-		kubernetesJob *batch_v1.Job
-		success       bool
+		name    string
+		input   *App
+		output  []runtime.Object
+		success bool
 	}{
 		{
 			name: "both PodSpec and JobSpec are empty, no Job should be created",
-			jobSpecMod: &JobSpecMod{
-				ControllerFields: ControllerFields{
-					Controller: "job",
-					Secrets: []SecretMod{
-						{
-							Secret: api_v1.Secret{
-								ObjectMeta: meta_v1.ObjectMeta{
-									Name: "secret",
-								},
-								StringData: map[string]string{
-									"testData": "testValue",
-								},
-							},
-						},
-					},
-				},
+			input: &App{
+				Jobs: []JobSpecMod{},
 			},
-			kubernetesJob: nil,
-			success:       true,
+			output:  nil,
+			success: true,
 		},
 		{
 			name: "ActiveDeadlineSeconds is specified, make sure it's only populated for JobSpec and not for PodSpec",
-			jobSpecMod: &JobSpecMod{
-				ControllerFields: ControllerFields{
-					ObjectMeta: meta_v1.ObjectMeta{
-						Name: "testJob",
-					},
-					Controller: "job",
-					PodSpecMod: PodSpecMod{
-						PodSpec: api_v1.PodSpec{
-							Containers: []api_v1.Container{
-								{
-									Name:  "testContainer",
-									Image: "testImage",
-								},
-							},
-						},
-					},
-				},
-
-				ActiveDeadlineSeconds: getInt64Addr(20),
-				JobSpec: batch_v1.JobSpec{
-					Parallelism: getInt32Addr(2),
-				},
-			},
-			kubernetesJob: &batch_v1.Job{
+			input: &App{
 				ObjectMeta: meta_v1.ObjectMeta{
 					Name: "testJob",
 				},
-				Spec: batch_v1.JobSpec{
-					Parallelism:           getInt32Addr(2),
-					ActiveDeadlineSeconds: getInt64Addr(20),
-					Template: api_v1.PodTemplateSpec{
-						Spec: api_v1.PodSpec{
-							Containers: []api_v1.Container{
+				Jobs: []JobSpecMod{
+					{
+						PodSpecMod: PodSpecMod{
+							Containers: []Container{
 								{
-									Name:  "testContainer",
-									Image: "testImage",
+									Container: api_v1.Container{
+										Name:  "testContainer",
+										Image: "testImage",
+									},
+								},
+							},
+						},
+						JobSpec: batch_v1.JobSpec{
+							Parallelism: getInt32Addr(2),
+						},
+						ActiveDeadlineSeconds: getInt64Addr(20),
+					},
+				},
+			},
+			output: []runtime.Object{
+				&batch_v1.Job{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "testJob",
+					},
+					Spec: batch_v1.JobSpec{
+						Parallelism:           getInt32Addr(2),
+						ActiveDeadlineSeconds: getInt64Addr(20),
+						Template: api_v1.PodTemplateSpec{
+							Spec: api_v1.PodSpec{
+								RestartPolicy: api_v1.RestartPolicyOnFailure,
+								Containers: []api_v1.Container{
+									{
+										Name:  "testContainer",
+										Image: "testImage",
+									},
 								},
 							},
 						},
@@ -107,7 +97,11 @@ func TestJobSpecMod_CreateKubernetesController(t *testing.T) {
 
 		t.Run(test.name, func(t *testing.T) {
 
-			kJob, err := test.jobSpecMod.createKubernetesController()
+			if err := test.input.fixJobs(); err != nil {
+				t.Errorf("error while fixing Jobs - \n%v", err)
+			}
+
+			jobs, err := test.input.createJobs()
 
 			switch test.success {
 			case true:
@@ -116,13 +110,13 @@ func TestJobSpecMod_CreateKubernetesController(t *testing.T) {
 				}
 			case false:
 				if err == nil {
-					t.Errorf("For the input -\n%v\nexpected test to fail, but test passed", spew.Sprint(test.jobSpecMod))
+					t.Errorf("For the input -\n%v\nexpected test to fail, but test passed", spew.Sprint(test.input))
 				}
 			}
 
-			if !reflect.DeepEqual(test.kubernetesJob, kJob) {
+			if !reflect.DeepEqual(test.output, jobs) {
 
-				t.Errorf("Expected Kubernetes Job to be -\n%v\nBut got -\n%v", prettyPrintObjects(test.kubernetesJob), prettyPrintObjects(kJob))
+				t.Errorf("Expected Kubernetes Job to be -\n%v\nBut got -\n%v", prettyPrintObjects(test.output), prettyPrintObjects(jobs))
 			}
 		})
 	}
@@ -131,26 +125,29 @@ func TestJobSpecMod_CreateKubernetesController(t *testing.T) {
 func TestJobValidate(t *testing.T) {
 	tests := []struct {
 		name    string
-		input   *JobSpecMod
+		input   *App
 		success bool
 	}{
 		{
 			name: "Set restart policy as failure",
-			input: &JobSpecMod{
-				ControllerFields: ControllerFields{
-					ObjectMeta: meta_v1.ObjectMeta{
-						Name: "testJob",
-					},
-					Controller: "job",
-					PodSpecMod: PodSpecMod{
-						PodSpec: api_v1.PodSpec{
-							Containers: []api_v1.Container{
+			input: &App{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name: "testJob",
+				},
+				Jobs: []JobSpecMod{
+					{
+						PodSpecMod: PodSpecMod{
+							Containers: []Container{
 								{
-									Name:  "testContainer",
-									Image: "testImage",
+									Container: api_v1.Container{
+										Name:  "testContainer",
+										Image: "testImage",
+									},
 								},
 							},
-							RestartPolicy: api_v1.RestartPolicyAlways,
+							PodSpec: api_v1.PodSpec{
+								RestartPolicy: api_v1.RestartPolicyAlways,
+							},
 						},
 					},
 				},
@@ -181,46 +178,54 @@ func TestJobValidate(t *testing.T) {
 func TestJobFix(t *testing.T) {
 	tests := []struct {
 		name    string
-		input   *JobSpecMod
-		output  *JobSpecMod
+		input   *App
+		output  *App
 		success bool
 	}{
 		{
 			name: "no restartPolicy given",
-			input: &JobSpecMod{
-				ControllerFields: ControllerFields{
-					ObjectMeta: meta_v1.ObjectMeta{
-						Name: "testJob",
-					},
-					Controller: "job",
-					PodSpecMod: PodSpecMod{
-						PodSpec: api_v1.PodSpec{
-							Containers: []api_v1.Container{
+			input: &App{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name: "testJob",
+				},
+				Jobs: []JobSpecMod{
+					{
+						PodSpecMod: PodSpecMod{
+							Containers: []Container{
 								{
-									Name:  "testContainer",
-									Image: "testImage",
+									Container: api_v1.Container{
+										Name:  "testContainer",
+										Image: "testImage",
+									},
 								},
 							},
 						},
 					},
 				},
 			},
-			output: &JobSpecMod{
-				ControllerFields: ControllerFields{
-					ObjectMeta: meta_v1.ObjectMeta{
-						Name:   "testJob",
-						Labels: map[string]string{"app": "testJob"},
-					},
-					Controller: "job",
-					PodSpecMod: PodSpecMod{
-						PodSpec: api_v1.PodSpec{
-							Containers: []api_v1.Container{
+			output: &App{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:   "testJob",
+					Labels: map[string]string{"app": "testJob"},
+				},
+				Jobs: []JobSpecMod{
+					{
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:   "testJob",
+							Labels: map[string]string{"app": "testJob"},
+						},
+						PodSpecMod: PodSpecMod{
+							Containers: []Container{
 								{
-									Name:  "testContainer",
-									Image: "testImage",
+									Container: api_v1.Container{
+										Name:  "testContainer",
+										Image: "testImage",
+									},
 								},
 							},
-							RestartPolicy: "OnFailure",
+							PodSpec: api_v1.PodSpec{
+								RestartPolicy: "OnFailure",
+							},
 						},
 					},
 				},
@@ -229,22 +234,23 @@ func TestJobFix(t *testing.T) {
 		},
 		{
 			name: "fail condition on two containers without name given",
-			input: &JobSpecMod{
-				ControllerFields: ControllerFields{
-					ObjectMeta: meta_v1.ObjectMeta{
-						Name: "testJob",
-					},
-					Controller: "job",
-					PodSpecMod: PodSpecMod{
-						Containers: []Container{
-							{
-								Container: api_v1.Container{
-									Image: "testImage",
+			input: &App{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name: "testJob",
+				},
+				Jobs: []JobSpecMod{
+					{
+						PodSpecMod: PodSpecMod{
+							Containers: []Container{
+								{
+									Container: api_v1.Container{
+										Image: "testImage",
+									},
 								},
-							},
-							{
-								Container: api_v1.Container{
-									Image: "testSideCarImage",
+								{
+									Container: api_v1.Container{
+										Image: "testSideCarImage",
+									},
 								},
 							},
 						},
