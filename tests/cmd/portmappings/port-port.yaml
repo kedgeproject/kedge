@@ -1,7 +1,8 @@
 name: database
 
-containers:
-  - image: mariadb:10
+deployments:
+  - containers:
+    - image: mariadb:10
 
 services:
   - name: database

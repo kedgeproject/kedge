@@ -1,6 +1,7 @@
 name: nginx
-containers:
-- image: nginx
+deployments:
+- containers:
+  - image: nginx
 configMaps:
 - data:
     foo: bar
