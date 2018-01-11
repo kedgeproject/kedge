@@ -93,6 +93,11 @@ endif
 test-cmd: bin
 	go test -v github.com/kedgeproject/kedge/tests/cmd
 
+# Run OpenShift tests
+.PHONY: test-e2e-os
+test-e2e-os:
+	TEST=os make test-e2e 
+
 # Run all tests
 .PHONY: test
 test: test-dep validate test-unit test-cmd test-unit-cover
@@ -132,4 +137,3 @@ vendor-update:
 .PHONY: test-jsonschema-generation
 test-jsonschema-generation:
 	docker run -v `pwd`/pkg/spec/types.go:/data/types.go:ro,Z surajd/kedgeschema
-
