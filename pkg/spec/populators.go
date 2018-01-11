@@ -74,7 +74,7 @@ func populateContainers(containers []Container, cms []ConfigMapMod, secrets []Se
 // Since we are automatically creating pvc from
 // root level persistent volume and entry in the container
 // volume mount, we also need to update the pod's volume field
-func populateVolumes(containers []api_v1.Container, volumeClaims []VolumeClaim,
+func populateVolumes(containers []Container, volumeClaims []VolumeClaim,
 	volumes []api_v1.Volume) ([]api_v1.Volume, error) {
 	var newPodVols []api_v1.Volume
 

@@ -339,8 +339,14 @@ func TestPopulateVolumes(t *testing.T) {
 
 	// a volumeMount is defined but that is not there in volumeClaims
 	// neither it is in pod level volumes, so this should fail
-	failingContainers := []api_v1.Container{
-		{VolumeMounts: []api_v1.VolumeMount{{Name: "baz"}}},
+	failingContainers := []Container{
+		{
+			Container: api_v1.Container{
+				VolumeMounts: []api_v1.VolumeMount{
+					{Name: "baz"},
+				},
+			},
+		},
 	}
 
 	if _, err := populateVolumes(failingContainers, volumeClaims, volumes); err == nil {
@@ -348,9 +354,21 @@ func TestPopulateVolumes(t *testing.T) {
 			" does not exist.")
 	}
 
-	passingContainers := []api_v1.Container{
-		{VolumeMounts: []api_v1.VolumeMount{{Name: "bar"}}},
-		{VolumeMounts: []api_v1.VolumeMount{{Name: "barfoo"}}},
+	passingContainers := []Container{
+		{
+			Container: api_v1.Container{
+				VolumeMounts: []api_v1.VolumeMount{
+					{Name: "bar"},
+				},
+			},
+		},
+		{
+			Container: api_v1.Container{
+				VolumeMounts: []api_v1.VolumeMount{
+					{Name: "barfoo"},
+				},
+			},
+		},
 	}
 	expected := []api_v1.Volume{
 		{

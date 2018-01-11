@@ -70,6 +70,12 @@ func (app *App) fixDeploymentConfigs() error {
 		if err != nil {
 			return errors.Wrap(err, "unable to fix containers")
 		}
+
+		vols, err := populateVolumes(app.DeploymentConfigs[i].Containers, app.VolumeClaims, app.DeploymentConfigs[i].Volumes)
+		if err != nil {
+			return errors.Wrapf(err, "unable to populate Volumes for deploymentConfig %q", app.DeploymentConfigs[i].Name)
+		}
+		app.DeploymentConfigs[i].Volumes = append(app.DeploymentConfigs[i].Volumes, vols...)
 	}
 
 	return nil
