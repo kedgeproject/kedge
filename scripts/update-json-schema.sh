@@ -35,6 +35,6 @@ git config user.email "$GIT_EMAIL"
 git add "$OUTPUT_DIR"
 
 # Check if anything changed, and if it's the case, push to origin/master.
-if git commit -m 'Update JSON Schema' -m "Commit: https://github.com/kedgeproject/kedge/commit/$TRAVIS_COMMIT" -m "PR: https://github.com/kedgeproject/kedge/pull/$TRAVIS_PULL_REQUEST" ; then
+if git commit -m 'Update JSON Schema' -m "Commit: https://github.com/kedgeproject/kedge/commit/$TRAVIS_COMMIT"; then
   git push
 fi
