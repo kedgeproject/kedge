@@ -1,27 +1,29 @@
 name: web
 replicas: 1
-containers:
-- image: wordpress:4
-  env:
-  - name: WORDPRESS_DB_PASSWORD
-    value: wordpress
-  - name: WORDPRESS_DB_USER
-    value: wordpress
-  envFrom:
-  - configMapRef:
-      name: web
-  livenessProbe:
-    httpGet:
-      path: /
-      port: 80
-    initialDelaySeconds: 120
-    timeoutSeconds: 5
-  readinessProbe:
-    httpGet:
-      path: /
-      port: 80
-    initialDelaySeconds: 5
-    timeoutSeconds: 2
+deployments:
+- replicas: 1
+  containers:
+  - image: wordpress:4
+    env:
+    - name: WORDPRESS_DB_PASSWORD
+      value: wordpress
+    - name: WORDPRESS_DB_USER
+      value: wordpress
+    envFrom:
+    - configMapRef:
+        name: web
+    livenessProbe:
+      httpGet:
+        path: /
+        port: 80
+      initialDelaySeconds: 120
+      timeoutSeconds: 5
+    readinessProbe:
+      httpGet:
+        path: /
+        port: 80
+      initialDelaySeconds: 5
+      timeoutSeconds: 2
 services:
 - name: wordpress
   type: LoadBalancer

@@ -1,16 +1,16 @@
-controller: DeploymentConfig
 name: ruby
-containers:
-- image: ""
-triggers:
-- imageChangeParams:
-    automatic: true
-    containerNames:
-    - ruby
-    from:
-      kind: ImageStreamTag
-      name: origin-ruby-sample:latest
-  type: ImageChange
+deploymentConfigs:
+- containers:
+  - image: ""
+  triggers:
+  - imageChangeParams:
+      automatic: true
+      containerNames:
+      - ruby
+      from:
+        kind: ImageStreamTag
+        name: origin-ruby-sample:latest
+    type: ImageChange
 services:
 - portMappings:
   - "8080"

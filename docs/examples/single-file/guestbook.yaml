@@ -3,15 +3,16 @@ name: guestbook
 labels:
   app: guestbook
 
-containers:
-- name: guestbook
-  image: gcr.io/google_containers/guestbook:v3
-  health:
-    httpGet:
-      path: /
-      port: 3000
-    initialDelaySeconds: 20
-    timeoutSeconds: 5
+deployments:
+- containers:
+  - name: guestbook
+    image: gcr.io/google_containers/guestbook:v3
+    health:
+      httpGet:
+        path: /
+        port: 3000
+      initialDelaySeconds: 20
+      timeoutSeconds: 5
  
 services:
 - name: guestbook
@@ -27,9 +28,10 @@ labels:
   app: redis
   role: master
 
-containers:
-- name: redis-master
-  image: redis:2.8.23
+deployments:
+- containers:
+  - name: redis-master
+    image: redis:2.8.23
   
 services:
 - name: redis-master
@@ -44,9 +46,10 @@ labels:
   app: redis
   role: slave
 
-containers:
-- name: redis-slave
-  image: kubernetes/redis-slave:v2
+deployments:
+- containers:
+  - name: redis-slave
+    image: kubernetes/redis-slave:v2
 
 services:
 - name: redis-slave

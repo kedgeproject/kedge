@@ -17,48 +17,12 @@ limitations under the License.
 package spec
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/ghodss/yaml"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+
+	log "github.com/Sirupsen/logrus"
 )
-
-// Every controller that Kedge supports is required to implement this interface
-type ControllerInterface interface {
-	// Unmarshals input YAML data to the corresponding Kedge controller spec
-	Unmarshal(data []byte) error
-
-	// Validates the unmarshalled data
-	Validate() error
-
-	// Fixes the unmarshalled data, e.g. auto population/generation of fields
-	Fix() error
-
-	// Transforms the data in Kedge spec to Kubernetes' resource objects
-	Transform() ([]runtime.Object, []string, error)
-}
-
-// GetController takes in raw input data, and returns the intended controller
-// defined in the Kedge definition.
-// Returns an error if the controller is not supported by Kedge
-func GetController(data []byte) (ControllerInterface, error) {
-	var specController Controller
-	yaml.Unmarshal(data, &specController)
-
-	switch strings.ToLower(specController.Controller) {
-	// If no controller is defined, we default to deployment controller
-	case "", "deployment":
-		return &DeploymentSpecMod{}, nil
-	case "job":
-		return &JobSpecMod{}, nil
-	case "deploymentconfig":
-		return &DeploymentConfigSpecMod{}, nil
-	default:
-		return nil, fmt.Errorf("invalid controller: %v", specController.Controller)
-	}
-}
 
 // CoreOperations takes in the raw input data and extracts the controller
 // information, and proceeds to run the controller specific operations on the
@@ -70,31 +34,47 @@ func GetController(data []byte) (ControllerInterface, error) {
 // Returns the converted Kubernetes objects, extra resources and an error, if any.
 func CoreOperations(data []byte) ([]runtime.Object, []string, error) {
 
-	// Retrieve the selected controller
-	kController, err := GetController(data)
+	var app App
+	err := app.LoadData(data)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "unable to get Kubernetes controller information from Kedge definition")
-	}
-
-	// Unmarshal all data
-	if err := kController.Unmarshal(data); err != nil {
-		return nil, nil, errors.Wrap(err, "unable to unmarshal data")
+		return nil, nil, errors.Wrap(err, "App could not be loaded into internal struct")
 	}
 
 	// Validate said data
-	if err := kController.Validate(); err != nil {
+	if err := app.Validate(); err != nil {
 		return nil, nil, errors.Wrap(err, "unable to validate data")
 	}
 
 	// Fix any problems that may occur
-	if err := kController.Fix(); err != nil {
+	if err := app.Fix(); err != nil {
 		return nil, nil, errors.Wrap(err, "unable to fix data")
 	}
 
-	ros, includeResources, err := kController.Transform()
+	ros, err := app.CreateK8sObjects()
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "unable to transform data")
 	}
 
-	return ros, includeResources, nil
+	scheme, err := GetScheme()
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "unable to get scheme")
+	}
+
+	for _, runtimeObject := range ros {
+		if err := SetGVK(runtimeObject, scheme); err != nil {
+			return nil, nil, errors.Wrap(err, "unable to set Group, Version and Kind for generated Kubernetes resources")
+		}
+	}
+
+	return ros, app.IncludeResources, nil
+}
+
+// LoadData - unmarshal data into App struct
+func (app *App) LoadData(data []byte) error {
+	err := yaml.Unmarshal(data, app)
+	if err != nil {
+		return errors.Wrap(err, "App could not be unmarshaled into internal struct")
+	}
+	log.Debugf("object unmarshalled: %#v\n", app)
+	return nil
 }

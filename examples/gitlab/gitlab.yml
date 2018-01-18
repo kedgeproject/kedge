@@ -3,37 +3,37 @@ name: gitlab
 labels:
     app: gitlab
 
-replicas: 1
-
-containers:
-- name: gitlab
-  image: gitlab/gitlab-ce:9.4.1-ce.0
-  imagePullPolicy: ""
-  livenessProbe:
-    httpGet:
-      path: /help
-      port: 80
-    initialDelaySeconds: 200
-    timeoutSeconds: 1
-    periodSeconds: 10
-    successThreshold: 1
-    failureThreshold: 10
-  readinessProbe:
-    httpGet:
-      path: /help
-      port: 80
-    initialDelaySeconds: 30
-    timeoutSeconds: 1
-    periodSeconds: 10
-    successThreshold: 1
-    failureThreshold: 3
-  resources:
-    limits:
-      cpu: 1
-      memory: 2Gi
-    requests:
-      cpu: 500m
-      memory: 1Gi
+deployments:
+- replicas: 1
+  containers:
+  - name: gitlab
+    image: gitlab/gitlab-ce:9.4.1-ce.0
+    imagePullPolicy: ""
+    livenessProbe:
+      httpGet:
+        path: /help
+        port: 80
+      initialDelaySeconds: 200
+      timeoutSeconds: 1
+      periodSeconds: 10
+      successThreshold: 1
+      failureThreshold: 10
+    readinessProbe:
+      httpGet:
+        path: /help
+        port: 80
+      initialDelaySeconds: 30
+      timeoutSeconds: 1
+      periodSeconds: 10
+      successThreshold: 1
+      failureThreshold: 3
+    resources:
+      limits:
+        cpu: 1
+        memory: 2Gi
+      requests:
+        cpu: 500m
+        memory: 1Gi
 
   # Environment variables
   env:

@@ -1,6 +1,7 @@
 name: httpd
-containers:
-- image: bitnami/nginx
+deployments:
+- containers:
+  - image: bitnami/nginx
 services:
 - name: httpd
   type: NodePort

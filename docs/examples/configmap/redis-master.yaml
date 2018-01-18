@@ -4,9 +4,10 @@ labels:
   app: redis
   role: master
 
-containers:
-- name: redis-master
-  image: redis:2.8.23
+deployments:
+- containers:
+  - name: redis-master
+    image: redis:2.8.23
   
 services:
 - name: redis-master

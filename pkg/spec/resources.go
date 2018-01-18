@@ -227,63 +227,75 @@ func fixContainers(containers []Container, appName string) ([]Container, error) 
 	return containers, nil
 }
 
-func (cf *ControllerFields) fixControllerFields() error {
-
+func (app *App) Fix() error {
 	var err error
 
+	app.ObjectMeta.Labels = addKeyValueToMap(appLabelKey, app.Name, app.ObjectMeta.Labels)
+
+	if app.Appversion != "" {
+		app.ObjectMeta.Annotations = addKeyValueToMap(appVersion, app.Appversion, app.ObjectMeta.Annotations)
+	}
+
+	prettyPrintObjects(&app.ObjectMeta)
+
 	// fix Services
-	cf.Services, err = fixServices(cf.Services, cf.Name)
+	app.Services, err = fixServices(app.Services, app.Name)
 	if err != nil {
 		return errors.Wrap(err, "Unable to fix services")
 	}
 
 	// fix VolumeClaims
-	cf.VolumeClaims, err = fixVolumeClaims(cf.VolumeClaims, cf.Name)
+	app.VolumeClaims, err = fixVolumeClaims(app.VolumeClaims, app.Name)
 	if err != nil {
 		return errors.Wrap(err, "Unable to fix persistentVolume")
 	}
 
 	// fix configMaps
-	cf.ConfigMaps, err = fixConfigMaps(cf.ConfigMaps, cf.Name)
+	app.ConfigMaps, err = fixConfigMaps(app.ConfigMaps, app.Name)
 	if err != nil {
 		return errors.Wrap(err, "unable to fix configMaps")
 	}
 
-	cf.Containers, err = fixContainers(cf.Containers, cf.Name)
+	err = app.fixDeployments()
 	if err != nil {
-		return errors.Wrap(err, "unable to fix containers")
+		return errors.Wrap(err, "unable to fix deployments")
 	}
 
-	cf.InitContainers, err = fixContainers(cf.InitContainers, cf.Name)
+	err = app.fixDeploymentConfigs()
 	if err != nil {
-		return errors.Wrap(err, "unable to fix init-containers")
+		return errors.Wrap(err, "unable to fix deploymentConfigs")
 	}
 
-	cf.Secrets, err = fixSecrets(cf.Secrets, cf.Name)
+	err = app.fixJobs()
+	if err != nil {
+		return errors.Wrap(err, "unable to fix jobs")
+	}
+
+	app.Secrets, err = fixSecrets(app.Secrets, app.Name)
 	if err != nil {
 		return errors.Wrap(err, "unable to fix secrets")
 	}
 
 	// fix imageStreams
-	cf.ImageStreams, err = fixImageStreams(cf.ImageStreams, cf.Name)
+	app.ImageStreams, err = fixImageStreams(app.ImageStreams, app.Name)
 	if err != nil {
 		return errors.Wrap(err, "unable to fix imageStreams")
 	}
 
 	// fix buildConfigs
-	cf.BuildConfigs, err = fixBuildConfigs(cf.BuildConfigs, cf.Name)
+	app.BuildConfigs, err = fixBuildConfigs(app.BuildConfigs, app.Name)
 	if err != nil {
 		return errors.Wrap(err, "unable to fix buildConfigs")
 	}
 
 	// fix ingresses
-	cf.Ingresses, err = fixIngresses(cf.Ingresses, cf.Name)
+	app.Ingresses, err = fixIngresses(app.Ingresses, app.Name)
 	if err != nil {
 		return errors.Wrap(err, "unable to fix ingresses")
 	}
 
 	// fix routes
-	cf.Routes, err = fixRoutes(cf.Routes, cf.Name)
+	app.Routes, err = fixRoutes(app.Routes, app.Name)
 	if err != nil {
 		return errors.Wrap(err, "unable to fix routes")
 	}
@@ -293,12 +305,12 @@ func (cf *ControllerFields) fixControllerFields() error {
 
 // Transform
 
-func (app *ControllerFields) getLabels() map[string]string {
+func (app *App) getLabels() map[string]string {
 	labels := map[string]string{appLabelKey: app.Name}
 	return labels
 }
 
-func (app *ControllerFields) createIngresses() ([]runtime.Object, error) {
+func (app *App) createIngresses() ([]runtime.Object, error) {
 	var ings []runtime.Object
 
 	for _, i := range app.Ingresses {
@@ -311,7 +323,7 @@ func (app *ControllerFields) createIngresses() ([]runtime.Object, error) {
 	return ings, nil
 }
 
-func (app *ControllerFields) createRoutes() ([]runtime.Object, error) {
+func (app *App) createRoutes() ([]runtime.Object, error) {
 	var routes []runtime.Object
 
 	for _, r := range app.Routes {
@@ -324,7 +336,7 @@ func (app *ControllerFields) createRoutes() ([]runtime.Object, error) {
 	return routes, nil
 }
 
-func (app *ControllerFields) createServices() ([]runtime.Object, error) {
+func (app *App) createServices() ([]runtime.Object, error) {
 	var svcs []runtime.Object
 	for _, s := range app.Services {
 		svc := &api_v1.Service{
@@ -404,7 +416,7 @@ func (app *ControllerFields) createServices() ([]runtime.Object, error) {
 }
 
 // create PVC reading the root level persistent volume field
-func (app *ControllerFields) createPVC() ([]runtime.Object, error) {
+func (app *App) createPVC() ([]runtime.Object, error) {
 	var pvcs []runtime.Object
 	for _, v := range app.VolumeClaims {
 		// check for conditions where user has given both conflicting fields
@@ -444,7 +456,7 @@ func (app *ControllerFields) createPVC() ([]runtime.Object, error) {
 	return pvcs, nil
 }
 
-func (app *ControllerFields) createSecrets() ([]runtime.Object, error) {
+func (app *App) createSecrets() ([]runtime.Object, error) {
 	var secrets []runtime.Object
 
 	for _, s := range app.Secrets {
@@ -459,7 +471,7 @@ func (app *ControllerFields) createSecrets() ([]runtime.Object, error) {
 	return secrets, nil
 }
 
-func (app *ControllerFields) createImageStreams() ([]runtime.Object, error) {
+func (app *App) createImageStreams() ([]runtime.Object, error) {
 	var imageStreams []runtime.Object
 
 	for _, is := range app.ImageStreams {
@@ -472,7 +484,7 @@ func (app *ControllerFields) createImageStreams() ([]runtime.Object, error) {
 	return imageStreams, nil
 }
 
-func (app *ControllerFields) createBuildConfigs() ([]runtime.Object, error) {
+func (app *App) createBuildConfigs() ([]runtime.Object, error) {
 	var buildConfigs []runtime.Object
 
 	for _, b := range app.BuildConfigs {
@@ -489,7 +501,7 @@ func (app *ControllerFields) createBuildConfigs() ([]runtime.Object, error) {
 // them and returns kubernetes objects as list of runtime.Object
 // If the deployment is using field 'includeResources' then it will
 // also return file names mentioned there as list of string
-func (app *ControllerFields) CreateK8sObjects() ([]runtime.Object, []string, error) {
+func (app *App) CreateK8sObjects() ([]runtime.Object, error) {
 	var objects []runtime.Object
 
 	if app.Labels == nil {
@@ -498,57 +510,54 @@ func (app *ControllerFields) CreateK8sObjects() ([]runtime.Object, []string, err
 
 	svcs, err := app.createServices()
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "Unable to create Kubernetes Service")
+		return nil, errors.Wrap(err, "Unable to create Kubernetes Service")
 	}
 
 	ings, err := app.createIngresses()
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "Unable to create Kubernetes Ingresses")
+		return nil, errors.Wrap(err, "Unable to create Kubernetes Ingresses")
 	}
 
 	routes, err := app.createRoutes()
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "unable to create OpenShift Routes")
+		return nil, errors.Wrap(err, "unable to create OpenShift Routes")
 	}
 
 	secs, err := app.createSecrets()
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "Unable to create Kubernetes Secrets")
+		return nil, errors.Wrap(err, "Unable to create Kubernetes Secrets")
 	}
 
 	iss, err := app.createImageStreams()
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "unable to create OpenShift ImageStreams")
+		return nil, errors.Wrap(err, "unable to create OpenShift ImageStreams")
 	}
 
 	bcs, err := app.createBuildConfigs()
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "Unable to create OpenShift BuildConfigs")
+		return nil, errors.Wrap(err, "Unable to create OpenShift BuildConfigs")
 	}
-
-	app.PodSpec.Containers, err = populateContainers(app.Containers, app.ConfigMaps, app.Secrets)
-	if err != nil {
-		return nil, nil, errors.Wrapf(err, "deployment %q", app.Name)
-	}
-	log.Debugf("object after population: %#v\n", app)
-
-	app.PodSpec.InitContainers, err = populateContainers(app.InitContainers, app.ConfigMaps, app.Secrets)
-	if err != nil {
-		return nil, nil, errors.Wrapf(err, "deployment %q", app.Name)
-	}
-	log.Debugf("object after population: %#v\n", app)
 
 	// create pvc for each root level persistent volume
 	pvcs, err := app.createPVC()
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "unable to create Persistent Volume Claims")
+		return nil, errors.Wrap(err, "unable to create Persistent Volume Claims")
 	}
 
-	vols, err := populateVolumes(app.PodSpec.Containers, app.VolumeClaims, app.PodSpec.Volumes)
+	deployments, err := app.createDeployments()
 	if err != nil {
-		return nil, nil, errors.Wrapf(err, "deployment %q", app.Name)
+		return nil, errors.Wrap(err, "Unable to create Kubernetes Deployments")
 	}
-	app.PodSpec.Volumes = append(app.PodSpec.Volumes, vols...)
+
+	deploymentConfigs, err := app.createDeploymentConfigs()
+	if err != nil {
+		return nil, errors.Wrap(err, "Unable to create OpenShift DeploymentConfigs")
+	}
+
+	jobs, err := app.createJobs()
+	if err != nil {
+		return nil, errors.Wrap(err, "Unable to create Kubernetes Jobs")
+	}
 
 	var configMap []runtime.Object
 	for _, cd := range app.ConfigMaps {
@@ -565,7 +574,6 @@ func (app *ControllerFields) CreateK8sObjects() ([]runtime.Object, []string, err
 
 	// please keep the order of the artifacts addition as it is
 
-	// adding non-controller objects
 	objects = append(objects, pvcs...)
 	log.Debugf("app: %s, pvc: %s\n", app.Name, spew.Sprint(pvcs))
 
@@ -590,6 +598,15 @@ func (app *ControllerFields) CreateK8sObjects() ([]runtime.Object, []string, err
 	objects = append(objects, configMap...)
 	log.Debugf("app: %s, configMap: %s\n", app.Name, spew.Sprint(configMap))
 
+	objects = append(objects, deployments...)
+	log.Debugf("app: %s, deployments: %s\n", app.Name, spew.Sprint(deployments))
+
+	objects = append(objects, deploymentConfigs...)
+	log.Debugf("app: %s, deploymentConfigs: %s\n", app.Name, spew.Sprint(deploymentConfigs))
+
+	objects = append(objects, jobs...)
+	log.Debugf("app: %s, jobs: %s\n", app.Name, spew.Sprint(jobs))
+
 	//Adding annotations to all the resources
 	//Objects are runtimeobjects, so accessing them using meta library
 	if app.Appversion != "" {
@@ -597,17 +614,17 @@ func (app *ControllerFields) CreateK8sObjects() ([]runtime.Object, []string, err
 		for _, object := range objects {
 			annotations, err := accessor.Annotations(object)
 			if err != nil {
-				return nil, nil, errors.Wrap(err, "cannot get annotations")
+				return nil, errors.Wrap(err, "cannot get annotations")
 			}
 			annotations = addKeyValueToMap(appVersion, app.Appversion, annotations)
 			err = accessor.SetAnnotations(object, annotations)
 			if err != nil {
-				return nil, nil, errors.Wrap(err, "cannot set annotations")
+				return nil, errors.Wrap(err, "cannot set annotations")
 			}
 		}
 	}
 
-	return objects, app.IncludeResources, nil
+	return objects, nil
 }
 
 // Validate
@@ -627,11 +644,15 @@ func validateVolumeClaims(vcs []VolumeClaim) error {
 	return nil
 }
 
-func (app *ControllerFields) validateControllerFields() error {
+func (app *App) Validate() error {
 
 	// validate volumeclaims
 	if err := validateVolumeClaims(app.VolumeClaims); err != nil {
 		return errors.Wrap(err, "error validating volume claims")
+	}
+
+	if err := app.validateJobs(); err != nil {
+		return errors.Wrap(err, "error validating Jobs")
 	}
 
 	return nil

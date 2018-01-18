@@ -4,9 +4,10 @@ labels:
   app: redis
   role: slave
 
-containers:
-- name: redis-slave
-  image: kubernetes/redis-slave:v2
+deployments:
+- containers:
+  - name: redis-slave
+    image: kubernetes/redis-slave:v2
 
 services:
 - name: redis-slave

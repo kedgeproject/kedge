@@ -23,68 +23,117 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	os_deploy_v1 "github.com/openshift/origin/pkg/apps/apis/apps/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	api_v1 "k8s.io/kubernetes/pkg/api/v1"
 )
 
 func TestFixDeploymentConfig(t *testing.T) {
 	tests := []struct {
 		name           string
-		input          *DeploymentConfigSpecMod
-		expectedOutput *DeploymentConfigSpecMod
+		input          *App
+		expectedOutput *App
 	}{
 		{
-			name:  "No replicas passed at input, expected 1",
-			input: &DeploymentConfigSpecMod{},
-			expectedOutput: &DeploymentConfigSpecMod{
-				ControllerFields: ControllerFields{
-					ObjectMeta: meta_v1.ObjectMeta{
-						Labels: map[string]string{
-							appLabelKey: "",
+			name: "No replicas passed at input, expected 1",
+			input: &App{
+				DeploymentConfigs: []DeploymentConfigSpecMod{
+					{},
+				},
+			},
+			expectedOutput: &App{
+				DeploymentConfigs: []DeploymentConfigSpecMod{
+					{
+						DeploymentConfigSpec: os_deploy_v1.DeploymentConfigSpec{
+							Replicas: 1,
 						},
+						Replicas: getInt32Addr(1),
 					},
 				},
-				DeploymentConfigSpec: os_deploy_v1.DeploymentConfigSpec{
-					Replicas: 1,
-				},
-				Replicas: getInt32Addr(1),
 			},
 		},
 		{
 			name: "replicas set to 0 by the end user, expected 0",
-			input: &DeploymentConfigSpecMod{
-				Replicas: getInt32Addr(0),
-			},
-			expectedOutput: &DeploymentConfigSpecMod{
-				ControllerFields: ControllerFields{
-					ObjectMeta: meta_v1.ObjectMeta{
-						Labels: map[string]string{
-							appLabelKey: "",
-						},
+			input: &App{
+				DeploymentConfigs: []DeploymentConfigSpecMod{
+					{
+						Replicas: getInt32Addr(0),
 					},
 				},
-				DeploymentConfigSpec: os_deploy_v1.DeploymentConfigSpec{
-					Replicas: 0,
+			},
+			expectedOutput: &App{
+				DeploymentConfigs: []DeploymentConfigSpecMod{
+					{
+						DeploymentConfigSpec: os_deploy_v1.DeploymentConfigSpec{
+							Replicas: 0,
+						},
+						Replicas: getInt32Addr(0),
+					},
 				},
-				Replicas: getInt32Addr(0),
 			},
 		},
 		{
 			name: "replicas set to 2 by the end user, expected 2",
-			input: &DeploymentConfigSpecMod{
-				Replicas: getInt32Addr(2),
-			},
-			expectedOutput: &DeploymentConfigSpecMod{
-				ControllerFields: ControllerFields{
-					ObjectMeta: meta_v1.ObjectMeta{
-						Labels: map[string]string{
-							appLabelKey: "",
-						},
+			input: &App{
+				DeploymentConfigs: []DeploymentConfigSpecMod{
+					{
+						Replicas: getInt32Addr(2),
 					},
 				},
-				DeploymentConfigSpec: os_deploy_v1.DeploymentConfigSpec{
-					Replicas: 2,
+			},
+			expectedOutput: &App{
+				DeploymentConfigs: []DeploymentConfigSpecMod{
+					{
+						DeploymentConfigSpec: os_deploy_v1.DeploymentConfigSpec{
+							Replicas: 2,
+						},
+						Replicas: getInt32Addr(2),
+					},
 				},
-				Replicas: getInt32Addr(2),
+			},
+		},
+		{
+			name: "test Name, Labels, and Annotations  propagation from root level",
+			input: &App{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name: "test",
+					Labels: map[string]string{
+						"foo": "bar",
+					},
+					Annotations: map[string]string{
+						"abc": "def",
+					},
+				},
+				DeploymentConfigs: []DeploymentConfigSpecMod{
+					{},
+				},
+			},
+			expectedOutput: &App{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name: "test",
+					Labels: map[string]string{
+						"foo": "bar",
+					},
+					Annotations: map[string]string{
+						"abc": "def",
+					},
+				},
+				DeploymentConfigs: []DeploymentConfigSpecMod{
+					{
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name: "test",
+							Labels: map[string]string{
+								"foo": "bar",
+							},
+							Annotations: map[string]string{
+								"abc": "def",
+							},
+						},
+						DeploymentConfigSpec: os_deploy_v1.DeploymentConfigSpec{
+							Replicas: 1,
+						},
+						Replicas: getInt32Addr(1),
+					},
+				},
 			},
 		},
 	}
@@ -92,7 +141,7 @@ func TestFixDeploymentConfig(t *testing.T) {
 	for _, test := range tests {
 
 		t.Run(test.name, func(t *testing.T) {
-			test.input.fixDeploymentConfig()
+			test.input.fixDeploymentConfigs()
 			if !reflect.DeepEqual(test.input, test.expectedOutput) {
 				t.Errorf("Expected output to be:\n%v\nBut got:\n%v\n",
 					prettyPrintObjects(test.expectedOutput),
@@ -102,51 +151,72 @@ func TestFixDeploymentConfig(t *testing.T) {
 	}
 }
 
+// &App{
+// 	ObjectMeta: meta_v1.ObjectMeta{
+// 		Name: "test",
+// 	},
+// 	DeploymentConfigs: []DeploymentConfigSpecMod{
+// 		{
+// 			DeploymentConfigSpec: os_deploy_v1.DeploymentConfigSpec{
+// 				Replicas: 2,
+// 				Template: &api_v1.PodTemplateSpec{
+// 					Spec: api_v1.PodSpec{
+// 						Containers: []api_v1.Container{
+// 							{
+// 								Image: "testImage",
+// 							},
+// 						},
+// 					},
+// 				},
+// 			},
+// 		},
+// 	},
 func TestDeploymentConfigSpecMod_CreateOpenShiftController(t *testing.T) {
 	tests := []struct {
-		name                    string
-		deploymentConfigSpecMod *DeploymentConfigSpecMod
-		deployment              *os_deploy_v1.DeploymentConfig
-		success                 bool
+		name        string
+		app         *App
+		deployments []runtime.Object
+		success     bool
 	}{
 		{
 			name: "Test that it correctly converts",
-			deploymentConfigSpecMod: &DeploymentConfigSpecMod{
-				ControllerFields: ControllerFields{
-					ObjectMeta: meta_v1.ObjectMeta{
-						Name: "testJob",
-					},
-					Controller: "deploymentconfig",
-					PodSpecMod: PodSpecMod{
-						PodSpec: api_v1.PodSpec{
-							Containers: []api_v1.Container{
-								{
-									Name:  "testContainer",
-									Image: "testImage",
-								},
-							},
-						},
-					},
-				},
-				DeploymentConfigSpec: os_deploy_v1.DeploymentConfigSpec{
-					Replicas: 2,
-				},
-			},
-			deployment: &os_deploy_v1.DeploymentConfig{
+			app: &App{
 				ObjectMeta: meta_v1.ObjectMeta{
 					Name: "testJob",
 				},
-				Spec: os_deploy_v1.DeploymentConfigSpec{
-					Replicas: 2,
-					Template: &api_v1.PodTemplateSpec{
-						ObjectMeta: meta_v1.ObjectMeta{
-							Name: "testJob",
-						},
-						Spec: api_v1.PodSpec{
-							Containers: []api_v1.Container{
+				DeploymentConfigs: []DeploymentConfigSpecMod{
+					{
+						PodSpecMod: PodSpecMod{
+							Containers: []Container{
 								{
-									Name:  "testContainer",
-									Image: "testImage",
+									Container: api_v1.Container{
+										Name:  "testContainer",
+										Image: "testImage",
+									},
+								},
+							},
+						},
+						Replicas: getInt32Addr(2),
+					},
+				},
+			},
+			deployments: []runtime.Object{
+				&os_deploy_v1.DeploymentConfig{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "testJob",
+					},
+					Spec: os_deploy_v1.DeploymentConfigSpec{
+						Replicas: 2,
+						Template: &api_v1.PodTemplateSpec{
+							ObjectMeta: meta_v1.ObjectMeta{
+								Name: "testJob",
+							},
+							Spec: api_v1.PodSpec{
+								Containers: []api_v1.Container{
+									{
+										Name:  "testContainer",
+										Image: "testImage",
+									},
 								},
 							},
 						},
@@ -157,48 +227,51 @@ func TestDeploymentConfigSpecMod_CreateOpenShiftController(t *testing.T) {
 		},
 		{
 			name: "Test that strategy is converted correctly",
-			deploymentConfigSpecMod: &DeploymentConfigSpecMod{
-				ControllerFields: ControllerFields{
-					ObjectMeta: meta_v1.ObjectMeta{
-						Name: "testJob",
-					},
-					Controller: "deploymentconfig",
-					PodSpecMod: PodSpecMod{
-						PodSpec: api_v1.PodSpec{
-							Containers: []api_v1.Container{
+			app: &App{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name: "testJob",
+				},
+				DeploymentConfigs: []DeploymentConfigSpecMod{
+					{
+						PodSpecMod: PodSpecMod{
+							Containers: []Container{
 								{
-									Name:  "testContainer",
-									Image: "testImage",
+									Container: api_v1.Container{
+										Name:  "testContainer",
+										Image: "testImage",
+									},
 								},
+							},
+						},
+						Replicas: getInt32Addr(3),
+						DeploymentConfigSpec: os_deploy_v1.DeploymentConfigSpec{
+							Strategy: os_deploy_v1.DeploymentStrategy{
+								Type: os_deploy_v1.DeploymentStrategyType("Rolling"),
 							},
 						},
 					},
 				},
-				DeploymentConfigSpec: os_deploy_v1.DeploymentConfigSpec{
-					Replicas: 3,
-					Strategy: os_deploy_v1.DeploymentStrategy{
-						Type: os_deploy_v1.DeploymentStrategyType("Rolling"),
-					},
-				},
 			},
-			deployment: &os_deploy_v1.DeploymentConfig{
-				ObjectMeta: meta_v1.ObjectMeta{
-					Name: "testJob",
-				},
-				Spec: os_deploy_v1.DeploymentConfigSpec{
-					Replicas: 3,
-					Strategy: os_deploy_v1.DeploymentStrategy{
-						Type: os_deploy_v1.DeploymentStrategyType("Rolling"),
+			deployments: []runtime.Object{
+				&os_deploy_v1.DeploymentConfig{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "testJob",
 					},
-					Template: &api_v1.PodTemplateSpec{
-						ObjectMeta: meta_v1.ObjectMeta{
-							Name: "testJob",
+					Spec: os_deploy_v1.DeploymentConfigSpec{
+						Replicas: 3,
+						Strategy: os_deploy_v1.DeploymentStrategy{
+							Type: os_deploy_v1.DeploymentStrategyType("Rolling"),
 						},
-						Spec: api_v1.PodSpec{
-							Containers: []api_v1.Container{
-								{
-									Name:  "testContainer",
-									Image: "testImage",
+						Template: &api_v1.PodTemplateSpec{
+							ObjectMeta: meta_v1.ObjectMeta{
+								Name: "testJob",
+							},
+							Spec: api_v1.PodSpec{
+								Containers: []api_v1.Container{
+									{
+										Name:  "testContainer",
+										Image: "testImage",
+									},
 								},
 							},
 						},
@@ -212,8 +285,8 @@ func TestDeploymentConfigSpecMod_CreateOpenShiftController(t *testing.T) {
 	for _, test := range tests {
 
 		t.Run(test.name, func(t *testing.T) {
-
-			dc, err := test.deploymentConfigSpecMod.createOpenShiftController()
+			test.app.fixDeploymentConfigs()
+			dcs, err := test.app.createDeploymentConfigs()
 
 			switch test.success {
 			case true:
@@ -222,13 +295,12 @@ func TestDeploymentConfigSpecMod_CreateOpenShiftController(t *testing.T) {
 				}
 			case false:
 				if err == nil {
-					t.Errorf("For the input -\n%v\nexpected test to fail, but test passed", spew.Sprint(test.deploymentConfigSpecMod))
+					t.Errorf("For the input -\n%v\nexpected test to fail, but test passed", spew.Sprint(test.app))
 				}
 			}
 
-			if !reflect.DeepEqual(test.deployment, dc) {
-
-				t.Errorf("Expected OpenShift DeploymentConfig to be -\n%v\nBut got -\n%v", prettyPrintObjects(test.deployment), prettyPrintObjects(dc))
+			if !reflect.DeepEqual(test.deployments, dcs) {
+				t.Errorf("Expected OpenShift DeploymentConfig to be -\n%v\nBut got -\n%v", prettyPrintObjects(test.deployments), prettyPrintObjects(dcs))
 			}
 		})
 	}

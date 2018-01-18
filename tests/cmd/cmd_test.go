@@ -30,7 +30,7 @@ func TestKedgeGenerate(t *testing.T) {
 			name:        "multiple configmaps given and name not specified",
 			path:        "multi-configmapname/app.yaml",
 			wantSuccess: false,
-			error:       "unable to perform controller operations: unable to fix data: unable to fix ControllerFields: unable to fix configMaps: please specify name for app.configMaps[1]",
+			error:       "unable to perform controller operations: unable to fix data: unable to fix configMaps: please specify name for app.configMaps[1]",
 		},
 		{
 			name:        "generating deploymentconfig",
@@ -42,12 +42,12 @@ func TestKedgeGenerate(t *testing.T) {
 			name:        "multiple containers given and name not specified for 2nd contaniner",
 			path:        "multi-containername/nginx.yaml",
 			wantSuccess: false,
-			error:       "unable to perform controller operations: unable to fix data: unable to fix ControllerFields: unable to fix containers: please specify name for app.containers[1]",
+			error:       "unable to perform controller operations: unable to fix data: unable to fix deployments: unable to fix containers: please specify name for app.containers[1]",
 		},
 		{
 			name:  "multiple volume claims with same name",
 			path:  "multi-pvc-same-name/app.yaml",
-			error: `unable to perform controller operations: unable to validate data: unable to validate controller fields: error validating volume claims: duplicate entry of volume claim "foo"`,
+			error: `unable to perform controller operations: unable to validate data: error validating volume claims: duplicate entry of volume claim "foo"`,
 		},
 	}
 
