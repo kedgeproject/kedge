@@ -46,13 +46,14 @@
           <div class="example">
             <p><strong>Web server Kedge example</strong></p>
             <pre><code class="yaml">name: httpd
-containers:
+deployments:
+- containers:
   - image: centos/httpd
 services:
-  - name: httpd
-    type: LoadBalancer
-    portMappings: 
-      - 8080:80
+- name: httpd
+  type: LoadBalancer
+  portMappings: 
+    - 8080:80
   </code></pre>
           </div>
           <div class="example">
