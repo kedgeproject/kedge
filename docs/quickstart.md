@@ -18,8 +18,9 @@ __1. Using an example [httpd.yaml](https://raw.githubusercontent.com/kedgeprojec
 ```yaml
 name: httpd
 
-containers:
-- image: centos/httpd
+deployments:
+- containers:
+  - image: centos/httpd
 
 services:
 - name: httpd

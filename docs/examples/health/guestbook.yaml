@@ -1,0 +1,21 @@
+name: guestbook
+
+labels:
+  app: guestbook
+
+deployments:
+- containers:
+  - name: guestbook
+    image: gcr.io/google_containers/guestbook:v3
+    health:
+      httpGet:
+        path: /
+        port: 3000
+      initialDelaySeconds: 20
+      timeoutSeconds: 5
+ 
+services:
+- name: guestbook
+  portMappings: 
+  - 3000:3000
+  type: NodePort

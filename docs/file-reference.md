@@ -12,8 +12,9 @@ redirect_from:
 ```yaml
 name: httpd
 
-containers:
-- image: centos/httpd
+deployments:
+- containers:
+  - image: centos/httpd
 
 services:
 - name: httpd
@@ -43,30 +44,6 @@ Endpoints:              172.17.0.4:80
 ...
 ```
 
-> Extending Kedge as well as using a shortcut
-
-```yaml
-name: web
-
-containers:
-- image: nginx
-  # Extending the Kedge file using:
-  # https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#container-v1-core
-  livenessProbe:
-    httpGet:
-      path: /
-      port: 80
-    initialDelaySeconds: 20
-    timeoutSeconds: 5
-
-services:
-- name: nginx
-  type: NodePort
-  # Using a Kedge-specific 'shortcut'
-  portMappings:
-  - 8080:80
-```
-
 __Note:__ This markdown file is best viewed at [kedgeproject.org/file-reference/](http://kedgeproject.org/file-reference/).
 
 Kedge is a simple, easy and declarative way to define and deploy applications to Kubernetes by writing very concise application definitions.
@@ -79,7 +56,34 @@ Installing Kedge can be found at [kedgeproject.org](http://kedgeproject.org) or 
 
 If you haven't used Kedge yet, we recommend using the [Quick Start](http://kedgeproject.org/quickstart/) guide, or follow the instructions within the side-bar.
 
-**Extending Kubernetes**
+
+## Extending Kubernetes
+
+> Extending Kedge as well as using a shortcut
+
+```yaml
+name: web
+
+deployments:
+- name: web
+  containers:
+  - image: nginx
+    # Extending the Kedge file using:
+    # https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#container-v1-core
+    livenessProbe:
+      httpGet:
+        path: /
+        port: 80
+      initialDelaySeconds: 20
+      timeoutSeconds: 5
+
+services:
+- name: nginx
+  type: NodePort
+  # Using a Kedge-specific 'shortcut'
+  portMappings:
+  - 8080:80
+```
 
 Kedge introduces a simplification of Kubernetes constructs in order to make application development simple and easy to modify/deploy.
 
@@ -96,52 +100,58 @@ name: <string>
 appversion: <string>
 controller: <string>
 labels: <object>
-containers:
-  - <containerObject>
+deployments:
+- <deploymentObject>
+jobs:
+- <jobObject>
+deploymentConfigs:
+- <deploymentConfigObject>
 volumeClaims:
-  - <persistentVolumeObject>
+- <persistentVolumeObject>
 configMaps:
-  - <configMapObject>
+- <configMapObject>
 services:
-  - <serviceObject>
+- <serviceObject>
 ingresses:
-  - <ingressObject>
+- <ingressObject>
 routes:
-  - <routeObject>
+- <routeObject>
 secrets:
-  - <secretObject>
+- <secretObject>
 imageStreams:
-  - <imageStreamObject>
+- <imageStreamObject>
 buildConfigs:
-  - <buildConfigObject>
+- <buildConfigObject>
 includeResources:
-  - <includeResources>
+- <includeResources>
 ```
 
 <aside class="notice">
-Depending on the controller key selected. Each "app" (Kedge file) is an extension of that controller. Anything defineable within Kubernetes may also be defined within Kedge. See <a href="http://kedgeproject.org/file-reference/#controller">the controller table</a> for more information.
+Depending on the controller key selected. Each controller (deployments, jobs, deploymentConfigs) is an extension of Kubernetes (or OpenShift with deploymentConfigs). Anything defineable within Kubernetes may also be defined within Kedge. See <a href="http://kedgeproject.org/file-reference/#objects">objects</a> for more information.
 </aside>
 
 
-#### Kedge specific
+#### Kedge Root Keys
 
-| Field    | Type     | Required     | Description  |
-|----------|----------|--------------|--------------|
-| name | string   | yes          | The name of the app or microservice this particular file defines. |
-| appversion | string | no           | The version of the app or microservice this particular file defines. |
-| controller | string   | no           | The Kubernetes controller of the app or microservice this particular file (default: "deployment") |
-| labels | object   | no           | Map of string keys and values that can be used to organize and categorize (scope and select) objects. May match selectors of replication controllers and services. |
-| containers | array of [containerObject](#containerobject) | yes          | [containerObject](#containerobject) |
-| volumeClaims | array of [persistentVolumeObject](#persistentvolumeobject) | no           | [persistentVolumeObject](#persistentvolumeobject) |
-| configMap | array of [configMapObject](#configmapobject) | no           | [configMapObject](#configmapobject) |
-| services | array of [serviceObject](#serviceobject) | no           | [serviceObject](#serviceobject) |
-| ingresses | array of [ingressObject](#ingressobject) | no           | [ingressObject](#ingressobject) |
-| routes | array of [routeObject](#routeobject) | no           | [routeObject](#routeobject) |
-| secrets | array of [secretObject](#secretobject) | no           | [secretObject](#secretobject) |
-| imageStreams | array of [imageStreamObject](#imagestreamobject) | no           | [imageStreamObject](#imagestreamobject) |
-| buildConfigs | array of [buildConfigObject](#buildconfigobject) | no           | [buildConfigObject](#buildconfigobject) |
-| includeResources | array of [includeResourceObject](#includeresourceobject) | no           | [includeResourceObject](#includeresourceobject) |
+Root keys are definable in the innermost section of a YAML file.
 
+| Field             | Type                                                       | Required | Description                                                                                                                                                        |
+|-------------------|------------------------------------------------------------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| name              | string                                                     | yes      | The name of the app or microservice this particular file defines.                                                                                                  |
+| appversion        | string                                                     | no       | The version of the app or microservice this particular file defines.                                                                                               |
+| labels            | object                                                     | no       | Map of string keys and values that can be used to organize and categorize (scope and select) objects. May match selectors of replication controllers and services. |
+| deployments       | array of [deploymentObject](#deploymentobject)             | no       | [deploymentObject](#deploymentobject)                                                                                                                              |
+| jobs              | array of [jobObject](#jobobject)                           | no       | [jobObject](#jobobject)                                                                                                                                            |
+| volumeClaims      | array of [persistentVolumeObject](#persistentvolumeobject) | no       | [persistentVolumeObject](#persistentvolumeobject)                                                                                                                  |
+| configMap         | array of [configMapObject](#configmapobject)               | no       | [configMapObject](#configmapobject)                                                                                                                                |
+| services          | array of [serviceObject](#serviceobject)                   | no       | [serviceObject](#serviceobject)                                                                                                                                    |
+| ingresses         | array of [ingressObject](#ingressobject)                   | no       | [ingressObject](#ingressobject)                                                                                                                                    |
+| secrets           | array of [secretObject](#secretobject)                     | no       | [secretObject](#secretobject)                                                                                                                                      |
+| deploymentConfigs | array of [deploymentconfigobject](#deploymentconfigobject) | no       | [deploymentconfigobject](#deploymentconfigobject)                                                                                                                  |
+| routes            | array of [routeObject](#routeobject)                       | no       | [routeObject](#routeobject)                                                                                                                                        |
+| imageStreams      | array of [imageStreamObject](#imagestreamobject)           | no       | [imageStreamObject](#imagestreamobject)                                                                                                                            |
+| buildConfigs      | array of [buildConfigObject](#buildconfigobject)           | no       | [buildConfigObject](#buildconfigobject)                                                                                                                            |
+| includeResources  | array of [includeResourceObject](#includeresourceobject)   | no       | [includeResourceObject](#includeresourceobject)                                                                                                                    |
 
 ## name
 
@@ -149,9 +159,9 @@ Depending on the controller key selected. Each "app" (Kedge file) is an extensio
 name: mariadb
 ```
 
-| Type     | Required     | Description  |
-|----------|--------------|--------------|
-| string   | yes          | The name of the app or microservice this particular file defines. |
+| Type   | Required | Description                                                       |
+|--------|----------|-------------------------------------------------------------------|
+| string | yes      | The name of the app or microservice this particular file defines. |
 
 
 ## appversion
@@ -160,73 +170,9 @@ name: mariadb
 appversion: 5.0.0-alpha
 ```
 
-| Type     | Required     | Description  |
-|----------|--------------|--------------|
-| string   | no           | The version of the app or microservice this particular file defines. |
-
-
-## controller
-
-```yaml
-controller: deployment
-```
-
-> Example using DeploymentConfig for OpenShift
-
-```yaml
-controller: deploymentconfig
-name: httpd
-
-containers:
-- image: bitnami/nginx
-
-services:
-- name: httpd
-  type: NodePort
-  ports:
-  - port: 8080
-    targetPort: 8080
-
-# DeploymentConfig related definitions
-replicas: 2
-```
-
-> Example using Job
-
-```yaml
-controller: job
-name: pival
-containers:
-- image: perl
-  command: ["perl",  "-Mbignum=bpi", "-wle", "print bpi(2000)"]
-
-# Job-related definitions
-restartPolicy: Never
-parallelism: 3
-```
-
-| Type     | Required     | Description |
-|----------|--------------|-------------|
-| string   | no           | The Kubernetes controller of the app or microservice this particular file defines (default: "deployment") |
-
-Supported controllers:
-
-| Name                 | Container Orchestrator | Extension                                                                                                                          |
-|----------------------|------------------------|------------------------------------------------------------------------------------------------------------------------------------|
-| Deployment (default) | Kubernetes             | An extension of [DeploymentSpec](https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#deployment-v1beta1-apps)                 |
-| Job                  | Kubernetes             | An extension of [JobSpec](https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#job-v1-batch)                                   |
-| DeploymentConfig     | OpenShift              | An extension of [DeploymentConfigSpec](https://docs.openshift.org/latest/rest_api/apis-apps/v1beta1.Deployment.html#object-schema) |
-
-
-__Note on conflicting fields:__
-
-A conflicting field may exist both within the "root" of the file as well as within the specification.
-
-For example, `activeDeadlineSeconds` is a conflicting field which exists in both, PodSpec and as well as JobSpec, and both of these fields may be defined at the top level of the Kedge file specification
-
-So, whenever `activeDeadlineSeconds` field is set, only JobSpec is populated, which means that `activeDeadlineSeconds` is set only for the Job and not for the Pod.
-
-To populate a Pod's `activeDeadlineSeconds`, the user will have to pass this field the long way by defining the pod exclusively under `job.spec.template.spec.activeDeadlineSeconds`.
+| Type   | Required | Description                                                          |
+|--------|----------|----------------------------------------------------------------------|
+| string | no       | The version of the app or microservice this particular file defines. |
 
 
 ## labels
@@ -237,25 +183,47 @@ labels:
   department: middle-tier
 ```
 
-| Type | Required | Description |
-|----------|--------------|-----|
-| object   | no           | Map of string keys and values that can be used to organize and categorize (scope and select) objects. May match selectors of replication controllers and services. |
+| Type   | Required | Description                                                                                                                                                        |
+|--------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| object | no       | Map of string keys and values that can be used to organize and categorize (scope and select) objects. May match selectors of replication controllers and services. |
 
 
 All the configuration created will have this label applied.
-More info: [http://kubernetes.io/docs/user-guide/labels](http://kubernetes.io/docs/user-guide/labels)
+More info [kubernetes.io/docs/user-guide/labels](http://kubernetes.io/docs/user-guide/labels)
 
-## containers
+
+## deployments
 
 ```yaml
-containers:
-- <containerObject>
+deployments:
+- <deploymentObject>
 ```
 
-| Type                                 | Required | Description |
-|------------------------------------------|--------------|-------|
-| array of [containerObject](#containerobject) | yes          | [containerObject](#containerobject) | 
+| Type                                                       | Required | Description                                       |
+|------------------------------------------------------------|----------|---------------------------------------------------|
+| array of [deploymentObject](#deploymentobject) | no       | [deploymentObject](#deploymentobject) |
 
+## jobs
+
+```yaml
+jobs:
+- <jobObject>
+```
+
+| Type                             | Required | Description             |
+|----------------------------------|----------|-------------------------|
+| array of [jobObject](#jobobject) | no       | [jobObject](#jobobject) |
+
+## deploymentConfigs
+
+```yaml
+deploymentConfigs:
+- <deploymentConfigObject>
+```
+
+| Type                                                       | Required | Description                                       |
+|------------------------------------------------------------|----------|---------------------------------------------------|
+| array of [deploymentConfigObject](#deploymentconfigobject) | no       | [deploymentConfigObject](#deploymentconfigobject) |
 
 ## volumeClaims
 
@@ -264,9 +232,9 @@ volumeClaims:
 - <volume>
 ```
 
-| Type                                       | Required | Description |
-|------------------------------------------------|--------------|---|
-| array of [persistentVolumeObject](#persistentvolumeobject) | no           | [persistentVolumeObject](#persistentvolumeobject)|
+| Type                                                       | Required | Description                                       |
+|------------------------------------------------------------|----------|---------------------------------------------------|
+| array of [persistentVolumeObject](#persistentvolumeobject) | no       | [persistentVolumeObject](#persistentvolumeobject) |
 
 
 ## configMaps
@@ -276,9 +244,9 @@ configMaps:
 - <configMapObject>
 ```
 
-| Type                         | Required | Description |
-|----------------------------------|--------------|----|
-| array of [configMapObject](#configmapobject) | no           | [configMapObject](#configmapobject) |
+| Type                                         | Required | Description                         |
+|----------------------------------------------|----------|-------------------------------------|
+| array of [configMapObject](#configmapobject) | no       | [configMapObject](#configmapobject) |
 
 
 ## services
@@ -288,9 +256,9 @@ services:
 - <service>
 ```
 
-| Type                     | Required | Description |
-|------------------------------|--------------|------|
-| array of [serviceObject](#serviceobject) | no           | [serviceObject](#serviceobject) |
+| Type                                     | Required | Description                     |
+|------------------------------------------|----------|---------------------------------|
+| array of [serviceObject](#serviceobject) | no       | [serviceObject](#serviceobject) |
 
 
 ## ingresses
@@ -300,9 +268,9 @@ ingresses:
 - <ingressObject>
 ```
 
-| Type                                  | Required | Description |
-|-------------------------------------------|--------------|------|
-| array of [ingressObject](#ingressobject) | no           | [ingressObject](#ingressobject) |
+| Type                                     | Required | Description                     |
+|------------------------------------------|----------|---------------------------------|
+| array of [ingressObject](#ingressobject) | no       | [ingressObject](#ingressobject) |
 
 
 
@@ -313,9 +281,9 @@ routes:
 - <routeObject>
 ```
 
-| Type                                  | Required | Description |
-|-------------------------------------------|--------------|------|
-| array of [routeObject](#routeobject) | no           | [routeObject](#routeobject) |
+| Type                                 | Required | Description                 |
+|--------------------------------------|----------|-----------------------------|
+| array of [routeObject](#routeobject) | no       | [routeObject](#routeobject) |
 
 
 
@@ -326,9 +294,9 @@ secrets:
 - <secret>
 ```
 
-| Type                         | Required | Description |
-|----------------------------------|--------------|------|
-| array of [secretObject](#secretobject) | no           | [secretObject](#secretobject) |
+| Type                                   | Required | Description                   |
+|----------------------------------------|----------|-------------------------------|
+| array of [secretObject](#secretobject) | no       | [secretObject](#secretobject) |
 
 ## buildConfigs
 
@@ -337,9 +305,9 @@ buildConfigs:
 - <buildConfigObject>
 ```
 
-| Type                         | Required | Description |
-|----------------------------------|--------------|------|
-| array of [buildConfig Object](#buildconfigobject) | no           | [buildConfig Object](#buildconfigobject) object |
+| Type                                              | Required | Description                                     |
+|---------------------------------------------------|----------|-------------------------------------------------|
+| array of [buildConfig Object](#buildconfigobject) | no       | [buildConfig Object](#buildconfigobject) object |
 
 ## imageStreams
 
@@ -348,9 +316,9 @@ imageStreams:
 - <imageStreamObject>
 ```
 
-| Type                         | Required | Description |
-|----------------------------------|--------------|------|
-| array of [imageStream Object](#imagestreamobject) | no           | [imageStream Object](#imagestreamobject) object |
+| Type                                              | Required | Description                                     |
+|---------------------------------------------------|----------|-------------------------------------------------|
+| array of [imageStream Object](#imagestreamobject) | no       | [imageStream Object](#imagestreamobject) object |
 
 ## includeResources
 
@@ -369,9 +337,9 @@ includeResources:
 
 This is list of files that are Kubernetes specific that can be passed to Kubernetes directly. Of these files, Kedge will not do any processing, but simply pass it to the container orchestrator.
 
-| Type                         | Required | Description |
-|----------------------------------|--------------|------|
-| array of [includeResourceObject](#includeresourceobject) | no           | [includeResourceObject](#includeresourceobject) |
+| Type                                                     | Required | Description                                     |
+|----------------------------------------------------------|----------|-------------------------------------------------|
+| array of [includeResourceObject](#includeresourceobject) | no       | [includeResourceObject](#includeresourceobject) |
 
 
 The file path are relative to the kedge application file.
@@ -381,39 +349,123 @@ anything in the Kubernetes land.
 
 # Objects
 
-## containerObject
+Some objects are extension(s) of their Kubernetes / OpenShift counterparts. Below is a chart that lists each extension:
+
+| Key                 | Field                  | Extension of                                                                                                                    |
+|---------------------|------------------------|---------------------------------------------------------------------------------------------------------------------------------|
+| `deployments`       | deploymentObject       | [Kubernetes Deployment](https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#deployment-v1beta1-apps)                       |
+| `jobs`              | jobObject              | [Kubernetes Job](https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#job-v1-batch)                                         |
+| `containers`        | containerObject        | [Kubernetes Container](https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#container-v1-core)                              |
+| `volumeClaims`      | persistentVolumeObject | [Kubernetes PersistentVolumeClaim](https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#persistentvolumeclaim-v1-core)      |
+| `services`          | serviceObject          | [Kubernetes Service](https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#service-v1-core)                                  |
+| `ingresses`         | ingressObject          | [Kubernetes Ingress](https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#ingressspec-v1beta1-extensions)                   |
+| `secrets`           | secretObject           | [Kubernetes EnvVarSource](https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#envvarsource-v1-core)                        |
+| `deploymentConfigs` | deploymentConfigObject | [OpenShift DeploymentConfig](https://docs.openshift.org/latest/rest_api/apis-apps/v1beta1.Deployment.html#object-schema)        |
+| `routes`            | routeObject            | [OpenShift Route](https://docs.openshift.com/container-platform/3.7/rest_api/apis-route.openshift.io/v1.Route.html)             |
+| `buildConfigs`      | buildConfigObject      | [OpenShift BuildConfig](https://docs.openshift.com/container-platform/3.7/rest_api/apis-build.openshift.io/v1.BuildConfig.html) |
+| `imageStreams`      | imageStreamObject      | [OpenShift ImageStream](https://docs.openshift.com/container-platform/3.7/rest_api/apis-image.openshift.io/v1.ImageStream.html) |
+| `includeResourcs`   | includeResourceObject  | N/A                                                                                                                             |
+
+
+## deploymentObject
+
+> Example using the Kubernetes Deployment controller
 
 ```yaml
-containers:
+name: httpd
+
+deployments:
+- containers:
+  - image: centos/httpd
+
+services:
+- name: httpd
+  type: LoadBalancer
+  portMappings: 
+    - 8080:80
+```
+
+
+<aside class="notice">
+Each "deployments" is a Kubernetes <a target="_blank" href="https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#deployment-v1beta1-apps">Deployment Spec</a> with additional Kedge-specific keys.
+</aside>
+
+| Field      | Type                                         | Required | Description                         |
+|------------|----------------------------------------------|----------|-------------------------------------|
+| containers | array of [containerObject](#containerobject) | yes      | [containerObject](#containerobject) |
+
+
+## jobObject
+
+> Example using the Kubernetes Jobs controller
+
+```yaml
+name: pival
+
+jobs:
+- containers:
+  - image: perl
+    command: ["perl",  "-Mbignum=bpi", "-wle", "print bpi(2000)"]
+  # Job-related definitions
+  restartPolicy: Never
+  parallelism: 3
+```
+
+
+<aside class="notice">
+Each "jobs" is a Kubernetes <a target="_blank" href="https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#job-v1-batch">Job Spec</a> with additional Kedge-specific keys.
+</aside>
+
+| Field      | Type                                         | Required | Description                         |
+|------------|----------------------------------------------|----------|-------------------------------------|
+| containers | array of [containerObject](#containerobject) | yes      | [containerObject](#containerobject) |
+
+
+## containerObject
+
+> Using the deployments controller
+
+```yaml
+deployments:
+- containers:
   - <containerObject>
+```
+
+> Using the deploymentConfigs controller with name.
+
+```yaml
+deploymentConfigs:
+- name: foo
+  containers:
+    - <containerObject>
 ```
 
 <aside class="notice">
 Each "container" is a Kubernetes <a target="_blank" href="https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#container-v1-core">Container Spec</a> with additional Kedge-specific keys.
 </aside>
 
+The `containers` key is used with **every** type of controller (deployments, jobs, deploymentConfigs).
+
 List of containers
 
-| Field | Type     | Required     | Description  |
-|-------|----------|--------------|--------------|
-| health | string   | yes          | The name of the app or microservice this particular file defines. |
+| Field  | Type   | Required | Description                                                       |
+|--------|--------|----------|-------------------------------------------------------------------|
+| health | string | yes      | The name of the app or microservice this particular file defines. |
 
 ### health
 
 ```yaml
 containers:
-  - image: foobar
-    health: <probe>
+- image: foobar
+  health: <probe>
 ```
 
-| Type     | Required     | Description  |
-|----------|--------------|--------------|
-| string   | yes          | The name of the app or microservice this particular file defines. |
+| Type   | Required | Description                                                       |
+|--------|----------|-------------------------------------------------------------------|
+| string | yes      | The name of the app or microservice this particular file defines. |
 
-This is `probe` spec. Rather than defining `livenessProbe` and `readinessProbe`,
-define only `health`. And then it gets copied in both in the resultant spec.
-But if `health` and `livenessProbe` or `readinessProbe` are defined
-simultaneously then the tool will error out.
+This is `probe` spec. Rather than defining `livenessProbe` and `readinessProbe`, define only `health`. And then it gets copied in both in the resultant spec. 
+But if `health` and `livenessProbe` or `readinessProbe` are defined simultaneously then the tool will error out.
 
 ### Kubernetes extension
 
@@ -421,17 +473,19 @@ simultaneously then the tool will error out.
 
 ```yaml
 name: web
-containers:
-- image: nginx
-  # https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#container-v1-core
-  env:
-  - name: WORDPRESS_DB_PASSWORD
-    value: wordpress
-  - name: WORDPRESS_DB_USER
-    value: wordpress
-  envFrom:
-  - configMapRef:
-      name: web
+deployments:
+- containers:
+  - name: nginx
+    image: nginx
+    # https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#container-v1-core
+    env:
+    - name: WORDPRESS_DB_PASSWORD
+      value: wordpress
+    - name: WORDPRESS_DB_USER
+      value: wordpress
+    envFrom:
+    - configMapRef:
+        name: web
 services:
 - name: nginx
   type: NodePort
@@ -448,40 +502,40 @@ For example, keys such as `env` and `envFrom` are commonly used.
 
 ```yaml
 volumeClaims:
-  - <persistentVolumeObject>
+- <persistentVolumeObject>
 ```
 
 > An example of deploying a volume
 
 ```yaml
 volumeClaims:
-  - name: database
-    size: 500Mi
+- name: database
+  size: 500Mi
 ```
 
 > Or further specifically defining it
 
 ```yaml
 volumeClaims:
-  - name: database
-    accessModes:
-    - ReadWriteOnce
-    resources:
-      requests:
-        storage: 500Mi
+- name: database
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 500Mi
 ```
 
 <aside class="notice">
-Each "persistentVolumeObject" is a Kubernetes <a target="_blank" href="https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#claim-v1-core">PersistentVolumeClaim</a> with additional Kedge-specific keys.
+Each "persistentVolumeObject" is a Kubernetes <a target="_blank" href="https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#persistentvolumeclaim-v1-core">PersistentVolumeClaim</a> with additional Kedge-specific keys.
 </aside>
 
 
-| Field | Type     | Required     | Description  |
-|-------|----------|--------------|--------------|
-| name | string   | yes          | The name of the volume. This should match with the `volumeMount` defined in the `container`. |
-| size | string   | yes          | Size of persistent volume claim to be created. Conflicts with [resources](#resources) field so define either of those. |
-| resources | ResourceRequirements   | yes          | Resources represents the minimum resources the volume should have. Conflicts with [size](#size) field so define either of those. |
-| accessModes | array of string | no           | AccessModes contains the desired access modes the volume should have. Defaults to `ReadWriteOnce`. |
+| Field       | Type                 | Required | Description                                                                                                                      |
+|-------------|----------------------|----------|----------------------------------------------------------------------------------------------------------------------------------|
+| name        | string               | yes      | The name of the volume. This should match with the `volumeMount` defined in the `container`.                                     |
+| size        | string               | yes      | Size of persistent volume claim to be created. Conflicts with [resources](#resources) field so define either of those.           |
+| resources   | ResourceRequirements | yes      | Resources represents the minimum resources the volume should have. Conflicts with [size](#size) field so define either of those. |
+| accessModes | array of string      | no       | AccessModes contains the desired access modes the volume should have. Defaults to `ReadWriteOnce`.                               |
 
 A user needs to define this list of volumes and then use it in the `volumeMounts` field in `containers`. In the resultant output the `volumes` in `podSpec` will be populated automatically by the tool.
 
@@ -491,9 +545,9 @@ A user needs to define this list of volumes and then use it in the `volumeMounts
 name: database
 ```
 
-| Type | Required | Description |
-|----------|--------------|-----|
-| string   | yes          | The name of the volume. This should match with the `volumeMount` defined in the `container`. |
+| Type   | Required | Description                                                                                  |
+|--------|----------|----------------------------------------------------------------------------------------------|
+| string | yes      | The name of the volume. This should match with the `volumeMount` defined in the `container`. |
 
 
 ### size
@@ -502,9 +556,9 @@ name: database
 size: 700Mi
 ```
 
-| Type | Required | Description |
-|----------|--------------|-----|
-| string   | yes          | Size of persistent volume claim to be created. Conflicts with [resources](#resources) field so define either of those. |
+| Type   | Required | Description                                                                                                            |
+|--------|----------|------------------------------------------------------------------------------------------------------------------------|
+| string | yes      | Size of persistent volume claim to be created. Conflicts with [resources](#resources) field so define either of those. |
 
 ### resources
 
@@ -514,9 +568,9 @@ resources:
     storage: 500Mi
 ```
 
-| Type               | Required | Description |
-|------------------------|--------------|-----|
-| ResourceRequirements   | yes          | Resources represents the minimum resources the volume should have. Conflicts with [size](#size) field so define either of those. |
+| Type                 | Required | Description                                                                                                                      |
+|----------------------|----------|----------------------------------------------------------------------------------------------------------------------------------|
+| ResourceRequirements | yes      | Resources represents the minimum resources the volume should have. Conflicts with [size](#size) field so define either of those. |
 
 More info: http://kubernetes.io/docs/user-guide/persistent-volumes#resources
 
@@ -527,9 +581,9 @@ accessModes:
 - ReadWriteOnce
 ```
 
-| Type        | Required | Description
-|-----------------|--------------|------|
-| array of string | no           | AccessModes contains the desired access modes the volume should have. Defaults to `ReadWriteOnce`. |
+| Type            | Required | Description
+|-----------------|----------|----------------------------------------------------------------------------------------------------|
+| array of string | no       | AccessModes contains the desired access modes the volume should have. Defaults to `ReadWriteOnce`. |
 
 The access modes are:
 
@@ -580,7 +634,7 @@ Anything [PersistentVolumeClaim Spec](https://v1-6.docs.kubernetes.io/docs/api-r
 
 ```yaml
 configMaps:
-  - <configMapObject>
+- <configMapObject>
 ```
 
 > Example
@@ -597,10 +651,10 @@ configMaps:
 Each "configMapObject" is a Kubernetes <a target="_blank" href="https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#configmap-v1-core">ConfigMap Spec</a> with additional Kedge-specific keys.
 </aside>
 
-| Field | Type     | Required     | Description  |
-|-------|----------|--------------|--------------|
-| name | string   | yes          | The name of the configMapObject. This is optional field if only one configMapObject is defined, the default name will be the app name. |
-| data | object   | yes          | Data contains the configuration data. Each key must be a valid DNS_SUBDOMAIN with an optional leading dot. |
+| Field | Type   | Required | Description                                                                                                                            |
+|-------|--------|----------|----------------------------------------------------------------------------------------------------------------------------------------|
+| name  | string | yes      | The name of the configMapObject. This is optional field if only one configMapObject is defined, the default name will be the app name. |
+| data  | object | yes      | Data contains the configuration data. Each key must be a valid DNS_SUBDOMAIN with an optional leading dot.                             |
 
 ### Name
 
@@ -608,9 +662,9 @@ Each "configMapObject" is a Kubernetes <a target="_blank" href="https://v1-6.doc
 name: database
 ```
 
-| Type | Required | Description |
-|----------|--------------|-----|
-| string   | yes          | The name of the configMapObject. This is optional field if only one configMapObject is defined, the default name will be the app name. |
+| Type   | Required | Description                                                                                                                            |
+|--------|----------|----------------------------------------------------------------------------------------------------------------------------------------|
+| string | yes      | The name of the configMapObject. This is optional field if only one configMapObject is defined, the default name will be the app name. |
 
 ### Data
 
@@ -619,9 +673,9 @@ data:
   key: value
 ```
 
-| Type | Required | Description |
-|----------|--------------|--------|
-| object   | yes          | Data contains the configuration data. Each key must be a valid DNS_SUBDOMAIN with an optional leading dot. |
+| Type   | Required | Description                                                                                                |
+|--------|----------|------------------------------------------------------------------------------------------------------------|
+| object | yes      | Data contains the configuration data. Each key must be a valid DNS_SUBDOMAIN with an optional leading dot. |
 
 A `configMapObject` is created out of this configuration.
 
@@ -661,7 +715,7 @@ Anything [ConfigMap Spec](https://v1-6.docs.kubernetes.io/docs/api-reference/v1.
 
 ```yaml
 services:
-  - <serviceObject>
+- <serviceObject>
 ```
 
 > Example
@@ -680,13 +734,13 @@ services:
 Each "service" is a Kubernetes <a target="_blank" href="https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#service-v1-core">Service Spec</a> with additional Kedge-specific keys.
 </aside>
 
-| Field | Type     | Required     | Description  |
-|-------|----------|--------------|--------------|
-| name  | string   | yes          | The name of the service. |
-| endpoint | string   | no | The endpoint of the service. |
-| portMappings | array of "port" | no |  Array of ports. Ex. `80:8080/tcp` |
+| Field        | Type            | Required | Description                       |
+|--------------|-----------------|----------|-----------------------------------|
+| name         | string          | yes      | The name of the service.          |
+| endpoint     | string          | no       | The endpoint of the service.      |
+| portMappings | array of "port" | no       | Array of ports. Ex. `80:8080/tcp` |
 
-More info: [https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#servicespec-v1-core](https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#servicespec-v1-core)
+More info: [v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#servicespec-v1-core](https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#servicespec-v1-core)
 
 Each service gets converted into a Kubernetes `service` and `ingress` respectively.
 
@@ -696,9 +750,9 @@ Each service gets converted into a Kubernetes `service` and `ingress` respective
 name: wordpress
 ```
 
-| Type | Required | Description |
-|----------|--------------|------|
-| string   | yes          | The name of the service. |
+| Type   | Required | Description              |
+|--------|----------|--------------------------|
+| string | yes      | The name of the service. |
 
 ### endpoint
 
@@ -706,9 +760,9 @@ name: wordpress
 endpoint: www.mycoolapp.com/admin
 ```
 
-| Type | Required | Description |
-|----------|--------------|------|
-| string   | yes          | The endpoint of the service. |
+| Type   | Required | Description                  |
+|--------|----------|------------------------------|
+| string | yes      | The endpoint of the service. |
 
 This is an added field in the Service port, which if specified an `ingress`
 resource is created. The `ingress` resource name will be the same as the name
@@ -724,9 +778,9 @@ portMappings:
 - 8081:81/UDP
 ```
 
-| Type | Required | Description |
-|----------|--------------|------|
-| array of "port" | yes          |  Array of ports. Ex. `80:8080/tcp` |
+| Type            | Required | Description                       |
+|-----------------|----------|-----------------------------------|
+| array of "port" | yes      | Array of ports. Ex. `80:8080/tcp` |
 
 
 `portMappings` is an added field to ServiceSpec.
@@ -783,9 +837,9 @@ Each "ingress" is a Kubernetes <a target="_blank" href="https://v1-6.docs.kubern
 </aside>
 
 
-| Type                         | Required | Description |
-|----------------------------------|--------------|------|
-| name | string   | yes          | The name of the Ingress |
+| Type | Required | Description             |
+|------|----------|-------------------------|
+| name | yes      | The name of the Ingress |
 
 If there is only one port and user wants to expose the service then user should define one `ingress` with `host` atleast then the rest of the `ingress` spec (things like `http`, etc.) will be populated for the user.
 
@@ -796,9 +850,9 @@ If there is only one port and user wants to expose the service then user should 
 name: wordpress
 ```
 
-| Type | Required | Description |
-|----------|--------------|-------|
-| string   | yes          | The name of the Ingress. |
+| Type   | Required | Description              |
+|--------|----------|--------------------------|
+| string | yes      | The name of the Ingress. |
 
 ### Kubernetes extension
 
@@ -820,6 +874,73 @@ ingresses:
 
 Anything [Ingress Spec](https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#ingressspec-v1beta1-extensions) from Kubernetes can be included within the Kedge file.
 
+## secretObject
+
+```yaml
+secrets:
+- <secret>
+```
+
+<aside class="notice">
+Each "secret" is a Kubernetes <a target="_blank" href="https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#envvarsource-v1-core">EnvVarSource Spec</a> with additional Kedge-specific keys.
+</aside>
+
+### Name
+
+```yaml
+name: wordpress
+```
+
+| Type   | Required | Description            |
+|--------|----------|------------------------|
+| string | no       | The name of the secret |
+
+### Kubernetes extension
+
+> Example extending `service` with Kubernetes Service Spec
+
+```yaml
+secrets:
+- name: wordpress
+  data:
+    # https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#envvarsource-v1-core
+    # Encoded in base64
+    MYSQL_ROOT_PASSWORD: YWRtaW4=
+    MYSQL_PASSWORD: cGFzc3dvcmQ=
+```
+
+Anything [EnvVarSource Spec](https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#envvarsource-v1-core) from Kubernetes can be included within the Kedge file.
+
+## deploymentConfigObject
+
+> Example using the OpenShift DeploymentConfig controller
+
+```yaml
+name: httpd
+
+deploymentConfigs:
+- containers:
+  - image: bitnami/nginx
+  # DeploymentConfig related definitions
+  replicas: 2
+
+services:
+- name: httpd
+  type: NodePort
+  ports:
+  - port: 8080
+    targetPort: 8080
+```
+
+
+<aside class="notice">
+Each "deploymentConfigs" is an OpenShift <a target="_blank" href="https://docs.openshift.org/latest/rest_api/apis-apps/v1beta1.Deployment.html#object-schema">Deployment Config Spec</a> with additional Kedge-specific keys.
+</aside>
+
+| Field      | Type                                         | Required | Description                         |
+|------------|----------------------------------------------|----------|-------------------------------------|
+| containers | array of [containerObject](#containerobject) | yes      | [containerObject](#containerobject) |
+
 ## routeObject
 
 ```yaml
@@ -840,9 +961,9 @@ to:
 Each "route" is an OpenShift <a target="_blank" href="https://docs.openshift.org/latest/rest_api/apis-route.openshift.io/v1.Route.html#object-schema">Route Spec</a> with additional Kedge-specific keys.
 </aside>
 
-| Type                         | Required | Description |
-|----------------------------------|--------------|------|
-| name | string   | yes          | The name of the Route |
+| Type | Required | Description           |
+|------|----------|-----------------------|
+| name | yes      | The name of the Route |
 
 ### name
 
@@ -850,9 +971,9 @@ Each "route" is an OpenShift <a target="_blank" href="https://docs.openshift.org
 name: wordpress
 ```
 
-| Type | Required | Description |
-|----------|--------------|-------|
-| string   | yes          | The name of the Route |
+| Type   | Required | Description           |
+|--------|----------|-----------------------|
+| string | yes      | The name of the Route |
 
 ### OpenShift extension
 
@@ -868,43 +989,6 @@ routes:
 ```
 
 Anything [Route Spec](https://docs.openshift.org/latest/rest_api/apis-route.openshift.io/v1.Route.html#object-schema) from OpenShift can be included within the Kedge file.
-
-## secretObject
-
-```yaml
-secrets:
-  - <secret>
-```
-
-<aside class="notice">
-Each "secret" is a Kubernetes <a target="_blank" href="https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#envvarsource-v1-core">EnvVarSource Spec</a> with additional Kedge-specific keys.
-</aside>
-
-### Name
-
-```yaml
-name: wordpress
-```
-
-| Type | Required | Description |
-|----------|--------------|-----|
-| string   | no           | The name of the secret |
-
-### Kubernetes extension
-
-> Example extending `service` with Kubernetes Service Spec
-
-```yaml
-secrets:
-- name: wordpress
-  data:
-    # https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#envvarsource-v1-core
-    # Encoded in base64
-    MYSQL_ROOT_PASSWORD: YWRtaW4=
-    MYSQL_PASSWORD: cGFzc3dvcmQ=
-```
-
-Anything [EnvVarSource Spec](https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#envvarsource-v1-core) from Kubernetes can be included within the Kedge file.
 
 ## buildConfigObject
 
@@ -940,9 +1024,9 @@ Each "buildConfigObject" is an OpenShift <a target="_blank" href="https://docs.o
 </aside>
 
 
-| Type                         | Required | Description |
-|----------------------------------|--------------|------|
-| name | string   | yes          | The name of the BuildConfig |
+| Type | Required | Description                 |
+|------|----------|-----------------------------|
+| name | yes      | The name of the BuildConfig |
 
 
 ### name
@@ -951,9 +1035,9 @@ Each "buildConfigObject" is an OpenShift <a target="_blank" href="https://docs.o
 name: wordpress
 ```
 
-| Type | Required | Description |
-|----------|--------------|-------|
-| string   | yes          | The name of the BuildConfig |
+| Type   | Required | Description                 |
+|--------|----------|-----------------------------|
+| string | yes      | The name of the BuildConfig |
 
 ### OpenShift extension
 
@@ -1001,9 +1085,9 @@ Each "imageStreamObject" is an OpenShift <a target="_blank" href="https://docs.o
 </aside>
 
 
-| Type                         | Required | Description |
-|----------------------------------|--------------|------|
-| name | string   | yes          | The name of the ImageStream |
+| Type | Required | Description                 |
+|------|----------|-----------------------------|
+| name | yes      | The name of the ImageStream |
 
 
 ### name
@@ -1012,9 +1096,9 @@ Each "imageStreamObject" is an OpenShift <a target="_blank" href="https://docs.o
 name: wordpress
 ```
 
-| Type | Required | Description |
-|----------|--------------|-------|
-| string   | yes          | The name of the ImageStream |
+| Type   | Required | Description                 |
+|--------|----------|-----------------------------|
+| string | yes      | The name of the ImageStream |
 
 ### OpenShift extension
 
@@ -1047,9 +1131,9 @@ includeResources:
 
 Including external resources.
 
-| Type | Required | Description |
-|----------|--------------|-----|
-| string   | no           | File location of the Kubernetes resource |
+| Type   | Required | Description                              |
+|--------|----------|------------------------------------------|
+| string | no       | File location of the Kubernetes resource |
 
 # Variables
 
@@ -1057,8 +1141,11 @@ Including external resources.
 
 ```yaml
 name: nginx
-containers:
-- image: nginx:[[ NGINX_VERSION ]]
+
+deployments:
+- containers:
+  - image: nginx:[[ NGINX_VERSION ]]
+
 services:
 - name: nginx
   ports:
@@ -1074,98 +1161,12 @@ NGINX_VERSION=1.13 kedge apply -f nginx.yaml
 
 You can use variables anywhere in the Kedge file. Variable names are enclosed in double square brackets (`[[ variable_name ]]`). For example `[[ IMAGE_NAME ]]` will be replaced with value of environment variable `$IMAGE_NAME`.
 
-# Controllers
-
-There are three defineable controllers within Kedge:
-
-- Deployment (Kubernetes) (Default)
-- Job (Kubernetes)
-- DeploymentConfig (OpenShift)
-
-Some controllers such as DeploymentConfig are only usable with OpenShift.
-
-## Deployment
+> Specify default value of variable,
 
 ```yaml
-name: database
-containers:
-- image: mariadb:10
-  envFrom:
-  - configMapRef:
-      name: database
-  - secretRef:
-      name: wordpress
-  volumeMounts:
-  - name: database
-    mountPath: /var/lib/mysql
-  livenessProbe:
-    httpGet:
-      path: /
-      port: 3306
-  readinessProbe:
-    exec:
-      command:
-      - mysqladmin
-      - ping
-    initialDelaySeconds: 5
-    timeoutSeconds: 1
-services:
-- name: wordpress
-  expose: true
-  ports:
-  - port: 8080
-    targetPort: 80
-    endpoint: minikube.external/foo
-ingresses:
-- name: pseudo-wordpress
-  rules:
-  - host: minikube.local
-    http:
-      paths:
-      - backend:
-          serviceName: wordpress
-          servicePort: 8080
-        path: /
-volumeClaims:
-- name: database
-  size: 500Mi
-  accessModes:
-  - ReadWriteOnce
-configMaps:
-- data:
-    MYSQL_DATABASE: wordpress
-secrets:
-- name: wordpress
-  data:
-    MYSQL_ROOT_PASSWORD: YWRtaW4=
+name: foo
+image: foo/bar:[[ TAG:latest ]]
 ```
 
-## Job
-
-```yaml
-controller: job
-name: pival
-containers:
-- image: perl
-  command: ["perl",  "-Mbignum=bpi", "-wle", "print bpi(2000)"]
-restartPolicy: Never
-parallelism: 3
-```
-
-**Note**: If no `restartPolicy` is provided it defaults to `OnFailure`.
-
-## Deployment Config
-
-```yaml
-controller: deploymentconfig
-name: httpd
-replicas: 2
-containers:
-- image: centos/httpd
-services:
-- name: httpd
-  type: NodePort
-  ports:
-  - port: 8080
-    targetPort: 80
-```
+You can specify a default value of a variable if it is not set. 
+For example: `[[ TAG:latest ]]` If `TAG` variable is not set, `latest` will be used.

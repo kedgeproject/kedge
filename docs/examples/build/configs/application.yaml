@@ -1,9 +1,10 @@
 name: ticker
-containers:
-- image: surajd/ticker:0.1
-  env:
-  - name: REDIS_HOST
-    value: redis
+deployments:
+- containers:
+  - image: surajd/ticker:0.1
+    env:
+    - name: REDIS_HOST
+      value: redis
 services:
 - type: NodePort
   portMappings:

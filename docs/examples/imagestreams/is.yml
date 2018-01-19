@@ -1,7 +1,7 @@
-controller: DeploymentConfig
 name: webapp
-containers:
-- image: ""
+deploymentConfigss:
+- containers:
+  - image: ""
 triggers:
 - imageChangeParams:
     automatic: true

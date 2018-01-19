@@ -1,7 +1,7 @@
-controller: deploymentconfig
 name: httpd
-containers:
-- image: centos/httpd
+deploymentConfigs:
+- containers:
+  - image: centos/httpd
 services:
 - name: httpd
   type: NodePort

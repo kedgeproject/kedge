@@ -1,0 +1,25 @@
+name: guestbook
+
+labels:
+  app: guestbook
+
+deployments:
+- containers:
+  - name: guestbook
+    image: gcr.io/google_containers/guestbook:v3
+    env:
+    - name: GET_HOSTS_FROM
+      valueFrom:
+        configMapKeyRef:
+          key: GET_HOSTS_FROM
+          name: guestbook
+
+services:
+- name: guestbook
+  portMappings: 
+  - 3000:3000
+  type: NodePort
+
+configMaps:
+- data:
+    GET_HOSTS_FROM: dns
