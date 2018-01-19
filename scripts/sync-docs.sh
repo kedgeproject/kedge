@@ -6,7 +6,7 @@ if [ "$TRAVIS_BRANCH" != "master" ] || [ "$BUILD_DOCS" != "yes" ] || [ "$TRAVIS_
     exit 0
 fi
 
-DOCS_REPO_NAME="kedge"
+DOCS_REPO_NAME="kedge-docs"
 DOCS_REPO_URL="git@github.com:kedgeproject/kedge.git"
 DOCS_KEY="scripts/deploy_key"
 DOCS_USER="kedge-bot"
@@ -96,4 +96,3 @@ fi
 
 # cd back to the original root folder
 cd ..
-
