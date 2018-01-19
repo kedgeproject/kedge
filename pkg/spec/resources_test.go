@@ -32,49 +32,93 @@ import (
 )
 
 func TestFixServices(t *testing.T) {
-	failingTest := []ServiceSpecMod{
-		{Ports: nil},
-		{Ports: nil},
-		{Ports: nil},
-	}
-	_, err := fixServices(failingTest, "")
-	if err == nil {
-		t.Errorf("should have failed but passed")
-	} else {
-		t.Logf("failed with error: %v", err)
-	}
-
-	appName := "test"
 	passingTests := []struct {
-		Name   string
-		Input  []ServiceSpecMod
-		Output []ServiceSpecMod
+		Name    string
+		Input   *App
+		Output  *App
+		Success bool
 	}{
 		{
-			Name:  "only one service given",
-			Input: []ServiceSpecMod{{}},
-			Output: []ServiceSpecMod{
-				{
-					ObjectMeta: meta_v1.ObjectMeta{
-						Name: appName,
-						Labels: map[string]string{
-							appLabelKey: appName,
-						},
+			Name: "only one service given",
+			Input: &App{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name: "test",
+				},
+				Services: []ServiceSpecMod{
+					{
+						Ports: []ServicePortMod{{ServicePort: api_v1.ServicePort{Port: 8080}}},
 					},
 				},
 			},
+			Output: &App{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name: "test",
+				},
+				Services: []ServiceSpecMod{
+					{
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name: "test",
+						},
+						Ports: []ServicePortMod{{ServicePort: api_v1.ServicePort{Port: 8080}}}},
+				},
+			},
+			Success: true,
+		},
+		{
+			Name: "Global labels specified",
+			Input: &App{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name: "test",
+					Labels: map[string]string{
+						"foo": "bar",
+					},
+				},
+				Services: []ServiceSpecMod{
+					{
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name: "test",
+						},
+						Ports: []ServicePortMod{{ServicePort: api_v1.ServicePort{Port: 8080}}}},
+				},
+			},
+			Output: &App{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name: "test",
+					Labels: map[string]string{
+						"foo": "bar",
+					},
+				},
+				Services: []ServiceSpecMod{
+					{
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name: "test",
+							Labels: map[string]string{
+								"foo": "bar",
+							},
+						},
+						Ports: []ServicePortMod{{ServicePort: api_v1.ServicePort{Port: 8080}}}},
+				},
+			},
+			Success: true,
 		},
 	}
 
 	for _, test := range passingTests {
 		t.Logf("Running test: %s", test.Name)
-		got, err := fixServices(test.Input, appName)
-		if err != nil {
-			t.Errorf("expected to pass but failed with: %v", err)
-		}
-		if !reflect.DeepEqual(got, test.Output) {
-			t.Errorf("expected: %s, got: %s", prettyPrintObjects(test.Output),
-				prettyPrintObjects(got))
+		err := test.Input.fixServices()
+		if test.Success {
+			if err != nil {
+				t.Errorf("expected to pass but failed with: %v", err)
+			}
+			if !reflect.DeepEqual(test.Input, test.Output) {
+				t.Errorf("expected: \n%s\n\n got:\n %s\n\n", prettyPrintObjects(test.Output),
+					prettyPrintObjects(test.Input))
+			}
+		} else {
+			if err == nil {
+				t.Errorf("test was expected to fail, but it passed")
+			}
+
 		}
 	}
 }
@@ -783,7 +827,7 @@ func TestCreateServices(t *testing.T) {
 				t.Fatalf("Creating services failed: %v", err)
 			}
 			if !reflect.DeepEqual(test.Objects, object) {
-				t.Fatalf("Expected:\n%v\nGot:\n%v", test.Objects, object)
+				t.Fatalf("Expected:\n%v\nGot:\n%v", prettyPrintObjects(test.Objects), prettyPrintObjects(object))
 			}
 		})
 	}
