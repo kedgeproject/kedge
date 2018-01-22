@@ -48,7 +48,7 @@ var buildCmd = &cobra.Command{
 				fmt.Println("Please specify the builder image name using flag '--builder-image' or '-b'")
 				os.Exit(-1)
 			}
-			if err := build.BuildS2I(DockerImage, DockerContext, BuilderImage); err != nil {
+			if err := build.BuildS2I(DockerImage, DockerContext, BuilderImage, Namespace); err != nil {
 				fmt.Println(err)
 				os.Exit(-1)
 			}
@@ -69,6 +69,7 @@ func init() {
 	buildCmd.Flags().BoolVarP(&PushImage, "push", "p", false, "Add this flag if you want to push the image. Note: Ignored when s2i build strategy used")
 	buildCmd.Flags().BoolVarP(&s2iBuild, "s2i", "", false, "If this is enabled then Source to Image build strategy is used")
 	buildCmd.Flags().StringVarP(&BuilderImage, "builder-image", "b", "", "Name of a Docker image to use as a builder. Note: This is only useful when using s2i build strategy")
+	buildCmd.Flags().StringVarP(&Namespace, "namespace", "n", "", "Namespace or project to deploy your application to")
 
 	RootCmd.AddCommand(buildCmd)
 }
