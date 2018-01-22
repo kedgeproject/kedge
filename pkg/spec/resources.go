@@ -52,24 +52,31 @@ const (
 
 // Fix
 
-func fixServices(services []ServiceSpecMod, appName string) ([]ServiceSpecMod, error) {
+func (app *App) fixServices() error {
 
 	// auto populate name only if one service is specified without any name
-	if len(services) == 1 && services[0].ObjectMeta.Name == "" {
-		services[0].ObjectMeta.Name = appName
+	if len(app.Services) == 1 && app.Services[0].ObjectMeta.Name == "" {
+		app.Services[0].ObjectMeta.Name = app.Name
 	}
 
-	for i, service := range services {
+	for i, service := range app.Services {
 		if service.ObjectMeta.Name == "" {
-			return nil, fmt.Errorf("please specify name for app.services[%d]", i)
+			return fmt.Errorf("please specify name for app.services[%d]", i)
 		}
 
-		service.ObjectMeta.Labels = addKeyValueToMap(appLabelKey, appName, service.ObjectMeta.Labels)
+		for key, value := range app.ObjectMeta.Labels {
+			service.ObjectMeta.Labels = addKeyValueToMap(key, value, service.ObjectMeta.Labels)
+		}
+
+		// copy root annotations (already has "appVersion: <app.AppVersion>" annotation)
+		for key, value := range app.ObjectMeta.Annotations {
+			service.ObjectMeta.Annotations = addKeyValueToMap(key, value, service.ObjectMeta.Annotations)
+		}
 
 		// this should be the last statement in this for loop
-		services[i] = service
+		app.Services[i] = service
 	}
-	return services, nil
+	return nil
 }
 
 func fixVolumeClaims(volumeClaims []VolumeClaim, appName string) ([]VolumeClaim, error) {
@@ -239,7 +246,7 @@ func (app *App) Fix() error {
 	prettyPrintObjects(&app.ObjectMeta)
 
 	// fix Services
-	app.Services, err = fixServices(app.Services, app.Name)
+	err = app.fixServices()
 	if err != nil {
 		return errors.Wrap(err, "Unable to fix services")
 	}
