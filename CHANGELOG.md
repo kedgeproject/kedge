@@ -1,5 +1,39 @@
 # Change Log
 
+## [v0.8.0](https://github.com/kedgeproject/kedge/tree/v0.8.0) (2018-01-24)
+[Full Changelog](https://github.com/kedgeproject/kedge/compare/v0.7.0...v0.8.0)
+
+**Closed issues:**
+
+- Global labels are not propagated to Service [\#575](https://github.com/kedgeproject/kedge/issues/575)
+- Lowercase "tcp" or "udp" does not work for portMappings. [\#560](https://github.com/kedgeproject/kedge/issues/560)
+- Incorrect PR number in commit message [\#555](https://github.com/kedgeproject/kedge/issues/555)
+- Changing structure? \(Kedge v2\)  - Creating controllers section [\#541](https://github.com/kedgeproject/kedge/issues/541)
+- SemaphoreCI is currently broken  [\#532](https://github.com/kedgeproject/kedge/issues/532)
+- Specifying default value for Kedge variable [\#491](https://github.com/kedgeproject/kedge/issues/491)
+- kedge build returns - unable to create a tarball: archive/tar: write too long [\#490](https://github.com/kedgeproject/kedge/issues/490)
+- add support for openshift in e2e tests [\#375](https://github.com/kedgeproject/kedge/issues/375)
+- Allow specifying default values for variables [\#305](https://github.com/kedgeproject/kedge/issues/305)
+- Fix roadmap document [\#235](https://github.com/kedgeproject/kedge/issues/235)
+- Move `examples` to file reference. Add real examples \(GitLab, MySql, Wordpress, etc.\) [\#136](https://github.com/kedgeproject/kedge/issues/136)
+- Add command line conversion tests [\#58](https://github.com/kedgeproject/kedge/issues/58)
+
+**Merged pull requests:**
+
+- Fix building docs [\#577](https://github.com/kedgeproject/kedge/pull/577) ([cdrage](https://github.com/cdrage))
+- fix global label propagation for Services [\#576](https://github.com/kedgeproject/kedge/pull/576) ([kadel](https://github.com/kadel))
+- Updates commit message for json-schema push [\#573](https://github.com/kedgeproject/kedge/pull/573) ([cdrage](https://github.com/cdrage))
+- Update website index page with new Kedge file format [\#572](https://github.com/kedgeproject/kedge/pull/572) ([cdrage](https://github.com/cdrage))
+- New Kedge structure = new documentation [\#569](https://github.com/kedgeproject/kedge/pull/569) ([cdrage](https://github.com/cdrage))
+- New Kedge file structure [\#565](https://github.com/kedgeproject/kedge/pull/565) ([kadel](https://github.com/kadel))
+- Added case for lowercase protocol [\#564](https://github.com/kedgeproject/kedge/pull/564) ([piyush1594](https://github.com/piyush1594))
+- Widget image no longer active [\#563](https://github.com/kedgeproject/kedge/pull/563) ([cdrage](https://github.com/cdrage))
+- Fix the multiple CI issues with regards to using Wordpress [\#554](https://github.com/kedgeproject/kedge/pull/554) ([cdrage](https://github.com/cdrage))
+- Fixed example [\#547](https://github.com/kedgeproject/kedge/pull/547) ([surajnarwade](https://github.com/surajnarwade))
+- Making size field optional in PVC [\#544](https://github.com/kedgeproject/kedge/pull/544) ([surajnarwade](https://github.com/surajnarwade))
+- Fixed kedge build error\(archive/tar: write too long\) [\#497](https://github.com/kedgeproject/kedge/pull/497) ([surajnarwade](https://github.com/surajnarwade))
+- Adding OpenShift tests [\#465](https://github.com/kedgeproject/kedge/pull/465) ([ashetty1](https://github.com/ashetty1))
+
 ## [v0.7.0](https://github.com/kedgeproject/kedge/tree/v0.7.0) (2018-01-04)
 [Full Changelog](https://github.com/kedgeproject/kedge/compare/v0.6.0...v0.7.0)
 
@@ -16,6 +50,7 @@
 
 **Merged pull requests:**
 
+- 0.7.0 Release [\#561](https://github.com/kedgeproject/kedge/pull/561) ([cdrage](https://github.com/cdrage))
 - Remove personal email and replace with work email [\#557](https://github.com/kedgeproject/kedge/pull/557) ([containscafeine](https://github.com/containscafeine))
 - Fix container image name for JSON Schema generation [\#556](https://github.com/kedgeproject/kedge/pull/556) ([containscafeine](https://github.com/containscafeine))
 - Pass absolute path to JSON Schema docker command [\#553](https://github.com/kedgeproject/kedge/pull/553) ([containscafeine](https://github.com/containscafeine))
