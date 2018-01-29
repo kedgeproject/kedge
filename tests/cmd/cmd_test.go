@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"path/filepath"
+
 	"github.com/kylelemons/godebug/diff"
 )
 
@@ -112,5 +114,29 @@ func Test_builderror(t *testing.T) {
 	}
 	if strings.TrimSpace(string(output)) != imagename {
 		t.Errorf("Test Failed")
+	}
+}
+
+func Test_examples(t *testing.T) {
+	fileList := []string{}
+	for _, dir := range []string{"examples", "docs/examples"} {
+
+		err := filepath.Walk(os.ExpandEnv(ProjectPath)+dir, func(path string, f os.FileInfo, err error) error {
+			if filepath.Ext(path) == ".yaml" || filepath.Ext(path) == ".yml" {
+				fileList = append(fileList, path)
+			}
+			return nil
+		})
+		if err != nil {
+			t.Error(err)
+		}
+	}
+
+	for _, file := range fileList {
+		cmdStr := fmt.Sprintf("%s generate -f %s", BinaryLocation, file)
+		output, err := exec.Command("/bin/sh", "-c", cmdStr).Output()
+		if err != nil {
+			t.Errorf("kedge generate failed for - %s\n Error is - %s", file, output)
+		}
 	}
 }
