@@ -50,6 +50,17 @@ Go through our [file reference](http://kedgeproject.org/file-reference).
 
 Then go further with our pre-existing [examples](https://github.com/kedgeproject/kedge/tree/master/examples).
 
+__Comparison to similar projects:__
+
+|                                          | Kompose | Ksonnet | OpenShift templates | Helm | Kedge |
+|------------------------------------------|---------|---------|---------------------|------|-------|
+| Scalable                                 | -       | ✓       | ✓                   | ✓    | ✓     |
+| Kubernetes compatible API and DSL Syntax | -       | -       | -                   | -    | ✓     |
+| Native to Kubernetes ecosystem           | -       | ✓       | -                   | ✓    | ✓     |
+| Integration to tools (IDEs)              | ✓       | ✓       | ✓                   | ✓    | ✓     |
+| YAML / JSON                              | ✓       | -       | ✓                   | ✓    | ✓     |
+| Parameterized                            | ✓       | ✓       | ✓                   | ✓    | ✓     |
+
 ## Community, Discussion, Contribution, and Support
 
 __Contributing:__ Kedge is an evolving project and contributions are happily welcome. Feel free to open up an issue or even a PR. Read our [contributing guide](CONTRIBUTING.md) for more details. A thorough [development guide](http://kedgeproject.org/development/) is available if you're interested in contributing to Kedge.
