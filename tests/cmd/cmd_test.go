@@ -120,7 +120,7 @@ func Test_builderror(t *testing.T) {
 
 func Test_stdin(t *testing.T) {
 
-	kjson := `{"name": "httpd","containers": [{"image": "centos/httpd"}]}`
+	kjson := `{"name": "httpd","deployments": [{"containers": [{"image": "centos/httpd"}]}]}`
 	cmdStr := fmt.Sprintf("%s generate -f - <<EOF\n%s\nEOF\n", BinaryLocation, kjson)
 	subproc := exec.Command("/bin/sh", "-c", cmdStr)
 	output, err := subproc.Output()
