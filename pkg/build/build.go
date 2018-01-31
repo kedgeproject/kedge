@@ -237,7 +237,7 @@ func GetImageName(image string) string {
 	return image
 }
 
-func BuildS2I(image, context, builderImage string) error {
+func BuildS2I(image, context, builderImage string, namespace string) error {
 
 	name := GetImageName(image)
 	labels := map[string]string{
@@ -309,6 +309,9 @@ func BuildS2I(image, context, builderImage string) error {
 	log.Debugf("BuildConfig: \n%s\n", string(bcyaml))
 
 	args := []string{"apply", "-f", "-"}
+	if namespace != "" {
+		args = append(args, "--namespace", namespace)
+	}
 	err = cmd.RunClusterCommand(args, isyaml, true)
 	if err != nil {
 		return err
@@ -320,7 +323,7 @@ func BuildS2I(image, context, builderImage string) error {
 	}
 
 	log.Infof("Starting build for %q", image)
-	cmd := []string{"oc", "start-build", image, "--from-dir=" + context, "-F"}
+	cmd := []string{"oc", "start-build", image, "--from-dir=" + context, "-F", "--namespace", namespace}
 	if err := RunCommand(cmd); err != nil {
 		return err
 	}
