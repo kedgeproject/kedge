@@ -255,5 +255,5 @@ type testData struct {
 	PodStarted       []string
 	NodePortServices []ServicePort
 	Type             string
-	BaseImage        string
+	OSCmdOptions
 }

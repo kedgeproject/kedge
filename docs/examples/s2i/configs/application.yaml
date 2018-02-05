@@ -1,8 +1,8 @@
-name: ticker
-controller: deploymentconfig
+name: s2i-img
 
-containers:
-- image: ""
+deploymentConfigs:
+- containers:
+  - image: s2i-img
   env:
   - name: REDIS_HOST
     value: redis
@@ -11,10 +11,10 @@ triggers:
 - imageChangeParams:
     automatic: true
     containerNames:
-    - ticker
+    - s2i-img
     from:
       kind: ImageStreamTag
-      name: ticker:latest
+      name: s2i-img:latest
   type: ImageChange
 
 services:
@@ -24,4 +24,4 @@ services:
 routes:
 - to:
     kind: Service
-    name: ticker
+    name: s2i-img

@@ -24,13 +24,19 @@ func waitForBuildComplete(namespace string, buildName string) error {
 	})
 }
 
-func runKedgeS2i(imageName string, baseImage string) error {
-	s2iCmd := BinaryLocation + " build --s2i --image " + imageName + " -b " + baseImage
+func runKedgeS2i(nameSpace string, baseImage string, contextDir string) error {
+	s2iCmd := BinaryLocation + " build --s2i --image " + nameSpace + "-img -b " + baseImage +
+		" -c " + contextDir + " -n " + nameSpace
 	_, err := runCmd(s2iCmd)
 	if err != nil {
 		return errors.Wrap(err, "error build s2i image")
 	}
 	return nil
+}
+
+type OSCmdOptions struct {
+	BaseImage  string
+	ContextDir string
 }
 
 // TODO: Use OpenShift client-go API instead of go-template
@@ -71,7 +77,10 @@ func Test_os_Integration(t *testing.T) {
 			},
 			PodStarted: []string{"redis"},
 			Type:       "s2i",
-			BaseImage:  "centos/python-35-centos7:3.5",
+			OSCmdOptions: OSCmdOptions{
+				BaseImage:  "centos/python-35-centos7:3.5",
+				ContextDir: ProjectPath + TestPath + "s2i",
+			},
 		},
 	}
 
@@ -94,7 +103,7 @@ func Test_os_Integration(t *testing.T) {
 			defer deleteNamespace(t, clientset, test.Namespace)
 
 			if test.Type == "s2i" {
-				err := runKedgeS2i(test.Namespace, test.BaseImage)
+				err := runKedgeS2i(test.Namespace, test.OSCmdOptions.BaseImage, test.OSCmdOptions.ContextDir)
 				if err != nil {
 					t.Fatalf("error running kedge s2i: %v", err)
 				}
