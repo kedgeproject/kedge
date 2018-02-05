@@ -1,0 +1,7 @@
+deployments:
+- containers:
+  - image: centos/httpd
+name: httpd
+services:
+- portMappings:
+  - "80"

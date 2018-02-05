@@ -156,3 +156,99 @@ func Test_examples(t *testing.T) {
 		}
 	}
 }
+
+func Test_init(t *testing.T) {
+
+	//cmdStr := fmt.Sprintf("%s --name httpd --image centos/httpd --ports 80", BinaryLocation)
+	svcname := "httpd"
+	image := "centos/httpd"
+	ports := "80"
+	outputFile := os.ExpandEnv(ProjectPath) + "tests/cmd/kedge.yml"
+
+	testCases := []struct {
+		name        string
+		command     []string
+		wantSuccess bool
+		error       string
+		input       string
+	}{
+		{
+			name:        "kedge init",
+			command:     []string{"init"},
+			wantSuccess: false,
+			error:       "--name and --image are mandatory flags, Please provide these flags",
+		},
+		{
+			name:        "kedge init with name",
+			command:     []string{"init", "--name", svcname},
+			wantSuccess: false,
+			error:       "--name and --image are mandatory flags, Please provide these flags",
+		},
+		{
+			name:        "kedge init with image",
+			command:     []string{"init", "--image", image},
+			wantSuccess: false,
+			error:       "--name and --image are mandatory flags, Please provide these flags",
+		},
+		{
+			name:        "kedge init with ports",
+			command:     []string{"init", "--ports", ports},
+			wantSuccess: false,
+			error:       "--name and --image are mandatory flags, Please provide these flags",
+		},
+		{
+			name:        "kedge init with name & image",
+			command:     []string{"init", "--name", svcname, "--image", image},
+			wantSuccess: true,
+			input:       Fixtures + "init/kedge1.yml",
+		},
+		{
+			name:        "kedge init with name & image & ports",
+			command:     []string{"init", "--name", svcname, "--image", image, "--ports", ports},
+			wantSuccess: true,
+			input:       Fixtures + "init/kedge2.yml",
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+
+			stdout, err := runCmd(t, tt.command)
+
+			if err != nil && !tt.wantSuccess {
+				if stdout != tt.error {
+					t.Fatalf("Expected Error %s, But got %s", tt.error, stdout)
+				} else {
+					t.Logf("failed with error: %q", stdout)
+					return
+				}
+			} else if err != nil && tt.wantSuccess {
+				t.Fatalf("wanted success, but test failed with error: %s %v", stdout, err)
+			} else if err == nil && !tt.wantSuccess {
+				t.Fatalf("expected to fail but passed")
+			}
+			// Read the data from the input file
+			data, err := ioutil.ReadFile(tt.input)
+			if err != nil {
+				t.Fatal(err, data)
+			}
+
+			outputData, err := ioutil.ReadFile(outputFile)
+			if err != nil {
+				t.Log("File not found")
+			}
+			if diff := diff.Diff(string(data), string(outputData)); diff != "" {
+				t.Fatalf("wanted: \n%s\n======================\ngot: \n%s"+
+					"\n======================\ndiff: %s", string(data), string(outputData), diff)
+			}
+
+			if _, err := os.Stat(outputFile); err == nil {
+				err = os.Remove(outputFile)
+				if err != nil {
+					t.Log("Error in removing file")
+				}
+			}
+		})
+	}
+
+}
