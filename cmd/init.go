@@ -21,6 +21,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/asottile/dockerfile"
 	"github.com/ghodss/yaml"
 	"github.com/spf13/cobra"
 )
@@ -30,6 +31,8 @@ var (
 	controller            string
 	ports                 []string
 )
+
+const DockerfileName = "Dockerfile"
 
 /*
 **NOTE** to kedge devs:
@@ -84,6 +87,25 @@ var initCmd = &cobra.Command{
 
 		if len(ports) > 0 {
 			obj.Services = []Service{{PortMappings: ports}}
+		} else {
+			// Dockerfile detection
+			_, err = os.Stat(DockerfileName)
+			if err != nil {
+				fmt.Println(DockerfileName, "is not present")
+				os.Exit(-1)
+			} else {
+				a, err := dockerfile.ParseFile("Dockerfile")
+				if err != nil {
+					fmt.Println("Dockerfile parsing failed")
+					os.Exit(-1)
+				}
+				for _, j := range a {
+					if j.Cmd == "expose" {
+						obj.Services = []Service{{PortMappings: j.Value}}
+					}
+				}
+			}
+
 		}
 
 		// this switch is to check if user is not giving any wrong values
