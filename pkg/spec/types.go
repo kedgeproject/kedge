@@ -166,7 +166,7 @@ type BuildConfigSpecMod struct {
 	meta_v1.ObjectMeta `json:",inline"`
 }
 
-// Main kedge file structure defining whole applicatoin
+// Main kedge file structure defining whole application
 // kedgeSpec: io.kedge.App
 type App struct {
 	// Field to specify the version of application
