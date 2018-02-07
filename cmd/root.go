@@ -52,5 +52,5 @@ func Execute() {
 
 // Initialize all flags
 func init() {
-	RootCmd.PersistentFlags().BoolVarP(&GlobalVerbose, "verbose", "v", false, "verbose output")
+	RootCmd.PersistentFlags().BoolVarP(&GlobalVerbose, "verbose", "v", false, "Verbose output")
 }

@@ -41,7 +41,7 @@ var generateCmd = &cobra.Command{
 }
 
 func init() {
-	generateCmd.Flags().StringArrayVarP(&InputFiles, "files", "f", []string{}, "input files")
+	generateCmd.Flags().StringArrayVarP(&InputFiles, "files", "f", []string{}, "Input files")
 	generateCmd.MarkFlagRequired("files")
 	RootCmd.AddCommand(generateCmd)
 }
