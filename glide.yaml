@@ -31,6 +31,9 @@ import:
 - package: github.com/xeipuuv/gojsonschema
   version: 212d8a0df7acfab8bdd190a7a69f0ab7376edcc8
 
+- package: github.com/asottile/dockerfile
+  version: v2.0.0
+  
 # pinning 'golang.org/x/sys' otherwise docker dependencies complain to compiling
 - package: golang.org/x/sys
   version: 8d1157a435470616f975ff9bb013bea8d0962067

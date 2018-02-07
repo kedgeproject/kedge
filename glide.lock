@@ -1,10 +1,25 @@
-hash: f3e767e8346d32c0a86b9c441a9f5a580a4da1e4e9b201cffc7e2b313149bc5d
-updated: 2017-12-04T16:54:35.456497925+05:30
+hash: 8edb20bb89decffd18032760b6158bc40864d1365191df5311f5aed1f6f2d260
+updated: 2018-02-07T12:43:58.099086412+05:30
 imports:
+- name: github.com/asottile/dockerfile
+  version: 79cc290f183c710353feec84a4f9149e25d23b33
+- name: github.com/containerd/continuity
+  version: 1a794c0014a7b786879312d1dab309ba96ead8bc
+  subpackages:
+  - pathdriver
 - name: github.com/davecgh/go-spew
   version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
   subpackages:
   - spew
+- name: github.com/docker/docker
+  version: 2e8ccbb49e21b8696ad4c39185036a8b7e50402f
+  subpackages:
+  - builder/dockerfile/command
+  - builder/dockerfile/parser
+  - pkg/mount
+  - pkg/system
+- name: github.com/docker/go-units
+  version: d59758554a3d3911fa25c0269de1ebe2f1912c39
 - name: github.com/fsouza/go-dockerclient
   version: 3f9370a4738ba8d0ed6eea63582ca6db5eb48032
   subpackages:
@@ -33,12 +48,23 @@ imports:
   version: d65d576e9348f5982d7f6d83682b694e731a45c6
   subpackages:
   - diff
+- name: github.com/Microsoft/go-winio
+  version: 7da180ee92d8bd8bb8c37fc560e673e6557c392f
 - name: github.com/novln/docker-parser
   version: 6030251119d652af8ead44ac7907444227b64d56
+- name: github.com/opencontainers/go-digest
+  version: 279bed98673dd5bef374d3b6e4b09e2af76183bf
+- name: github.com/opencontainers/image-spec
+  version: 577479e4dc273d3779f00c223c7e0dba4cd6b8b0
+  subpackages:
+  - specs-go
+  - specs-go/v1
 - name: github.com/pkg/errors
   version: 01fa4104b9c248c8945d14d9f128454d5b28d595
 - name: github.com/Sirupsen/logrus
   version: 55eb11d21d2a31a3cc93838241d04800f52e823d
+- name: github.com/sirupsen/logrus
+  version: dcf2d47dfb9dfc8f2727c7096e358cadac7d1423
 - name: github.com/spf13/cobra
   version: 7c674d9e72017ed25f6d2b5e497a1368086b6a6f
 - name: github.com/spf13/pflag
@@ -51,10 +77,15 @@ imports:
   version: e02fc20de94c78484cd5ffb007f8af96be030a45
 - name: github.com/xeipuuv/gojsonschema
   version: 212d8a0df7acfab8bdd190a7a69f0ab7376edcc8
+- name: golang.org/x/crypto
+  version: d9133f5469342136e669e85192a26056b587f503
+  subpackages:
+  - ssh/terminal
 - name: golang.org/x/sys
   version: 8d1157a435470616f975ff9bb013bea8d0962067
   subpackages:
   - unix
+  - windows
 - name: gopkg.in/yaml.v2
-  version: 287cf08546ab5e7e37d55a84f7ed3fd1db036de5
+  version: d670f9405373e636a5a2765eea47fac0c9bc91a4
 testImports: []

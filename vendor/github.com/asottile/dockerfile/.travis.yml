@@ -1,0 +1,32 @@
+language: python
+sudo: false
+matrix:
+    include:
+        -   env: TOXENV=py27 GO=1.6
+        -   env: TOXENV=py27 GO=1.7
+        -   env: TOXENV=py35 GO=1.7
+            python: 3.5
+        -   env: TOXENV=py36 GO=1.7
+            python: 3.6
+        -   env: TOXENV=pypy GO=1.7
+            python: pypy-5.3.1
+install:
+    - |
+        export GOPATH=~/gopath
+        export PATH="$GOPATH/bin:$PATH"
+        export TRAVIS_BUILD_DIR="$GOPATH/src/github.com/$TRAVIS_REPO_SLUG"
+        mkdir -p "$TRAVIS_BUILD_DIR"
+        rsync -az . "$TRAVIS_BUILD_DIR"
+        cd "$TRAVIS_BUILD_DIR"
+        eval "$(gimme $GO)"
+    # workaround for #5
+    - pip install 'cryptography<2'
+    - pip install coveralls tox
+script:
+    - go get -t
+    - go test -v
+    - tox
+cache:
+    directories:
+        - $HOME/.cache/pip
+        - $HOME/.cache/pre-commit
