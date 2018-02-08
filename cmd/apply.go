@@ -28,7 +28,7 @@ import (
 // Represents the "apply" command
 var applyCmd = &cobra.Command{
 	Use:   "apply",
-	Short: "Apply a configuration to a resource on the Kubernetes cluster. This resource will be created if it doesn't exist yet.",
+	Short: "Apply (or create if it does not exist) a configuration to a resource on the Kubernetes cluster",
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := ifFilesPassed(InputFiles); err != nil {
 			fmt.Println(err)

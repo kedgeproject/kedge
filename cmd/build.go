@@ -33,7 +33,7 @@ var PushImage, s2iBuild bool
 
 var buildCmd = &cobra.Command{
 	Use:   "build",
-	Short: "build application image",
+	Short: "Build application image",
 	Run: func(cmd *cobra.Command, args []string) {
 		if DockerImage == "" {
 			fmt.Println("Please specify the container image name using flag '--image' or '-i'")
