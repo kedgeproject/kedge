@@ -1,7 +1,7 @@
 name: redis
-controller: deploymentconfig
-containers:
-- image: redis
+deploymentConfigs:
+- containers:
+  - image: redis
 services:
 - portMappings:
   - "6379"
