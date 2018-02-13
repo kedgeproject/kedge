@@ -1,5 +1,29 @@
 # Change Log
 
+## [v0.9.0](https://github.com/kedgeproject/kedge/tree/v0.9.0) (2018-02-13)
+[Full Changelog](https://github.com/kedgeproject/kedge/compare/v0.8.0...v0.9.0)
+
+**Closed issues:**
+
+- `kedge build` failures with oc 3.7 [\#582](https://github.com/kedgeproject/kedge/issues/582)
+- kedge create failures [\#579](https://github.com/kedgeproject/kedge/issues/579)
+- `kedge build` doesn't allow namespace/project to be specified [\#574](https://github.com/kedgeproject/kedge/issues/574)
+- VSCode integration with LSP [\#559](https://github.com/kedgeproject/kedge/issues/559)
+- add support for `kedge update` [\#293](https://github.com/kedgeproject/kedge/issues/293)
+- kedge should read input from stdin [\#183](https://github.com/kedgeproject/kedge/issues/183)
+- CONTRIBUTING file: add developer notes explaining code layout [\#62](https://github.com/kedgeproject/kedge/issues/62)
+
+**Merged pull requests:**
+
+- Add capitalization to commands [\#589](https://github.com/kedgeproject/kedge/pull/589) ([cdrage](https://github.com/cdrage))
+- Fixing typos [\#583](https://github.com/kedgeproject/kedge/pull/583) ([surajnarwade](https://github.com/surajnarwade))
+- Fixed broken build [\#581](https://github.com/kedgeproject/kedge/pull/581) ([surajnarwade](https://github.com/surajnarwade))
+- Adding namespace flag to kedge build [\#578](https://github.com/kedgeproject/kedge/pull/578) ([surajnarwade](https://github.com/surajnarwade))
+- Documentation for e2e tests [\#570](https://github.com/kedgeproject/kedge/pull/570) ([ashetty1](https://github.com/ashetty1))
+- Test kedgefiles from examples [\#566](https://github.com/kedgeproject/kedge/pull/566) ([surajnarwade](https://github.com/surajnarwade))
+- Added validation for extra field [\#481](https://github.com/kedgeproject/kedge/pull/481) ([surajnarwade](https://github.com/surajnarwade))
+- Kedge will read input from stdin [\#450](https://github.com/kedgeproject/kedge/pull/450) ([surajnarwade](https://github.com/surajnarwade))
+
 ## [v0.8.0](https://github.com/kedgeproject/kedge/tree/v0.8.0) (2018-01-24)
 [Full Changelog](https://github.com/kedgeproject/kedge/compare/v0.7.0...v0.8.0)
 
@@ -20,6 +44,7 @@
 
 **Merged pull requests:**
 
+- 0.8.0 Release [\#580](https://github.com/kedgeproject/kedge/pull/580) ([cdrage](https://github.com/cdrage))
 - Fix building docs [\#577](https://github.com/kedgeproject/kedge/pull/577) ([cdrage](https://github.com/cdrage))
 - fix global label propagation for Services [\#576](https://github.com/kedgeproject/kedge/pull/576) ([kadel](https://github.com/kadel))
 - Updates commit message for json-schema push [\#573](https://github.com/kedgeproject/kedge/pull/573) ([cdrage](https://github.com/cdrage))
