@@ -25,8 +25,9 @@ import "github.com/pkg/errors"
 // so it makes sense to use the common InputFiles variable in both of those
 // commands.
 var (
-	InputFiles []string
-	Namespace  string
+	InputFiles     []string
+	Namespace      string
+	SkipValidation bool
 )
 
 func ifFilesPassed(files []string) error {

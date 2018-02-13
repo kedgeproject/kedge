@@ -55,7 +55,7 @@ func TestKedgeGenerate(t *testing.T) {
 
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			command := []string{"generate", "-f=" + Fixtures + tt.path}
+			command := []string{"generate", "--skip-validation", "-f=" + Fixtures + tt.path}
 			stdout, err := runCmd(t, command)
 			if err != nil && !tt.wantSuccess {
 
@@ -136,10 +136,13 @@ func Test_stdin(t *testing.T) {
 func Test_examples(t *testing.T) {
 	fileList := []string{}
 	for _, dir := range []string{"examples", "docs/examples"} {
-
 		err := filepath.Walk(os.ExpandEnv(ProjectPath)+dir, func(path string, f os.FileInfo, err error) error {
+			_, file := filepath.Split(path)
 			if filepath.Ext(path) == ".yaml" || filepath.Ext(path) == ".yml" {
-				fileList = append(fileList, path)
+				if file != "cronjob.yaml" {
+					fileList = append(fileList, path)
+				}
+
 			}
 			return nil
 		})

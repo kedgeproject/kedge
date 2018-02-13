@@ -43,7 +43,7 @@ var applyCmd = &cobra.Command{
 			command = append(command, "--namespace", Namespace)
 		}
 
-		if err := pkgcmd.CreateArtifacts(InputFiles, false, command...); err != nil {
+		if err := pkgcmd.CreateArtifacts(InputFiles, false, SkipValidation, command...); err != nil {
 			fmt.Println(err)
 			os.Exit(-1)
 		}
@@ -53,5 +53,6 @@ var applyCmd = &cobra.Command{
 func init() {
 	applyCmd.Flags().StringArrayVarP(&InputFiles, "files", "f", []string{}, "Specify files")
 	applyCmd.Flags().StringVarP(&Namespace, "namespace", "n", "", "Namespace or project to deploy your application to")
+	applyCmd.Flags().BoolVar(&SkipValidation, "skip-validation", false, "Skip validation of Kedge file")
 	RootCmd.AddCommand(applyCmd)
 }

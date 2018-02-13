@@ -26,6 +26,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/kedgeproject/kedge/pkg/spec"
+	"github.com/kedgeproject/kedge/pkg/validation"
 
 	"github.com/ghodss/yaml"
 	"github.com/pkg/errors"
@@ -33,8 +34,7 @@ import (
 
 // GenerateArtifacts either writes to file or uses kubectl/oc to deploy.
 // TODO: Refactor into two separate functions (remove `generate bool`).
-func CreateArtifacts(paths []string, generate bool, args ...string) error {
-
+func CreateArtifacts(paths []string, generate bool, skipValidation bool, args ...string) error {
 	files, err := GetAllYAMLFiles(paths)
 	if err != nil {
 		return errors.Wrap(err, "unable to get YAML files")
@@ -55,7 +55,13 @@ func CreateArtifacts(paths []string, generate bool, args ...string) error {
 			return errors.Wrap(err, "failed to replace variables")
 		}
 
+		// Validate input kedge file
+		if !skipValidation {
+			validation.Validate(kedgeData)
+		}
+
 		ros, includeResources, err := spec.CoreOperations(kedgeData)
+
 		if err != nil {
 			return errors.Wrap(err, "unable to perform controller operations")
 		}

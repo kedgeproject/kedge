@@ -1,5 +1,4 @@
 name: web
-replicas: 1
 deployments:
 - replicas: 1
   containers:
