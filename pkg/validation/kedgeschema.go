@@ -1423,7 +1423,8 @@ var SchemaJson = `
 								"routeEndpoint": {
 									"type": [
 										"string",
-										"null"
+										"null",
+										"boolean"
 									],
 									"description": "Host to create routes automatically. RouteEndpoint allows specifying an route resource in the format URL or simply boolean."
 								},

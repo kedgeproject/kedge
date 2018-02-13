@@ -417,7 +417,35 @@ func (app *App) createServices() ([]runtime.Object, error) {
 				}
 				svcs = append(svcs, endpointIngress)
 			}
+
+			if port.RouteEndpoint != "" {
+
+				endpointRoute := &os_route_v1.Route{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:   svc.Name,
+						Labels: app.Labels,
+					},
+					Spec: os_route_v1.RouteSpec{
+						To: os_route_v1.RouteTargetReference{
+							Kind: "Service",
+							Name: svc.Name,
+						},
+					},
+				}
+
+				switch port.RouteEndpoint {
+				case "true":
+					// OpenShift will take care of route
+					svcs = append(svcs, endpointRoute)
+				default:
+					// Route URL is given by user
+					endpointRoute.Spec.Host = port.RouteEndpoint
+					svcs = append(svcs, endpointRoute)
+
+				}
+			}
 		}
+
 	}
 	return svcs, nil
 }

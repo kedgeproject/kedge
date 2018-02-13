@@ -27,6 +27,8 @@ a = jsonSchemaObj.properties.routes.items.properties.to.required
 remove(a, ["weight"])
 jsonSchemaObj.properties.routes.items.properties.to.required = a;
 
+jsonSchemaObj.properties.services.items.properties.ports.items.properties.routeEndpoint.type.push("boolean")
+
 p = JSON.stringify(jsonSchemaObj, null,"\t")
 
 fs.writeFileSync("schema.json", p)

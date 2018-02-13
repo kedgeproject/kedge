@@ -818,6 +818,35 @@ func TestCreateServices(t *testing.T) {
 				Spec:       api_v1.ServiceSpec{Ports: []api_v1.ServicePort{{Port: 8080, Name: "test-8080"}}},
 			}),
 		},
+		{
+			"Single container specified along with shortcut for route(routeEndpoint)",
+			&App{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name: "test",
+				},
+				Deployments: []DeploymentSpecMod{
+					{
+						PodSpecMod: PodSpecMod{
+							Containers: []Container{{Container: api_v1.Container{Image: "nginx"}}},
+						},
+					},
+				},
+				Services: []ServiceSpecMod{
+					{
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name: "test",
+						},
+						Ports: []ServicePortMod{{ServicePort: api_v1.ServicePort{Port: 8080}, RouteEndpoint: "xyz.com"}}},
+				},
+			},
+			append(make([]runtime.Object, 0), &api_v1.Service{
+				ObjectMeta: meta_v1.ObjectMeta{Name: "test"},
+				Spec:       api_v1.ServiceSpec{Ports: []api_v1.ServicePort{{Port: 8080, Name: "test-8080"}}},
+			}, &os_route_v1.Route{
+				ObjectMeta: meta_v1.ObjectMeta{Name: "test"},
+				Spec:       os_route_v1.RouteSpec{Host: "xyz.com", To: os_route_v1.RouteTargetReference{Kind: "Service", Name: "test"}},
+			}),
+		},
 	}
 
 	for _, test := range tests {

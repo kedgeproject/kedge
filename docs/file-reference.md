@@ -741,11 +741,12 @@ services:
 Each "service" is a Kubernetes <a target="_blank" href="https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#service-v1-core">Service Spec</a> with additional Kedge-specific keys.
 </aside>
 
-| Field        | Type            | Required | Description                       |
-|--------------|-----------------|----------|-----------------------------------|
-| name         | string          | yes      | The name of the service.          |
-| endpoint     | string          | no       | The endpoint of the service.      |
-| portMappings | array of "port" | no       | Array of ports. Ex. `80:8080/tcp` |
+| Field           | Type            | Required | Description                       |
+|-----------------|-----------------|----------|-----------------------------------|
+| name            | string          | yes      | The name of the service.          |
+| ingressEndpoint | string          | no       | The endpoint of the service.      |
+| routeEndpoint   | string or bool  | no       | The route endpoint of service     |  
+| portMappings    | array of "port" | no       | Array of ports. Ex. `80:8080/tcp` |
 
 More info: [v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#servicespec-v1-core](https://v1-6.docs.kubernetes.io/docs/api-reference/v1.6/#servicespec-v1-core)
 
@@ -761,15 +762,15 @@ name: wordpress
 |--------|----------|--------------------------|
 | string | yes      | The name of the service. |
 
-### endpoint
+### ingressEndpoint
 
 ```yaml
-endpoint: www.mycoolapp.com/admin
+ingressEndpoint: www.mycoolapp.com/admin
 ```
 
 | Type   | Required | Description                  |
 |--------|----------|------------------------------|
-| string | yes      | The endpoint of the service. |
+| string | no       | The endpoint of the service. |
 
 This is an added field in the Service port, which if specified an `ingress`
 resource is created. The `ingress` resource name will be the same as the name
@@ -777,6 +778,26 @@ of `service`.
 
 `endpoint` the way it is defined is can actually can be divided into
 two parts the `URL` and `Path`, it is delimited by a forward slash.
+
+### routeEndpoint
+
+```yaml
+routeEndpoint: www.mycoolapp.com/admin
+```
+
+OR
+
+```yaml
+routeEndpoint: true
+```
+| Type           | Required | Description                  |
+|----------------|----------|------------------------------|
+| string or bool | no       | The endpoint of the service. |
+
+This is a added field in the Service port, which if specified an `route`
+resource is created. The `route` resource name will be the same as the name
+of `service`. if it is specified as boolean `true`, `route` will be created and endpoint URL will be taken care by OpenShift.
+
 
 ### portMappings
 

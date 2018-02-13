@@ -1,0 +1,12 @@
+name: httpd
+deploymentConfigs:
+- containers:
+  - image: bitnami/nginx
+
+services:
+- name: httpd
+  type: NodePort
+  ports:
+    - port: 8080
+      targetPort: 8080
+      routeEndpoint: "coolwebsite.com"
