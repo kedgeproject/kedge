@@ -41,7 +41,7 @@ var createCmd = &cobra.Command{
 		if cmd.Flags().Lookup("namespace").Changed {
 			command = append(command, "--namespace", Namespace)
 		}
-
+		InputFiles = removeDuplicateFiles(InputFiles)
 		if err := pkgcmd.CreateArtifacts(InputFiles, false, SkipValidation, command...); err != nil {
 			fmt.Println(err)
 			os.Exit(-1)
