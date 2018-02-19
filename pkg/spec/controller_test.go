@@ -152,7 +152,7 @@ volumeClaims:
 			}
 
 			if !reflect.DeepEqual(test.App, &app) {
-				t.Fatalf("==> Expected:\n%v\n==> Got:\n%v", prettyPrintObjects(test.App), prettyPrintObjects(app))
+				t.Fatalf("==> Expected:\n%v\n==> Got:\n%v", PrettyPrintObjects(test.App), PrettyPrintObjects(app))
 			}
 		})
 	}

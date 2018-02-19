@@ -116,7 +116,7 @@ func TestJobSpecMod_CreateKubernetesController(t *testing.T) {
 
 			if !reflect.DeepEqual(test.output, jobs) {
 
-				t.Errorf("Expected Kubernetes Job to be -\n%v\nBut got -\n%v", prettyPrintObjects(test.output), prettyPrintObjects(jobs))
+				t.Errorf("Expected Kubernetes Job to be -\n%v\nBut got -\n%v", PrettyPrintObjects(test.output), PrettyPrintObjects(jobs))
 			}
 		})
 	}
@@ -271,11 +271,11 @@ func TestJobFix(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Expected test to pass but got an error: %v", err)
 				} else {
-					t.Logf("test passed for input: %s", prettyPrintObjects(test.input))
+					t.Logf("test passed for input: %s", PrettyPrintObjects(test.input))
 				}
 			case false:
 				if err == nil {
-					t.Fatalf("For the input -\n%v\nexpected test to fail, but test passed", prettyPrintObjects(test.input))
+					t.Fatalf("For the input -\n%v\nexpected test to fail, but test passed", PrettyPrintObjects(test.input))
 				} else {
 					t.Logf("failed with error: %v", err)
 					return
@@ -283,7 +283,7 @@ func TestJobFix(t *testing.T) {
 			}
 
 			if !reflect.DeepEqual(test.input, test.output) {
-				t.Fatalf("Expected Validated Kubernetes JobSpecMod to be -\n%v\nBut got -\n%v", prettyPrintObjects(test.output), prettyPrintObjects(test.input))
+				t.Fatalf("Expected Validated Kubernetes JobSpecMod to be -\n%v\nBut got -\n%v", PrettyPrintObjects(test.output), PrettyPrintObjects(test.input))
 			}
 		})
 	}

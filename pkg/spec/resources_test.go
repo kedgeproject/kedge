@@ -111,8 +111,8 @@ func TestFixServices(t *testing.T) {
 				t.Errorf("expected to pass but failed with: %v", err)
 			}
 			if !reflect.DeepEqual(test.Input, test.Output) {
-				t.Errorf("expected: \n%s\n\n got:\n %s\n\n", prettyPrintObjects(test.Output),
-					prettyPrintObjects(test.Input))
+				t.Errorf("expected: \n%s\n\n got:\n %s\n\n", PrettyPrintObjects(test.Output),
+					PrettyPrintObjects(test.Input))
 			}
 		} else {
 			if err == nil {
@@ -150,8 +150,8 @@ func TestFixVolumeClaims(t *testing.T) {
 		t.Errorf("expected to pass but failed with: %v", err)
 	}
 	if !reflect.DeepEqual(got, expected) {
-		t.Errorf("expected: %s, got: %s", prettyPrintObjects(expected),
-			prettyPrintObjects(got))
+		t.Errorf("expected: %s, got: %s", PrettyPrintObjects(expected),
+			PrettyPrintObjects(got))
 	}
 }
 
@@ -180,8 +180,8 @@ func TestFixConfigMaps(t *testing.T) {
 		t.Errorf("expected to pass but failed with: %v", err)
 	}
 	if !reflect.DeepEqual(got, expected) {
-		t.Errorf("expected: %s, got: %s", prettyPrintObjects(expected),
-			prettyPrintObjects(got))
+		t.Errorf("expected: %s, got: %s", PrettyPrintObjects(expected),
+			PrettyPrintObjects(got))
 	}
 }
 
@@ -253,12 +253,12 @@ func TestFixBuildConfigs(t *testing.T) {
 				}
 			case false:
 				if err == nil {
-					t.Errorf("For the input -\n%v\nexpected test to fail, but test passed", prettyPrintObjects(test.input))
+					t.Errorf("For the input -\n%v\nexpected test to fail, but test passed", PrettyPrintObjects(test.input))
 				}
 			}
 
 			if !reflect.DeepEqual(fixedBuildConfigs, test.output) {
-				t.Errorf("Expected fixed BuildConfigs to be -\n%v\nBut got -\n%v\n", prettyPrintObjects(test.output), prettyPrintObjects(fixedBuildConfigs))
+				t.Errorf("Expected fixed BuildConfigs to be -\n%v\nBut got -\n%v\n", PrettyPrintObjects(test.output), PrettyPrintObjects(fixedBuildConfigs))
 			}
 		})
 	}
@@ -290,8 +290,8 @@ func TestFixSecrets(t *testing.T) {
 		t.Errorf("expected to pass but failed with: %v", err)
 	}
 	if !reflect.DeepEqual(got, expected) {
-		t.Errorf("expected: %s, got: %s", prettyPrintObjects(expected),
-			prettyPrintObjects(got))
+		t.Errorf("expected: %s, got: %s", PrettyPrintObjects(expected),
+			PrettyPrintObjects(got))
 	}
 }
 
@@ -363,12 +363,12 @@ func TestFixImageStreams(t *testing.T) {
 				}
 			case false:
 				if err == nil {
-					t.Errorf("For the input -\n%v\nexpected test to fail, but test passed", prettyPrintObjects(test.input))
+					t.Errorf("For the input -\n%v\nexpected test to fail, but test passed", PrettyPrintObjects(test.input))
 				}
 			}
 
 			if !reflect.DeepEqual(fixedImageStreams, test.output) {
-				t.Errorf("Expected fixed imageStreams to be -\n%v\nBut got -\n%v\n", prettyPrintObjects(test.output), prettyPrintObjects(fixedImageStreams))
+				t.Errorf("Expected fixed imageStreams to be -\n%v\nBut got -\n%v\n", PrettyPrintObjects(test.output), PrettyPrintObjects(fixedImageStreams))
 			}
 		})
 	}
@@ -549,12 +549,12 @@ func TestFixIngresses(t *testing.T) {
 				}
 			case false:
 				if err == nil {
-					t.Errorf("For the input -\n%v\nexpected test to fail, but test passed", prettyPrintObjects(test.input))
+					t.Errorf("For the input -\n%v\nexpected test to fail, but test passed", PrettyPrintObjects(test.input))
 				}
 			}
 
 			if !reflect.DeepEqual(fixedIngresses, test.output) {
-				t.Errorf("Expected fixed ingresses to be -\n%v\nBut got -\n%v\n", prettyPrintObjects(test.output), prettyPrintObjects(fixedIngresses))
+				t.Errorf("Expected fixed ingresses to be -\n%v\nBut got -\n%v\n", PrettyPrintObjects(test.output), PrettyPrintObjects(fixedIngresses))
 			}
 		})
 	}
@@ -629,12 +629,12 @@ func TestFixRoutes(t *testing.T) {
 				}
 			case false:
 				if err == nil {
-					t.Errorf("For the input -\n%v\nexpected test to fail, but test passed", prettyPrintObjects(test.input))
+					t.Errorf("For the input -\n%v\nexpected test to fail, but test passed", PrettyPrintObjects(test.input))
 				}
 			}
 
 			if !reflect.DeepEqual(fixedRoutes, test.output) {
-				t.Errorf("Expected fixed routes to be -\n%v\nBut got -\n%v\n", prettyPrintObjects(test.output), prettyPrintObjects(fixedRoutes))
+				t.Errorf("Expected fixed routes to be -\n%v\nBut got -\n%v\n", PrettyPrintObjects(test.output), PrettyPrintObjects(fixedRoutes))
 			}
 		})
 	}
@@ -659,8 +659,8 @@ func TestFixContainers(t *testing.T) {
 		t.Errorf("expected to pass but failed with: %v", err)
 	}
 	if !reflect.DeepEqual(got, expected) {
-		t.Errorf("expected: %s, got: %s", prettyPrintObjects(expected),
-			prettyPrintObjects(got))
+		t.Errorf("expected: %s, got: %s", PrettyPrintObjects(expected),
+			PrettyPrintObjects(got))
 	}
 }
 
@@ -779,7 +779,7 @@ func TestCreateRoutes(t *testing.T) {
 				t.Errorf("Creating routes failed: %v", err)
 			}
 			if !reflect.DeepEqual(test.output, objects) {
-				t.Fatalf("Expected:\n%v\nGot:\n%v", prettyPrintObjects(test.output), prettyPrintObjects(objects))
+				t.Fatalf("Expected:\n%v\nGot:\n%v", PrettyPrintObjects(test.output), PrettyPrintObjects(objects))
 			}
 		})
 	}
@@ -827,7 +827,7 @@ func TestCreateServices(t *testing.T) {
 				t.Fatalf("Creating services failed: %v", err)
 			}
 			if !reflect.DeepEqual(test.Objects, object) {
-				t.Fatalf("Expected:\n%v\nGot:\n%v", prettyPrintObjects(test.Objects), prettyPrintObjects(object))
+				t.Fatalf("Expected:\n%v\nGot:\n%v", PrettyPrintObjects(test.Objects), PrettyPrintObjects(object))
 			}
 		})
 	}
@@ -916,7 +916,7 @@ func TestCreateImageStreams(t *testing.T) {
 				t.Errorf("Creating imageStreams failed: %v", err)
 			}
 			if !reflect.DeepEqual(test.output, objects) {
-				t.Fatalf("Expected:\n%v\nGot:\n%v", prettyPrintObjects(test.output), prettyPrintObjects(objects))
+				t.Fatalf("Expected:\n%v\nGot:\n%v", PrettyPrintObjects(test.output), PrettyPrintObjects(objects))
 			}
 		})
 	}
@@ -1008,7 +1008,7 @@ func TestCreateBuildConfigs(t *testing.T) {
 				t.Errorf("Creating buildConfigs failed: %v", err)
 			}
 			if !reflect.DeepEqual(test.output, objects) {
-				t.Fatalf("Expected:\n%v\nGot:\n%v", prettyPrintObjects(test.output), prettyPrintObjects(objects))
+				t.Fatalf("Expected:\n%v\nGot:\n%v", PrettyPrintObjects(test.output), PrettyPrintObjects(objects))
 			}
 		})
 	}

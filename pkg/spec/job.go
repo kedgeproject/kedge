@@ -100,13 +100,13 @@ func (app *App) createJobs() ([]runtime.Object, error) {
 			if err != nil {
 				return nil, errors.Wrapf(err, "job %q", app.Name)
 			}
-			log.Debugf("object after population: %#v\n", app)
+			log.Debugf("object after population: %v\n", PrettyPrintObjects(app))
 
 			jobSpec.Template.Spec.InitContainers, err = populateContainers(job.PodSpecMod.InitContainers, app.ConfigMaps, app.Secrets)
 			if err != nil {
 				return nil, errors.Wrapf(err, "deployment %q", app.Name)
 			}
-			log.Debugf("object after population: %#v\n", app)
+			log.Debugf("object after population: %v\n", PrettyPrintObjects(app))
 		}
 
 		// activeDeadlineSeconds is a conflicting field which exists in both,

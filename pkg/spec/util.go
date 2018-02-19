@@ -122,7 +122,7 @@ func getInt64Addr(i int64) *int64 {
 	return &i
 }
 
-func prettyPrintObjects(v interface{}) string {
+func PrettyPrintObjects(v interface{}) string {
 	b, _ := json.MarshalIndent(v, "", "  ")
 	return string(b)
 }
