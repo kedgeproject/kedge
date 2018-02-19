@@ -97,7 +97,7 @@ func TestPopulateProbes(t *testing.T) {
 			t.Parallel()
 			if _, err := populateProbes(test.input); err == nil {
 				t.Fatalf("expected failure but passed for input: %s",
-					prettyPrintObjects(test.input))
+					PrettyPrintObjects(test.input))
 			} else {
 				t.Logf("failed with error: %v", err)
 			}
@@ -190,12 +190,12 @@ func TestPopulateProbes(t *testing.T) {
 			got, err := populateProbes(test.input)
 			if err != nil {
 				t.Fatalf("got error %v, for input: %s",
-					err, prettyPrintObjects(test.input))
+					err, PrettyPrintObjects(test.input))
 			}
 
 			if !reflect.DeepEqual(got, test.output) {
-				t.Fatalf("expected: %s, got: %s", prettyPrintObjects(test.output),
-					prettyPrintObjects(got))
+				t.Fatalf("expected: %s, got: %s", PrettyPrintObjects(test.output),
+					PrettyPrintObjects(got))
 			}
 		})
 	}
@@ -394,6 +394,6 @@ func TestPopulateVolumes(t *testing.T) {
 		t.Fatalf("test failed: %v", err)
 	}
 	if !reflect.DeepEqual(newVols, expected) {
-		t.Fatalf("expected: %s, got: %s", prettyPrintObjects(expected), prettyPrintObjects(newVols))
+		t.Fatalf("expected: %s, got: %s", PrettyPrintObjects(expected), PrettyPrintObjects(newVols))
 	}
 }

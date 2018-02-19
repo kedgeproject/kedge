@@ -243,7 +243,7 @@ func (app *App) Fix() error {
 		app.ObjectMeta.Annotations = addKeyValueToMap(appVersion, app.Appversion, app.ObjectMeta.Annotations)
 	}
 
-	prettyPrintObjects(&app.ObjectMeta)
+	PrettyPrintObjects(&app.ObjectMeta)
 
 	// fix Services
 	err = app.fixServices()

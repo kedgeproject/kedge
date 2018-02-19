@@ -144,8 +144,8 @@ func TestFixDeploymentConfig(t *testing.T) {
 			test.input.fixDeploymentConfigs()
 			if !reflect.DeepEqual(test.input, test.expectedOutput) {
 				t.Errorf("Expected output to be:\n%v\nBut got:\n%v\n",
-					prettyPrintObjects(test.expectedOutput),
-					prettyPrintObjects(test.input))
+					PrettyPrintObjects(test.expectedOutput),
+					PrettyPrintObjects(test.input))
 			}
 		})
 	}
@@ -300,7 +300,7 @@ func TestDeploymentConfigSpecMod_CreateOpenShiftController(t *testing.T) {
 			}
 
 			if !reflect.DeepEqual(test.deployments, dcs) {
-				t.Errorf("Expected OpenShift DeploymentConfig to be -\n%v\nBut got -\n%v", prettyPrintObjects(test.deployments), prettyPrintObjects(dcs))
+				t.Errorf("Expected OpenShift DeploymentConfig to be -\n%v\nBut got -\n%v", PrettyPrintObjects(test.deployments), PrettyPrintObjects(dcs))
 			}
 		})
 	}

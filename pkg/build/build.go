@@ -116,7 +116,7 @@ func (c *Build) BuildImage(dockerfile, image, context string) error {
 	}
 
 	log.Infof("Image '%s' from directory '%s' built successfully", image, path.Base(context))
-	log.Debugf("Image %s build output:\n%s", image, outputBuffer)
+	log.Debugf("Image %s build output:\n%s", image, spec.PrettyPrintObjects(outputBuffer))
 	return nil
 }
 

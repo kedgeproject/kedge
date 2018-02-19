@@ -186,8 +186,8 @@ func TestAddKeyValueToMap(t *testing.T) {
 			newMap := addKeyValueToMap(testKey, testValue, test.beforeMap)
 			if !reflect.DeepEqual(newMap, test.afterMap) {
 				t.Errorf("Expected map:\n%v\nBut got:\n%v\n",
-					prettyPrintObjects(test.afterMap),
-					prettyPrintObjects(test.beforeMap))
+					PrettyPrintObjects(test.afterMap),
+					PrettyPrintObjects(test.beforeMap))
 			}
 		})
 	}

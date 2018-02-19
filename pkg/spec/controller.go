@@ -75,6 +75,6 @@ func (app *App) LoadData(data []byte) error {
 	if err != nil {
 		return errors.Wrap(err, "App could not be unmarshaled into internal struct")
 	}
-	log.Debugf("object unmarshalled: %#v\n", app)
+	log.Debugf("object unmarshalled: %v\n", PrettyPrintObjects(app))
 	return nil
 }

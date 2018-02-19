@@ -108,13 +108,13 @@ func (app *App) createDeployments() ([]runtime.Object, error) {
 			if err != nil {
 				return nil, errors.Wrapf(err, "deployment %q", app.Name)
 			}
-			log.Debugf("object after population: %#v\n", app)
+			log.Debugf("object after population: %v\n", PrettyPrintObjects(app))
 
 			deploymentSpec.Template.Spec.InitContainers, err = populateContainers(deployment.PodSpecMod.InitContainers, app.ConfigMaps, app.Secrets)
 			if err != nil {
 				return nil, errors.Wrapf(err, "deployment %q", app.Name)
 			}
-			log.Debugf("object after population: %#v\n", app)
+			log.Debugf("object after population: %v\n", PrettyPrintObjects(app))
 		}
 
 		// TODO: check if this wasn't set by user, in that case we shouldn't overwrite it
