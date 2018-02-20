@@ -371,10 +371,10 @@ func (app *App) createServices() ([]runtime.Object, error) {
 
 		// Generate ingress if "endpoint" is mentioned in app.Services.Ports[].Endpoint
 		for _, port := range s.Ports {
-			if port.Endpoint != "" {
+			if port.IngressEndpoint != "" {
 				var host string
 				var path string
-				endpoint := strings.SplitN(port.Endpoint, "/", 2)
+				endpoint := strings.SplitN(port.IngressEndpoint, "/", 2)
 				switch len(endpoint) {
 				case 1:
 					host = endpoint[0]
@@ -383,7 +383,7 @@ func (app *App) createServices() ([]runtime.Object, error) {
 					host = endpoint[0]
 					path = "/" + endpoint[1]
 				default:
-					return nil, fmt.Errorf("Invalid syntax for endpoint: %v", port.Endpoint)
+					return nil, fmt.Errorf("Invalid syntax for endpoint: %v", port.IngressEndpoint)
 				}
 
 				ingressName := s.Name + "-" + strconv.FormatInt(int64(port.Port), 10)

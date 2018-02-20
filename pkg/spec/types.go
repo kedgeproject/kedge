@@ -46,10 +46,14 @@ type VolumeClaim struct {
 type ServicePortMod struct {
 	// k8s: io.k8s.kubernetes.pkg.api.v1.ServicePort
 	api_v1.ServicePort `json:",inline"`
-	// Host to create ingress automatically. Endpoint allows specifying an
+	// Host to create ingress automatically. IngressEndpoint allows specifying an
 	// ingress resource in the format '<Host>/<Path>'
 	// +optional
-	Endpoint string `json:"endpoint"`
+	IngressEndpoint string `json:"ingressEndpoint"`
+	// Host to create routes automatically. RouteEndpoint allows specifying an
+	// route resource in the format URL or simply boolean.
+	// +optional
+	RouteEndpoint string `json:"routeEndpoint"`
 }
 
 // ServiceSpecMod is used to define Kubernetes service
