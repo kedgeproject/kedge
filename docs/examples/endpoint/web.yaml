@@ -17,4 +17,4 @@ services:
   ports:
   - port: 8080
     targetPort: 80
-    endpoint: minikube.local  # endpoint: <URL>/<Path>
+    ingressEndpoint: minikube.local  # endpoint: <URL>/<Path>
