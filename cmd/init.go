@@ -44,7 +44,15 @@ So redefining it here which helps us control how the output looks like. This can
 to spec in types.go.
 */
 
-type Container struct {
+type Deployments struct {
+	Containers []Containers `json:"containers,omitempty"`
+}
+
+type DeploymentConfigs struct {
+	Containers []Containers `json:"containers,omitempty"`
+}
+
+type Containers struct {
 	Image string `json:"image,omitempty"`
 }
 
@@ -53,10 +61,10 @@ type Service struct {
 }
 
 type App struct {
-	Name       string      `json:"name,omitempty"`
-	Controller string      `json:"controller,omitempty"`
-	Containers []Container `json:"containers,omitempty"`
-	Services   []Service   `json:"services,omitempty"`
+	Name              string              `json:"name,omitempty"`
+	Deployments       []Deployments       `json:"deployments,omitempty"`
+	DeploymentConfigs []DeploymentConfigs `json:"deploymentConfigs,omitempty"`
+	Services          []Service           `json:"services,omitempty"`
 }
 
 // initCmd represents the version command
@@ -77,22 +85,26 @@ var initCmd = &cobra.Command{
 			fmt.Println("--name and --image are mandatory flags, Please provide these flags")
 			os.Exit(-1)
 		}
-		obj := App{
-			Name:       name,
-			Containers: []Container{{Image: image}},
+		obj := App{}
+
+		switch strings.ToLower(controller) {
+		case "deployment", "":
+			obj = App{
+				Name:        name,
+				Deployments: []Deployments{{Containers: []Containers{{Image: image}}}},
+			}
+		case "deploymentconfig":
+			obj = App{
+				Name:              name,
+				DeploymentConfigs: []DeploymentConfigs{{Containers: []Containers{{Image: image}}}},
+			}
+		default:
+			fmt.Println("'--controller' can only have values [Deployment, Job, DeploymentConfig].")
+			os.Exit(-1)
 		}
 
 		if len(ports) > 0 {
 			obj.Services = []Service{{PortMappings: ports}}
-		}
-
-		// this switch is to check if user is not giving any wrong values
-		switch strings.ToLower(controller) {
-		case "deployment", "job", "deploymentconfig", "":
-			obj.Controller = controller
-		default:
-			fmt.Println("'--controller' can only have values [Deployment, Job, DeploymentConfig].")
-			os.Exit(-1)
 		}
 
 		// convert the internal form to yaml
