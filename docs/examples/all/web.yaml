@@ -29,7 +29,7 @@ services:
   ports:
   - port: 8080
     targetPort: 80
-    endpoint: minikube.local
+    ingressEndpoint: minikube.local
 configMaps:
 - data:
     WORDPRESS_DB_NAME: wordpress
