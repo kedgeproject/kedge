@@ -152,7 +152,7 @@ func Test_examples(t *testing.T) {
 	}
 
 	for _, file := range fileList {
-		cmdStr := fmt.Sprintf("%s generate -f %s --skip-validation", BinaryLocation, file)
+		cmdStr := fmt.Sprintf("%s generate -f %s", BinaryLocation, file)
 		output, err := exec.Command("/bin/sh", "-c", cmdStr).Output()
 		if err != nil {
 			t.Errorf("kedge generate failed for - %s\n Error is - %s", file, output)
