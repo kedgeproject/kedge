@@ -1393,13 +1393,6 @@ var SchemaJson = `
 							],
 							"description": "ServicePortMod is used to define Kubernetes service's port",
 							"properties": {
-								"endpoint": {
-									"type": [
-										"string",
-										"null"
-									],
-									"description": "Host to create ingress automatically. Endpoint allows specifying an ingress resource in the format '<Host>/<Path>'"
-								},
 								"protocol": {
 									"type": [
 										"string",
@@ -1414,11 +1407,6 @@ var SchemaJson = `
 									],
 									"description": "The name of this port within the service. This must be a DNS_LABEL. All ports within a ServiceSpec must have unique names. This maps to the 'Name' field in EndpointPort objects. Optional if only one ServicePort is defined on this service."
 								},
-								"nodePort": {
-									"type": "integer",
-									"description": "The port on each node on which this service is exposed when type=NodePort or LoadBalancer. Usually assigned by the system. If specified, it will be allocated to the service if unused or else creation of the service will fail. Default is to auto-allocate a port if the ServiceType of this Service requires one. More info: https://kubernetes.io/docs/concepts/services-networking/service/#type-nodeport",
-									"format": "int32"
-								},
 								"targetPort": {
 									"oneOf": [
 										{
@@ -1431,6 +1419,25 @@ var SchemaJson = `
 											"type": "integer"
 										}
 									]
+								},
+								"routeEndpoint": {
+									"type": [
+										"string",
+										"null"
+									],
+									"description": "Host to create routes automatically. RouteEndpoint allows specifying an route resource in the format URL or simply boolean."
+								},
+								"nodePort": {
+									"type": "integer",
+									"description": "The port on each node on which this service is exposed when type=NodePort or LoadBalancer. Usually assigned by the system. If specified, it will be allocated to the service if unused or else creation of the service will fail. Default is to auto-allocate a port if the ServiceType of this Service requires one. More info: https://kubernetes.io/docs/concepts/services-networking/service/#type-nodeport",
+									"format": "int32"
+								},
+								"ingressEndpoint": {
+									"type": [
+										"string",
+										"null"
+									],
+									"description": "Host to create ingress automatically. IngressEndpoint allows specifying an ingress resource in the format '<Host>/<Path>'"
 								},
 								"port": {
 									"type": "integer",
