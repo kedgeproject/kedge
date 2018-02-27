@@ -1,0 +1,8 @@
+deployments:
+- containers:
+  - image: centos/httpd
+  restartPolicy: Always
+name: httpd
+services:
+- portMappings:
+  - "80"

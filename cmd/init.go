@@ -26,9 +26,10 @@ import (
 )
 
 var (
-	fileName, image, name string
-	controller            string
-	ports                 []string
+	fileName, image, name          string
+	controller                     string
+	imagepullpolicy, restartpolicy string
+	ports                          []string
 )
 
 /*
@@ -45,15 +46,18 @@ to spec in types.go.
 */
 
 type Deployments struct {
-	Containers []Containers `json:"containers,omitempty"`
+	Containers    []Containers `json:"containers,omitempty"`
+	RestartPolicy string       `json:"restartPolicy,omitempty"`
 }
 
 type DeploymentConfigs struct {
-	Containers []Containers `json:"containers,omitempty"`
+	Containers    []Containers `json:"containers,omitempty"`
+	RestartPolicy string       `json:"restartPolicy,omitempty"`
 }
 
 type Containers struct {
-	Image string `json:"image,omitempty"`
+	Image           string `json:"image,omitempty"`
+	ImagePullPolicy string `json:"imagePullPolicy,omitempty"`
 }
 
 type Service struct {
@@ -91,12 +95,12 @@ var initCmd = &cobra.Command{
 		case "deployment", "":
 			obj = App{
 				Name:        name,
-				Deployments: []Deployments{{Containers: []Containers{{Image: image}}}},
+				Deployments: []Deployments{{Containers: []Containers{{Image: image, ImagePullPolicy: imagepullpolicy}}, RestartPolicy: restartpolicy}},
 			}
 		case "deploymentconfig":
 			obj = App{
 				Name:              name,
-				DeploymentConfigs: []DeploymentConfigs{{Containers: []Containers{{Image: image}}}},
+				DeploymentConfigs: []DeploymentConfigs{{Containers: []Containers{{Image: image, ImagePullPolicy: imagepullpolicy}}, RestartPolicy: restartpolicy}},
 			}
 		default:
 			fmt.Println("'--controller' can only have values [Deployment, Job, DeploymentConfig].")
@@ -136,5 +140,7 @@ func init() {
 	initCmd.Flags().StringVarP(&image, "image", "i", "", "The image for the container to run")
 	initCmd.Flags().StringSliceVarP(&ports, "ports", "p", []string{}, "The ports that this container exposes")
 	initCmd.Flags().StringVarP(&controller, "controller", "c", "", "The type of controller this application is. Legal values [Deployment, Job, DeploymentConfig]. Default 'Deployment'.")
+	initCmd.Flags().StringVarP(&restartpolicy, "restart-policy", "r", "", "Type of Restart Policy. Legal values [Always, OnFailure, Never]. ")
+	initCmd.Flags().StringVarP(&imagepullpolicy, "image-pull-policy", "", "", "Type of Image pull policy. Legal values [Always, Never, IfNotPresent]. ")
 	RootCmd.AddCommand(initCmd)
 }

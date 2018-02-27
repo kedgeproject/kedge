@@ -211,6 +211,18 @@ func Test_init(t *testing.T) {
 			wantSuccess: true,
 			input:       Fixtures + "init/kedge2.yml",
 		},
+		{
+			name:        "kedge init with name & image & ports & restartPolicy",
+			command:     []string{"init", "--name", svcname, "--image", image, "--ports", ports, "--restart-policy", "Always"},
+			wantSuccess: true,
+			input:       Fixtures + "init/kedge3.yml",
+		},
+		{
+			name:        "kedge init with name & image & ports & restartPolicy & imagePullPolicy",
+			command:     []string{"init", "--name", svcname, "--image", image, "--ports", ports, "--restart-policy", "Always", "--image-pull-policy", "Always"},
+			wantSuccess: true,
+			input:       Fixtures + "init/kedge4.yml",
+		},
 	}
 
 	for _, tt := range testCases {

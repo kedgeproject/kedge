@@ -1,0 +1,9 @@
+deployments:
+- containers:
+  - image: centos/httpd
+    imagePullPolicy: Always
+  restartPolicy: Always
+name: httpd
+services:
+- portMappings:
+  - "80"
