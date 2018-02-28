@@ -17,7 +17,6 @@ limitations under the License.
 package cmd
 
 import (
-	"fmt"
 	"os"
 
 	pkgcmd "github.com/kedgeproject/kedge/pkg/cmd"
@@ -31,7 +30,7 @@ var applyCmd = &cobra.Command{
 	Short: "Apply (or create if it does not exist) a configuration to a resource on the Kubernetes cluster",
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := ifFilesPassed(InputFiles); err != nil {
-			fmt.Println(err)
+			usageError(cmd.CommandPath(), err)
 			os.Exit(-1)
 		}
 
@@ -44,7 +43,6 @@ var applyCmd = &cobra.Command{
 		}
 
 		if err := pkgcmd.CreateArtifacts(InputFiles, false, SkipValidation, command...); err != nil {
-			fmt.Println(err)
 			os.Exit(-1)
 		}
 	},

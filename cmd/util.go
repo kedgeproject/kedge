@@ -19,6 +19,7 @@ package cmd
 import (
 	"path/filepath"
 
+	"fmt"
 	"log"
 
 	"github.com/pkg/errors"
@@ -58,4 +59,9 @@ func removeDuplicateFiles(inputFiles []string) []string {
 		}
 	}
 	return fileSet
+}
+
+// UsageError will show errors with suggestion to see help
+func usageError(cmdPath string, err error) {
+	fmt.Printf("%s\nSee '%s -h' for help and examples.\n", err, cmdPath)
 }

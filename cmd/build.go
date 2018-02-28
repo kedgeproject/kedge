@@ -36,7 +36,7 @@ var buildCmd = &cobra.Command{
 	Short: "Build application image",
 	Run: func(cmd *cobra.Command, args []string) {
 		if DockerImage == "" {
-			fmt.Println("Please specify the container image name using flag '--image' or '-i'")
+			usageError(cmd.CommandPath(), fmt.Errorf("Please specify the container image name using flag '--image' or '-i'"))
 			os.Exit(-1)
 		}
 
@@ -45,7 +45,7 @@ var buildCmd = &cobra.Command{
 				log.Warnf("Using source to image strategy for build, image will be by default pushed to internal container registry, so ignoring this flag")
 			}
 			if BuilderImage == "" {
-				fmt.Println("Please specify the builder image name using flag '--builder-image' or '-b'")
+				usageError(cmd.CommandPath(), fmt.Errorf("Please specify the builder image name using flag '--builder-image' or '-b'"))
 				os.Exit(-1)
 			}
 			if err := build.BuildS2I(DockerImage, DockerContext, BuilderImage, Namespace); err != nil {

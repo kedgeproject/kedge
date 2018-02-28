@@ -30,7 +30,7 @@ var deleteCmd = &cobra.Command{
 	Short: "Delete the resource from the Kubernetes cluster",
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := ifFilesPassed(InputFiles); err != nil {
-			fmt.Println(err)
+			usageError(cmd.CommandPath(), err)
 			os.Exit(-1)
 		}
 

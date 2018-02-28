@@ -82,7 +82,7 @@ var initCmd = &cobra.Command{
 
 		// mandatory fields check
 		if name == "" || image == "" {
-			fmt.Println("--name and --image are mandatory flags, Please provide these flags")
+			usageError(cmd.CommandPath(), fmt.Errorf("--name and --image are mandatory flags, Please provide these flags"))
 			os.Exit(-1)
 		}
 		obj := App{}

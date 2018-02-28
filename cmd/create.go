@@ -30,7 +30,7 @@ var createCmd = &cobra.Command{
 	Short: "Create the resource on the Kubernetes cluster",
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := ifFilesPassed(InputFiles); err != nil {
-			fmt.Println(err)
+			usageError(cmd.CommandPath(), err)
 			os.Exit(-1)
 		}
 

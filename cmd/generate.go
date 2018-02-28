@@ -30,7 +30,7 @@ var generateCmd = &cobra.Command{
 	Short: "Generate Kubernetes resources from an app definition",
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := ifFilesPassed(InputFiles); err != nil {
-			fmt.Println(err)
+			usageError(cmd.CommandPath(), err)
 			os.Exit(-1)
 		}
 		InputFiles = removeDuplicateFiles(InputFiles)
