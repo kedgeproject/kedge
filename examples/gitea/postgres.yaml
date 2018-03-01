@@ -1,0 +1,71 @@
+name: postgresql
+
+labels:
+    app: postgresql
+
+deployments:
+- containers:
+  - name: postgresql
+    image: "postgres:9.6"
+    imagePullPolicy: ""
+    livenessProbe:
+      exec:
+        command:
+        - sh
+        - -c
+        - exec pg_isready --host $POD_IP
+      initialDelaySeconds: 60
+      timeoutSeconds: 5
+      failureThreshold: 6
+    readinessProbe:
+      exec:
+        command:
+        - sh
+        - -c
+        - exec pg_isready --host $POD_IP
+      initialDelaySeconds: 5
+      timeoutSeconds: 3
+      periodSeconds: 5
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+
+    # Environment variables
+    env:
+    - name: POSTGRES_USER
+      value: "gitea"
+    - name: PGUSER
+      value: "gitea"
+    - name: POSTGRES_DB
+      value: "gitea"
+    - name: POSTGRES_INITDB_ARGS
+      value: ""
+    - name: PGDATA
+      value: /var/lib/postgresql/data/pgdata
+    - name: POSTGRES_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: postgresql
+          key: postgres-password
+    - name: POD_IP
+      valueFrom: { fieldRef: { fieldPath: status.podIP } }
+
+    volumeMounts:
+    - name: postgres-data
+      mountPath: /var/lib/postgresql/data/pgdata
+      subPath: postgresql-db
+
+services:
+- name: postgresql
+  portMappings:
+    - 5432:5432
+
+volumeClaims:
+- name: postgres-data
+  size: 10Gi
+
+secrets:
+- name: postgresql
+  data:
+    postgres-password:  "Z2l0ZWE="

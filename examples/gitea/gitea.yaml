@@ -1,0 +1,122 @@
+name: gitea
+
+labels:
+  app: gitea
+
+deployments:
+- name: gitea
+
+  volumes:
+    - name: gitea-config
+      configMap:
+        name: gitea-config
+    - name: gitea-data
+      persistentVolumeClaim:
+        claimName: gitea-data
+
+  containers:
+  - name: gitea
+    image: gitea/gitea:1.3.2
+    imagePullPolicy: IfNotPresent
+    health:
+      httpGet:
+        path: /
+        port: 3000
+      initialDelaySeconds: 200
+      timeoutSeconds: 1
+      periodSeconds: 10
+      successThreshold: 1
+      failureThreshold: 10
+    volumeMounts:
+      - name: gitea-data
+        mountPath: /data
+      - name: gitea-config
+        mountPath: /data/gitea/conf/app.ini
+        subPath: app.ini
+
+services:
+- name: gitea
+  type: LoadBalancer
+  portMappings:
+    - 80:3000
+    - 22:22
+
+volumeClaims:
+- name: gitea-data
+  size: 10Gi
+- name: gitea-config
+  size: 10Gi
+
+secrets:
+- data:
+    postgresql-user: "Z2l0ZWE="
+
+configMaps:
+- name: gitea-config
+  data:
+    app.ini: |-
+      APP_NAME = Gitea
+      RUN_MODE = prod
+
+      [repository.upload]
+      ENABLED = true
+      ALLOWED_TYPES = 
+      MAX_FILE_SIZE = 3
+      MAX_FILES = 5
+
+      [server]
+      PROTOCOL = http
+      DOMAIN = gitea.example.com
+      ROOT_URL = http://gitea.example.com/
+      LANDING_PAGE = home
+      SSH_DOMAIN = localhost
+      SSH_PORT = 22
+      SSH_LISTEN_PORT = 22
+
+      [service]
+      ENABLE_CAPTCHA = true
+      ACTIVE_CODE_LIVE_MINUTES = 180
+      RESET_PASSWD_CODE_LIVE_MINUTES = 180
+      REGISTER_EMAIL_CONFIRM = false
+      DISABLE_REGISTRATION = false
+      REQUIRE_SIGNIN_VIEW = false
+      ENABLE_NOTIFY_MAIL = false
+      ENABLE_REVERSE_PROXY_AUTHENTICATION = false
+      ENABLE_REVERSE_PROXY_AUTO_REGISTRATION = false
+
+      [database]
+      DB_TYPE = "postgres"
+      HOST = postgresql
+      NAME = "gitea"
+      USER = "gitea"
+      PASSWD = "gitea"
+      SSL_MODE = disable
+
+      [security]
+      INSTALL_LOCK = true
+      SECRET_KEY = "Y2hhbmdlbWU="
+
+      [ui]
+      EXPLORE_PAGING_NUM = 20
+      ISSUE_PAGING_NUM = 10
+      FEED_MAX_COMMIT_NUM = 5
+
+      [cache]
+      ADAPTER = memory
+      INTERVAL = 60
+      HOST = 
+
+      [webhook]
+      QUEUE_LENGTH = 1000
+      DELIVER_TIMEOUT = 5
+      SKIP_TLS_VERIFY = true
+      PAGING_NUM = 10
+
+      [log]
+      MODE = console
+      LEVEL = Trace
+
+      [other]
+      SHOW_FOOTER_BRANDING = false
+      SHOW_FOOTER_VERSION = true
+      SHOW_FOOTER_TEMPLATE_LOAD_TIME = true
