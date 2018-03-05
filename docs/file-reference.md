@@ -460,12 +460,26 @@ containers:
   health: <probe>
 ```
 
-| Type   | Required | Description                                                       |
-|--------|----------|-------------------------------------------------------------------|
-| string | yes      | The name of the app or microservice this particular file defines. |
+> Using health with a Guestbook example
 
-This is `probe` spec. Rather than defining `livenessProbe` and `readinessProbe`, define only `health`. And then it gets copied in both in the resultant spec. 
-But if `health` and `livenessProbe` or `readinessProbe` are defined simultaneously then the tool will error out.
+```yaml
+deployments:
+- containers:
+  - name: guestbook
+    image: gcr.io/google_containers/guestbook:v3
+    health:
+      httpGet:
+        path: /
+        port: 3000
+      initialDelaySeconds: 20
+      timeoutSeconds: 5
+```
+
+| Type   | Required | Description                                                                                                                         |
+|--------|----------|-------------------------------------------------------------------------------------------------------------------------------------|
+| string | yes      | A probe as defined by [Kubernetes Probe v1 core](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.9/#probe-v1-core) |
+
+`health` copies a [Kubernetes Probe spec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.9/#probe-v1-core) to both `livenessProbe` and `readinessProbe`. Thus only having to define it once.
 
 ### Kubernetes extension
 

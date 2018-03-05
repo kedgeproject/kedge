@@ -988,6 +988,20 @@ Each "container" is a Kubernetes <a target="_blank" href="https://v1-6.docs.kube
 <span class="pi">-</span> <span class="na">image</span><span class="pi">:</span> <span class="s">foobar</span>
   <span class="na">health</span><span class="pi">:</span> <span class="s">&lt;probe&gt;</span>
 </code></pre>
+<blockquote>
+<p>Using health with a Guestbook example</p>
+</blockquote>
+<pre class="highlight yaml tab-yaml"><code><span class="na">deployments</span><span class="pi">:</span>
+<span class="pi">-</span> <span class="na">containers</span><span class="pi">:</span>
+  <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">guestbook</span>
+    <span class="na">image</span><span class="pi">:</span> <span class="s">gcr.io/google_containers/guestbook:v3</span>
+    <span class="na">health</span><span class="pi">:</span>
+      <span class="na">httpGet</span><span class="pi">:</span>
+        <span class="na">path</span><span class="pi">:</span> <span class="s">/</span>
+        <span class="na">port</span><span class="pi">:</span> <span class="s">3000</span>
+      <span class="na">initialDelaySeconds</span><span class="pi">:</span> <span class="s">20</span>
+      <span class="na">timeoutSeconds</span><span class="pi">:</span> <span class="s">5</span>
+</code></pre>
 <table><thead>
 <tr>
 <th>Type</th>
@@ -998,12 +1012,11 @@ Each "container" is a Kubernetes <a target="_blank" href="https://v1-6.docs.kube
 <tr>
 <td>string</td>
 <td>yes</td>
-<td>The name of the app or microservice this particular file defines.</td>
+<td>A probe as defined by <a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.9/#probe-v1-core">Kubernetes Probe v1 core</a></td>
 </tr>
 </tbody></table>
 
-<p>This is <code>probe</code> spec. Rather than defining <code>livenessProbe</code> and <code>readinessProbe</code>, define only <code>health</code>. And then it gets copied in both in the resultant spec. 
-But if <code>health</code> and <code>livenessProbe</code> or <code>readinessProbe</code> are defined simultaneously then the tool will error out.</p>
+<p><code>health</code> copies a <a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.9/#probe-v1-core">Kubernetes Probe spec</a> to both <code>livenessProbe</code> and <code>readinessProbe</code>. Thus only having to define it once.</p>
 <h3 id='kubernetes-extension'>Kubernetes extension</h3>
 <blockquote>
 <p>Example extending <code>containers</code> with Kubernetes Container Spec</p>
