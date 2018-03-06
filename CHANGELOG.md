@@ -1,5 +1,30 @@
 # Change Log
 
+## [v0.10.0](https://github.com/kedgeproject/kedge/tree/v0.10.0) (2018-03-06)
+[Full Changelog](https://github.com/kedgeproject/kedge/compare/v0.9.0...v0.10.0)
+
+**Closed issues:**
+
+- Getting false positive errors for validation... [\#606](https://github.com/kedgeproject/kedge/issues/606)
+- outdated `kedge init` [\#587](https://github.com/kedgeproject/kedge/issues/587)
+- OpenShift tests failing [\#568](https://github.com/kedgeproject/kedge/issues/568)
+- Test all examples in docs/examples and examples [\#558](https://github.com/kedgeproject/kedge/issues/558)
+- Move from the kubernetes cluster to `oc cluster up` cluster [\#376](https://github.com/kedgeproject/kedge/issues/376)
+- kedge does not filter duplicate input data [\#373](https://github.com/kedgeproject/kedge/issues/373)
+- kedge does not fail when extra fields specified [\#168](https://github.com/kedgeproject/kedge/issues/168)
+- Pretty print debug logs [\#123](https://github.com/kedgeproject/kedge/issues/123)
+
+**Merged pull requests:**
+
+- Improve documentation on health [\#607](https://github.com/kedgeproject/kedge/pull/607) ([cdrage](https://github.com/cdrage))
+- Updated JSONschema in /pkg/validation [\#600](https://github.com/kedgeproject/kedge/pull/600) ([surajnarwade](https://github.com/surajnarwade))
+- Revert "Skipped validation test temporarily" [\#599](https://github.com/kedgeproject/kedge/pull/599) ([containscafeine](https://github.com/containscafeine))
+- Skipped validation test temporarily [\#598](https://github.com/kedgeproject/kedge/pull/598) ([surajnarwade](https://github.com/surajnarwade))
+- Updated shortcuts for ingress and route [\#597](https://github.com/kedgeproject/kedge/pull/597) ([surajnarwade](https://github.com/surajnarwade))
+- Pretty print debug logs [\#596](https://github.com/kedgeproject/kedge/pull/596) ([surajnarwade](https://github.com/surajnarwade))
+- remove duplicate entries of input data [\#593](https://github.com/kedgeproject/kedge/pull/593) ([surajnarwade](https://github.com/surajnarwade))
+- Fixed `kedge init` according to new syntax [\#586](https://github.com/kedgeproject/kedge/pull/586) ([surajnarwade](https://github.com/surajnarwade))
+
 ## [v0.9.0](https://github.com/kedgeproject/kedge/tree/v0.9.0) (2018-02-13)
 [Full Changelog](https://github.com/kedgeproject/kedge/compare/v0.8.0...v0.9.0)
 
@@ -15,6 +40,7 @@
 
 **Merged pull requests:**
 
+- 0.9.0 Release [\#591](https://github.com/kedgeproject/kedge/pull/591) ([cdrage](https://github.com/cdrage))
 - Add capitalization to commands [\#589](https://github.com/kedgeproject/kedge/pull/589) ([cdrage](https://github.com/cdrage))
 - Fixing typos [\#583](https://github.com/kedgeproject/kedge/pull/583) ([surajnarwade](https://github.com/surajnarwade))
 - Fixed broken build [\#581](https://github.com/kedgeproject/kedge/pull/581) ([surajnarwade](https://github.com/surajnarwade))
