@@ -33,6 +33,7 @@ var generateCmd = &cobra.Command{
 			fmt.Println(err)
 			os.Exit(-1)
 		}
+		InputFiles = removeDuplicateFiles(InputFiles)
 		if err := pkgcmd.CreateArtifacts(InputFiles, true, SkipValidation, ""); err != nil {
 			fmt.Println(err)
 			os.Exit(-1)

@@ -16,7 +16,13 @@ limitations under the License.
 
 package cmd
 
-import "github.com/pkg/errors"
+import (
+	"path/filepath"
+
+	"log"
+
+	"github.com/pkg/errors"
+)
 
 // Common global variables being used for kedge subcommands are declared here.
 // Before adding anything here, make sure that the subcommands using these
@@ -35,4 +41,21 @@ func ifFilesPassed(files []string) error {
 		return errors.New("No files were passed. Please pass file(s) using '-f' or '--files'")
 	}
 	return nil
+}
+
+// removeDuplicateFiles function will see input files and will remove duplicate entries
+func removeDuplicateFiles(inputFiles []string) []string {
+	files := map[string]bool{}
+	fileSet := []string{}
+	for v := range inputFiles {
+		absPath, err := filepath.Abs(inputFiles[v])
+		if err != nil {
+			log.Fatalf("Given file %s is not present", inputFiles[v])
+		}
+		if !files[absPath] {
+			files[absPath] = true
+			fileSet = append(fileSet, inputFiles[v])
+		}
+	}
+	return fileSet
 }
