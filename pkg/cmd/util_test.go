@@ -149,11 +149,13 @@ func TestSubstituteVariables(t *testing.T) {
 	}
 
 	tests := []struct {
+		name             string
 		input            []byte
 		out              []byte
 		shouldRaiseError bool
 	}{
 		{
+			"",
 			[]byte(`
 				name: httpd
 				containers:
@@ -167,6 +169,7 @@ func TestSubstituteVariables(t *testing.T) {
 			false,
 		},
 		{
+			"",
 			[]byte(`
 			name: [[ TEST_SERVICE_NAME]]
 			containers:
@@ -180,6 +183,7 @@ func TestSubstituteVariables(t *testing.T) {
 			false,
 		},
 		{
+			"",
 			[]byte(`
 				name: httpd-[[ NONEXISTING ]]
 				containers:
@@ -189,6 +193,7 @@ func TestSubstituteVariables(t *testing.T) {
 			true,
 		},
 		{
+			"",
 			[]byte(`
 				name: httpd
 				containers:
@@ -202,6 +207,7 @@ func TestSubstituteVariables(t *testing.T) {
 			false,
 		},
 		{
+			"",
 			[]byte(`
 				name: httpd
 				containers:
@@ -215,6 +221,7 @@ func TestSubstituteVariables(t *testing.T) {
 			false,
 		},
 		{
+			"",
 			[]byte(`
 				name: httpd
 				containers:
@@ -228,6 +235,7 @@ func TestSubstituteVariables(t *testing.T) {
 			false,
 		},
 		{
+			"",
 			[]byte(`
 				name: httpd
 				containers:
@@ -241,6 +249,7 @@ func TestSubstituteVariables(t *testing.T) {
 			false,
 		},
 		{
+			"",
 			[]byte(`
 				name: httpd
 				containers:
@@ -253,22 +262,37 @@ func TestSubstituteVariables(t *testing.T) {
 				`),
 			false,
 		},
+		{
+			"Env variable has spaces around it and also has default value",
+			[]byte(`
+				name: httpd
+				containers:
+				- image: foo/bar:[[ TEST_IMAGE_TAG : latest ]]
+				`),
+			[]byte(`
+				name: httpd
+				containers:
+				- image: foo/bar:version
+				`),
+			false,
+		},
 	}
 
 	for _, test := range tests {
-		output, err := SubstituteVariables(test.input)
+		t.Run(test.name, func(t *testing.T) {
+			output, err := SubstituteVariables(test.input)
 
-		if test.shouldRaiseError && err == nil {
-			t.Errorf("input should cause error, but no error was returned \n input: %s\n", string(test.input[:]))
-		}
+			if test.shouldRaiseError && err == nil {
+				t.Errorf("input should cause error, but no error was returned \n input: %s\n", string(test.input[:]))
+			}
 
-		if !test.shouldRaiseError && err != nil {
-			t.Errorf("input caused error \n error: %s", err)
-		}
+			if !test.shouldRaiseError && err != nil {
+				t.Errorf("input caused error \n error: %s", err)
+			}
 
-		if !bytes.Equal(output, test.out) {
-			t.Errorf("output doesn't match expected output \n output  : %s \n expected: %s \n", string(output[:]), string(test.out[:]))
-		}
-
+			if !bytes.Equal(output, test.out) {
+				t.Errorf("output doesn't match expected output \n output  : %s \n expected: %s \n", string(output[:]), string(test.out[:]))
+			}
+		})
 	}
 }
