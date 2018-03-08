@@ -164,7 +164,7 @@ func replaceWithEnv(in []byte) []byte {
 	slice := strings.Split(name, ":")
 	// if slice has 2 elements, i.e given variable has default value
 	if len(slice) == 2 {
-		name = slice[0]
+		name = strings.TrimSpace(slice[0])
 		// look into environment for the value
 		value, found = os.LookupEnv(name)
 		// put default value if it's not present in environment
