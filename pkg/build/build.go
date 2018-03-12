@@ -263,7 +263,7 @@ func BuildS2I(image, context, builderImage string, namespace string) error {
 			},
 		},
 	}
-
+	check := true
 	bc := os_build_v1.BuildConfig{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "BuildConfig",
@@ -283,6 +283,7 @@ func BuildS2I(image, context, builderImage string, namespace string) error {
 							Kind: "DockerImage",
 							Name: builderImage,
 						},
+						Incremental: &check,
 					},
 				},
 				Output: os_build_v1.BuildOutput{
