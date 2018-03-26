@@ -1,5 +1,17 @@
 # Change Log
 
+## [v0.11.0](https://github.com/kedgeproject/kedge/tree/v0.11.0) (2018-03-26)
+[Full Changelog](https://github.com/kedgeproject/kedge/compare/v0.10.0...v0.11.0)
+
+**Closed issues:**
+
+- Default value replacement is space sensitive [\#611](https://github.com/kedgeproject/kedge/issues/611)
+- Validate the output using kubeval as part of functional tests [\#184](https://github.com/kedgeproject/kedge/issues/184)
+
+**Merged pull requests:**
+
+- Trim whitespaces before env lookup [\#612](https://github.com/kedgeproject/kedge/pull/612) ([surajssd](https://github.com/surajssd))
+
 ## [v0.10.0](https://github.com/kedgeproject/kedge/tree/v0.10.0) (2018-03-06)
 [Full Changelog](https://github.com/kedgeproject/kedge/compare/v0.9.0...v0.10.0)
 
@@ -16,6 +28,7 @@
 
 **Merged pull requests:**
 
+- 0.10.0 Release [\#608](https://github.com/kedgeproject/kedge/pull/608) ([cdrage](https://github.com/cdrage))
 - Improve documentation on health [\#607](https://github.com/kedgeproject/kedge/pull/607) ([cdrage](https://github.com/cdrage))
 - Updated JSONschema in /pkg/validation [\#600](https://github.com/kedgeproject/kedge/pull/600) ([surajnarwade](https://github.com/surajnarwade))
 - Revert "Skipped validation test temporarily" [\#599](https://github.com/kedgeproject/kedge/pull/599) ([containscafeine](https://github.com/containscafeine))
