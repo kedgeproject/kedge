@@ -18,6 +18,7 @@ package cmd
 
 import (
 	"bytes"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -136,16 +137,17 @@ func TestReplaceWithEnv(t *testing.T) {
 }
 
 func TestSubstituteVariables(t *testing.T) {
-	err := os.Setenv("TEST_IMAGE_TAG", "version")
-	if err != nil {
-		t.Error(err)
-		t.FailNow()
+	envs := map[string]string{
+		"TEST_IMAGE_TAG":    "version",
+		"TEST_SERVICE_NAME": "name",
+		"WEB_APP_URL":       "webapp:8080",
 	}
-
-	err = os.Setenv("TEST_SERVICE_NAME", "name")
-	if err != nil {
-		t.Error(err)
-		t.FailNow()
+	for k, v := range envs {
+		err := os.Setenv(k, v)
+		if err != nil {
+			t.Error(fmt.Errorf("error setting environment variable, %s=%s: %v", k, v, err))
+			t.FailNow()
+		}
 	}
 
 	tests := []struct {
@@ -274,6 +276,46 @@ func TestSubstituteVariables(t *testing.T) {
 				containers:
 				- image: foo/bar:version
 				`),
+			false,
+		},
+		{
+			"Default value has colon",
+			[]byte(`
+				name: httpd
+				containers:
+				- image: foo/bar:version
+				  env:
+				  - name: APP_URL
+				    value: [[ APP_URL:app:8080 ]]
+			`),
+			[]byte(`
+				name: httpd
+				containers:
+				- image: foo/bar:version
+				  env:
+				  - name: APP_URL
+				    value: app:8080
+			`),
+			false,
+		},
+		{
+			"Default value has colon but variable is exported in environment",
+			[]byte(`
+				name: httpd
+				containers:
+				- image: foo/bar:version
+				  env:
+				  - name: APP_URL
+				    value: [[ WEB_APP_URL:app:8080 ]]
+			`),
+			[]byte(`
+				name: httpd
+				containers:
+				- image: foo/bar:version
+				  env:
+				  - name: APP_URL
+				    value: webapp:8080
+			`),
 			false,
 		},
 	}
