@@ -162,14 +162,16 @@ func replaceWithEnv(in []byte) []byte {
 	var found bool
 	// Splitting string with separator ":"
 	slice := strings.Split(name, ":")
-	// if slice has 2 elements, i.e given variable has default value
-	if len(slice) == 2 {
+	// if slice has 2 or more elements, i.e given variable has default value
+	// there could be more than two elements when the default value has one or
+	// more colons
+	if len(slice) >= 2 {
 		name = strings.TrimSpace(slice[0])
 		// look into environment for the value
 		value, found = os.LookupEnv(name)
 		// put default value if it's not present in environment
 		if !found && value == "" {
-			value = strings.TrimSpace(slice[1])
+			value = strings.TrimSpace(strings.Join(slice[1:], ":"))
 		}
 	} else {
 		// default value is not provided
