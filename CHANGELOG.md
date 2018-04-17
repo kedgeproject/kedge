@@ -1,5 +1,12 @@
 # Change Log
 
+## [v0.12.0](https://github.com/kedgeproject/kedge/tree/v0.12.0) (2018-04-17)
+[Full Changelog](https://github.com/kedgeproject/kedge/compare/v0.11.0...v0.12.0)
+
+**Merged pull requests:**
+
+- Default value having colon can be parsed now [\#616](https://github.com/kedgeproject/kedge/pull/616) ([surajssd](https://github.com/surajssd))
+
 ## [v0.11.0](https://github.com/kedgeproject/kedge/tree/v0.11.0) (2018-03-26)
 [Full Changelog](https://github.com/kedgeproject/kedge/compare/v0.10.0...v0.11.0)
 
@@ -10,6 +17,7 @@
 
 **Merged pull requests:**
 
+- 0.11.0 Release [\#615](https://github.com/kedgeproject/kedge/pull/615) ([cdrage](https://github.com/cdrage))
 - Trim whitespaces before env lookup [\#612](https://github.com/kedgeproject/kedge/pull/612) ([surajssd](https://github.com/surajssd))
 
 ## [v0.10.0](https://github.com/kedgeproject/kedge/tree/v0.10.0) (2018-03-06)
