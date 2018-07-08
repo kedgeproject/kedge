@@ -1,10 +1,8 @@
 FROM golang:1.8
 
-WORKDIR /go/src/app
+WORKDIR /go/src/github.com/kedgeproject/kedge
 COPY . .
 
-RUN go-wrapper download
-RUN go-wrapper install
-RUN go get github.com/kubernetes/kubernetes/cmd/kubectl
+RUN go install
 
-ENTRYPOINT ["app"]
+ENTRYPOINT ["kedge"]
